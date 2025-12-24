@@ -3,7 +3,7 @@
 import unittest
 from unittest.mock import Mock, patch
 
-from kuhl_haus.mdp.helpers.process_manager import ProcessManager
+from src.kuhl_haus.mdp.helpers.process_manager import ProcessManager
 
 
 class TestProcessManager(unittest.TestCase):
@@ -13,9 +13,9 @@ class TestProcessManager(unittest.TestCase):
         """Set up a ProcessManager instance for testing."""
         self.process_manager = ProcessManager()
 
-    @patch("kuhl_haus.mdp.helpers.process_manager.Process")
-    @patch("kuhl_haus.mdp.helpers.process_manager.Queue")
-    @patch("kuhl_haus.mdp.helpers.process_manager.MPEvent")
+    @patch("src.kuhl_haus.mdp.helpers.process_manager.Process")
+    @patch("src.kuhl_haus.mdp.helpers.process_manager.Queue")
+    @patch("src.kuhl_haus.mdp.helpers.process_manager.MPEvent")
     def test_start_worker_creates_and_starts_process(self, mock_mp_event, mock_queue, mock_process):
         """
         Test that start_worker creates and starts a process correctly.
@@ -35,8 +35,8 @@ class TestProcessManager(unittest.TestCase):
         self.assertIn(worker_name, self.process_manager.status_queues)
         mock_process.return_value.start.assert_called_once()
 
-    @patch("kuhl_haus.mdp.helpers.process_manager.logger")
-    @patch("kuhl_haus.mdp.helpers.process_manager.Process")
+    @patch("src.kuhl_haus.mdp.helpers.process_manager.logger")
+    @patch("src.kuhl_haus.mdp.helpers.process_manager.Process")
     def test_stop_process_stops_running_process(self, mock_process, mock_logger):
         """
         Test that stop_process stops a running process.
@@ -61,7 +61,7 @@ class TestProcessManager(unittest.TestCase):
         mock_process_instance.join.assert_any_call(timeout=10.0)
         mock_process_instance.kill.assert_called_once()
 
-    @patch("kuhl_haus.mdp.helpers.process_manager.logger")
+    @patch("src.kuhl_haus.mdp.helpers.process_manager.logger")
     def test_get_status_returns_correct_status(self, mock_logger):
         """
         Test that get_status returns the correct status for a worker.
@@ -101,7 +101,7 @@ class TestProcessManager(unittest.TestCase):
         self.assertEqual(status, {"alive": False})
 
 
-    @patch("kuhl_haus.mdp.helpers.process_manager.ProcessManager.stop_process")
+    @patch("src.kuhl_haus.mdp.helpers.process_manager.ProcessManager.stop_process")
     def test_stop_all_stops_all_processes(self, mock_stop_process):
         """
         Test that stop_all stops all running processes.
