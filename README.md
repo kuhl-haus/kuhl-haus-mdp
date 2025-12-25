@@ -11,7 +11,7 @@
 [![PyPI](https://img.shields.io/pypi/v/kuhl-haus-mdp.svg)](https://pypi.org/project/kuhl-haus-mdp/)
 [![Downloads](https://static.pepy.tech/badge/kuhl-haus-mdp/month)](https://pepy.tech/project/kuhl-haus-mdp)
 [![Build Status](https://github.com/kuhl-haus/kuhl-haus-mdp/actions/workflows/publish-to-pypi.yml/badge.svg)](https://github.com/kuhl-haus/kuhl-haus-mdp/actions/workflows/publish-to-pypi.yml)
-[![CodeQL](https://github.com/kuhl-haus/kuhl-haus-mdp/workflows/CodeQL/badge.svg)](https://github.com/kuhl-haus/kuhl-haus-mdp/actions/workflows/github-code-scanning/codeql/)
+[![CodeQL Advanced](https://github.com/kuhl-haus/kuhl-haus-mdp/actions/workflows/codeql.yml/badge.svg)](https://github.com/kuhl-haus/kuhl-haus-mdp/actions/workflows/codeql.yml)
 [![codecov](https://codecov.io/gh/kuhl-haus/kuhl-haus-mdp/branch/mainline/graph/badge.svg)](https://codecov.io/gh/kuhl-haus/kuhl-haus-mdp)
 [![GitHub issues](https://img.shields.io/github/issues/kuhl-haus/kuhl-haus-mdp)](https://github.com/kuhl-haus/kuhl-haus-mdp/issues)
 [![GitHub pull requests](https://img.shields.io/github/issues-pr/kuhl-haus/kuhl-haus-mdp)](https://github.com/kuhl-haus/kuhl-haus-mdp/pulls)
