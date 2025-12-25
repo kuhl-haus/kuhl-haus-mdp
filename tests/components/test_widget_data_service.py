@@ -2,7 +2,7 @@ import unittest
 from typing import Any
 from unittest.mock import Mock, patch
 
-from src.kuhl_haus.mdp.components.widget_data_service import WidgetDataService
+from kuhl_haus.mdp.components.widget_data_service import WidgetDataService
 
 
 class TestWidgetDataService(unittest.TestCase):
