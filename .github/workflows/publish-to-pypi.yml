@@ -34,7 +34,7 @@ jobs:
     - name: Install test dependencies
       run: pip install -r requirements-test.txt
     - name: Install package
-      run: pdm install
+      run: pip install --no-cache-dir -e .
 
     # Tests
     - name: Run tests with coverage
