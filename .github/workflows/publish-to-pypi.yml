@@ -85,26 +85,34 @@ jobs:
         run: |
           # Try to get tag from git
           GIT_TAG=$(git describe --tags --exact-match 2>/dev/null || echo "")
-
+      
           if [ -n "$GIT_TAG" ]; then
             # Remove 'v' prefix if present
             IMAGE_TAG=${GIT_TAG#v}
             echo "Using git tag: $IMAGE_TAG"
           else
-            # Parse version from pyproject.toml
-            if [ -f "pyproject.toml" ]; then
-              VERSION=$(grep -m 1 'version = ' pyproject.toml | sed 's/version = //g' | sed 's/"//g' | sed "s/'//g" | tr -d ' ')
-              IMAGE_TAG=$VERSION
-              echo "Using version from pyproject.toml: $IMAGE_TAG"
-            else
-              # Fallback to latest if no tag or pyproject.toml
-              IMAGE_TAG="dev"
-              echo "No tag or pyproject.toml found, using: $IMAGE_TAG"
+            # Install setuptools-scm if not already available
+            pip install setuptools-scm >/dev/null 2>&1
+      
+            # Get version from setuptools-scm with no-local-version
+            VERSION=$(python -c "from setuptools_scm import get_version; print(get_version(local_scheme='no-local-version'))" 2>/dev/null)
+      
+            if [ $? -ne 0 ] || [ -z "$VERSION" ]; then
+              echo "Error: Could not determine version from setuptools-scm" >&2
+              exit 1
             fi
+      
+            # Add commit hash as suffix for non-tagged builds
+            COMMIT_SHORT=$(git rev-parse --short HEAD)
+      
+            # Format: version-hash (e.g., 0.1.1.dev2-a1b2c3d)
+            IMAGE_TAG="${VERSION}-${COMMIT_SHORT}"
+            echo "Using setuptools-scm version: $IMAGE_TAG"
           fi
-
+      
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
           echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3

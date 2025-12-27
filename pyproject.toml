@@ -1,10 +1,10 @@
 [build-system]
-requires = ["pdm-backend"]
+requires = ["pdm-backend", "setuptools-scm>=8"]
 build-backend = "pdm.backend"
 
 [project]
 name = "kuhl-haus-mdp"
-version = "0.0.1"
+dynamic = ["version"]
 description = "Market data processing pipeline for stock market scanner"
 authors = [
     { name = "Tom Pounders", email = "git@oldschool.engineer" },
@@ -43,6 +43,17 @@ testing = [
     "pytest-cov",
 ]
 
+[tool.setuptools_scm]
+version_scheme = "guess-next-dev"
+local_scheme = "no-local-version"
+
+[tool.pdm]
+distribution = true
+version = { source = "scm" }
+
+[tool.pdm.build]
+package-dir = "src"
+includes = ["src/kuhl_haus"]
 
 [tool.setuptools]
 zip-safe = true
@@ -69,10 +80,3 @@ version = "4.6"
 package = "mdp"
 extensions = ["namespace"]
 namespace = "kuhl_haus"
-
-[tool.pdm]
-distribution = true
-
-[tool.pdm.build]
-package-dir = "src"
-includes = ["src/kuhl_haus"]
