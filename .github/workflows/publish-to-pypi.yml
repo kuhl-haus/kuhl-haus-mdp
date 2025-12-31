@@ -5,6 +5,7 @@ permissions:
 
 on:
   push:
+    branches: [ mainline ]
   workflow_dispatch:
 
 jobs:
@@ -63,7 +64,7 @@ jobs:
 
   build-docker:
     name: Build Docker Image
-    if: startsWith(github.ref, 'refs/tags/')  # only build images on tag pushes
+    # if: startsWith(github.ref, 'refs/tags/')  # only build images on tag pushes
     needs: build-and-test
     runs-on: ubuntu-latest
 
@@ -136,7 +137,7 @@ jobs:
 
   github-release:
     name: Create GitHub Release
-    if: startsWith(github.ref, 'refs/tags/')  # only release on tag pushes
+    # if: startsWith(github.ref, 'refs/tags/')  # only release on tag pushes
     needs: [build-and-test, build-docker]
     runs-on: ubuntu-latest
 
@@ -174,7 +175,7 @@ jobs:
 
   publish-to-testpypi:
     name: Publish to TestPyPI
-    if: startsWith(github.ref, 'refs/tags/')  # only publish to PyPI on tag pushes
+    # if: startsWith(github.ref, 'refs/tags/')  # only publish to PyPI on tag pushes
     needs: [build-and-test]
     runs-on: ubuntu-latest
     environment:
@@ -197,7 +198,7 @@ jobs:
 
   publish-to-pypi:
     name: Publish to PyPI
-    if: startsWith(github.ref, 'refs/tags/')  # only publish to PyPI on tag pushes
+    # if: startsWith(github.ref, 'refs/tags/')  # only publish to PyPI on tag pushes
     needs: [build-and-test, github-release, publish-to-testpypi]
     runs-on: ubuntu-latest
     environment:
