@@ -5,6 +5,7 @@ from massive.websocket.models import EventType
 
 from kuhl_haus.mdp.models.market_data_analyzer_result import MarketDataAnalyzerResult
 from kuhl_haus.mdp.models.market_data_cache_keys import MarketDataCacheKeys
+from kuhl_haus.mdp.models.market_data_cache_ttl import MarketDataCacheTTL
 
 
 class MassiveDataAnalyzer:
@@ -18,7 +19,7 @@ class MassiveDataAnalyzer:
             EventType.EquityQuote.value: self.handle_equity_quote_event,
         }
 
-    async def analyze_data(self, data: dict) -> Optional[List[MarketDataAnalyzerResult]]:
+    def analyze_data(self, data: dict) -> Optional[List[MarketDataAnalyzerResult]]:
         """
         Process raw market data message
 
@@ -30,73 +31,63 @@ class MassiveDataAnalyzer:
         """
         if "event_type" not in data:
             self.logger.info("Message missing 'event_type'")
-            return await self.handle_unknown_event(data)
+            return self.handle_unknown_event(data)
         event_type = data.get("event_type")
 
         if "symbol" not in data:
             self.logger.info("Message missing 'symbol'")
-            return await self.handle_unknown_event(data)
+            return self.handle_unknown_event(data)
         symbol = data.get("symbol")
 
         if event_type in self.event_handlers:
-            return await self.event_handlers[event_type](**{"data": data, "symbol": symbol})
+            return self.event_handlers[event_type](**{"data": data, "symbol": symbol})
         else:
             self.logger.warning(f"Unsupported message type: {event_type}")
-            return await self.handle_unknown_event(data)
+            return self.handle_unknown_event(data)
 
-    async def handle_luld_event(self, data: dict, symbol: str) -> Optional[List[MarketDataAnalyzerResult]]:
-        try:
-            return [MarketDataAnalyzerResult(
-                data=data,
-                cache_key=f"{MarketDataCacheKeys.HALTS.value}:{symbol}",
-                cache_ttl=28500,  # 7 hours, 55 minutes
-                publish_key=f"{MarketDataCacheKeys.HALTS.value}:{symbol}",
-            )]
-        except Exception as e:
-            self.logger.error(f"Error processing LULD message for {symbol}: {data}", e)
+    @staticmethod
+    def handle_luld_event(data: dict, symbol: str) -> Optional[List[MarketDataAnalyzerResult]]:
+        return [MarketDataAnalyzerResult(
+            data=data,
+            cache_key=f"{MarketDataCacheKeys.HALTS.value}:{symbol}",
+            cache_ttl=MarketDataCacheTTL.THREE_DAYS.value,
+            publish_key=f"{MarketDataCacheKeys.HALTS.value}:{symbol}",
+        )]
 
-    async def handle_equity_agg_event(self, data: dict, symbol: str) -> Optional[List[MarketDataAnalyzerResult]]:
-        try:
-            return [MarketDataAnalyzerResult(
-                data=data,
-                # cache_key=f"{MarketDataCacheKeys.AGGREGATE.value}:{symbol}",
-                # cache_ttl=259200,  # 3 days
-                publish_key=f"{MarketDataCacheKeys.AGGREGATE.value}:{symbol}",
-            )]
-        except Exception as e:
-            self.logger.error(f"Error processing EquityAgg message for {symbol}: {data}", e)
+    @staticmethod
+    def handle_equity_agg_event(data: dict, symbol: str) -> Optional[List[MarketDataAnalyzerResult]]:
+        return [MarketDataAnalyzerResult(
+            data=data,
+            cache_key=f"{MarketDataCacheKeys.AGGREGATE.value}:{symbol}",
+            cache_ttl=MarketDataCacheTTL.THREE_DAYS.value,
+            publish_key=f"{MarketDataCacheKeys.AGGREGATE.value}:{symbol}",
+        )]
 
-    async def handle_equity_trade_event(self, data: dict, symbol: str) -> Optional[List[MarketDataAnalyzerResult]]:
-        try:
-            return [MarketDataAnalyzerResult(
-                data=data,
-                # cache_key=f"{MarketDataCacheKeys.TRADES.value}:{symbol}",
-                # cache_ttl=28500,  # 7 hours, 55 minutes
-                publish_key=f"{MarketDataCacheKeys.TRADES.value}:{symbol}",
-            )]
-        except Exception as e:
-            self.logger.error(f"Error processing EquityTrade message for {symbol}: {data}", e)
+    @staticmethod
+    def handle_equity_trade_event(data: dict, symbol: str) -> Optional[List[MarketDataAnalyzerResult]]:
+        return [MarketDataAnalyzerResult(
+            data=data,
+            cache_key=f"{MarketDataCacheKeys.TRADES.value}:{symbol}",
+            cache_ttl=MarketDataCacheTTL.EIGHT_HOURS.value,
+            publish_key=f"{MarketDataCacheKeys.TRADES.value}:{symbol}",
+        )]
 
-    async def handle_equity_quote_event(self, data: dict, symbol: str) -> Optional[List[MarketDataAnalyzerResult]]:
-        try:
-            return [MarketDataAnalyzerResult(
-                data=data,
-                # cache_key=f"{MarketDataCacheKeys.QUOTES.value}:{symbol}",
-                # cache_ttl=259200,  # 3 days
-                publish_key=f"{MarketDataCacheKeys.QUOTES.value}:{symbol}",
-            )]
-        except Exception as e:
-            self.logger.error(f"Error processing EquityQuote message for {symbol}: {data}", e)
+    @staticmethod
+    def handle_equity_quote_event(data: dict, symbol: str) -> Optional[List[MarketDataAnalyzerResult]]:
+        return [MarketDataAnalyzerResult(
+            data=data,
+            cache_key=f"{MarketDataCacheKeys.QUOTES.value}:{symbol}",
+            cache_ttl=MarketDataCacheTTL.THREE_DAYS.value,
+            publish_key=f"{MarketDataCacheKeys.QUOTES.value}:{symbol}",
+        )]
 
-    async def handle_unknown_event(self, data: dict) -> Optional[List[MarketDataAnalyzerResult]]:
-        try:
-            timestamp = f"{time()}".replace('.','')
-            cache_key = f"{MarketDataCacheKeys.UNKNOWN.value}:{timestamp}"
-            return [MarketDataAnalyzerResult(
-                data=data,
-                cache_key=cache_key,
-                cache_ttl=86400,  # 1 days
-                publish_key=f"{MarketDataCacheKeys.UNKNOWN.value}",
-            )]
-        except Exception as e:
-            self.logger.error(f"Error processing unknown message type: {data}", e)
+    @staticmethod
+    def handle_unknown_event(data: dict) -> Optional[List[MarketDataAnalyzerResult]]:
+        timestamp = f"{time()}".replace('.','')
+        cache_key = f"{MarketDataCacheKeys.UNKNOWN.value}:{timestamp}"
+        return [MarketDataAnalyzerResult(
+            data=data,
+            cache_key=cache_key,
+            cache_ttl=MarketDataCacheTTL.ONE_DAY.value,
+            publish_key=f"{MarketDataCacheKeys.UNKNOWN.value}",
+        )]

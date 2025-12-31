@@ -114,8 +114,8 @@ class MassiveDataProcessor:
                     web_socket_message = json.loads(message.body.decode())
                     data = WebSocketMessageSerde.to_dict(web_socket_message)
 
-                    # Delegate to analyzer (async)
-                    analyzer_results = await self.analyzer.analyze_data(data)
+                    # Delegate to analyzer
+                    analyzer_results = self.analyzer.analyze_data(data)
                     if analyzer_results:
                         self.processed += 1
                         for analyzer_result in analyzer_results:
