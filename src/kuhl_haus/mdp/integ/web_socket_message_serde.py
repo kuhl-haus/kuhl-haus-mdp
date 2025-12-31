@@ -59,8 +59,8 @@ class WebSocketMessageSerde:
         ret: dict = {
             "event_type": message.event_type,
             "symbol": message.symbol,
-            "high": message.high_price,
-            "low": message.low_price,
+            "high_price": message.high_price,
+            "low_price": message.low_price,
             "indicators": message.indicators,
             "tape": message.tape,
             "timestamp": message.timestamp,
