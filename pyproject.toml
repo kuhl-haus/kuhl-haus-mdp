@@ -41,6 +41,7 @@ testing = [
     "pdm-backend",
     "pytest",
     "pytest-cov",
+    "pytest-asyncio",
 ]
 
 [tool.setuptools_scm]
