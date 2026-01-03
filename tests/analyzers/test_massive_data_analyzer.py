@@ -2,10 +2,10 @@ from unittest.mock import MagicMock
 
 import pytest
 from massive.websocket.models import EventType
-from src.kuhl_haus.mdp.analyzers.massive_data_analyzer import MassiveDataAnalyzer
-from src.kuhl_haus.mdp.models.market_data_analyzer_result import MarketDataAnalyzerResult
-from src.kuhl_haus.mdp.models.market_data_cache_keys import MarketDataCacheKeys
+
 from kuhl_haus.mdp.models.market_data_cache_ttl import MarketDataCacheTTL
+from src.kuhl_haus.mdp.analyzers.massive_data_analyzer import MassiveDataAnalyzer
+from src.kuhl_haus.mdp.models.market_data_cache_keys import MarketDataCacheKeys
 
 
 @pytest.fixture
