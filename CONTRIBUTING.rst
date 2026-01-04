@@ -314,8 +314,8 @@ on PyPI_, the following steps can be used to release a new version for
 .. |the repository service| replace:: GitHub
 .. |contribute button| replace:: "Create pull request"
 
-.. _repository: https://github.com/<USERNAME>/kuhl-haus-mdp
-.. _issue tracker: https://github.com/<USERNAME>/kuhl-haus-mdp/issues
+.. _repository: https://github.com/kuhl-haus/kuhl-haus-mdp
+.. _issue tracker: https://github.com/kuhl-haus/kuhl-haus-mdp/issues
 .. <-- end -->
 
 

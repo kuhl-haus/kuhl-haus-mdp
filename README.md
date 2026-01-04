@@ -15,6 +15,7 @@
 [![codecov](https://codecov.io/gh/kuhl-haus/kuhl-haus-mdp/branch/mainline/graph/badge.svg)](https://codecov.io/gh/kuhl-haus/kuhl-haus-mdp)
 [![GitHub issues](https://img.shields.io/github/issues/kuhl-haus/kuhl-haus-mdp)](https://github.com/kuhl-haus/kuhl-haus-mdp/issues)
 [![GitHub pull requests](https://img.shields.io/github/issues-pr/kuhl-haus/kuhl-haus-mdp)](https://github.com/kuhl-haus/kuhl-haus-mdp/pulls)
+[![Documentation](https://github.com/kuhl-haus/kuhl-haus-mdp/actions/workflows/docs.yml/badge.svg)](https://YOUR_USERNAME.github.io/kuhl-haus-mdp/)
 
 
 # kuhl-haus-mdp
