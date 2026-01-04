@@ -36,9 +36,9 @@
 .. image:: https://img.shields.io/github/issues-pr/kuhl-haus/kuhl-haus-mdp
     :alt: GitHub pull requests
     :target: https://github.com/kuhl-haus/kuhl-haus-mdp/pulls
-.. image:: https://github.com/kuhl-haus/kuhl-haus-mdp/actions/workflows/docs.yml/badge.svg
+.. image:: https://readthedocs.org/projects/kuhl-haus-mdp/badge/?version=latest
     :alt: Documentation
-    :target: https://kuhl-haus.github.io/kuhl-haus-mdp/
+    :target: https://kuhl-haus-mdp.readthedocs.io/en/latest/
 
 |
 

@@ -34,7 +34,7 @@ Contents
    License <license>
    Authors <authors>
    Changelog <changelog>
-   Module Reference <api/modules>
+   Module Reference <mdp/modules>
 
 
 Indices and tables
