@@ -62,8 +62,74 @@ Components Summary
 
 Non-business Massive (AKA Polygon.IO) accounts are limited to a single WebSocket connection per asset class and it has to be fast enough to handle messages in a non-blocking fashion or it'll get disconnected. The Market Data Listener (MDL) connects to the Market Data Source (Massive) and subscribes to unfiltered feeds. MDL inspects the message type for selecting the appropriate serialization method and destination Market Data Queue (MDQ). The Market Data Processors (MDP) subscribe to raw market data in the MDQ and perform the heavy lifting that would otherwise constrain the message handling speed of the MDL. This decoupling allows the MDP and MDL to scale independently. Post-processed market data is stored in the MDC for consumption by the Widget Data Service (WDS). Client-side widgets receive market data from the WDS, which provides a WebSocket interface to MDC pub/sub streams and cached data.
 
-.. image:: docs/Market_Data_Processing_C4.png
-    :alt: Market Data Processing C4 Architecture Diagram
+::
+
+    +---------------------------------------+             +------------------------+-------------------------+
+    |           Web Client (SPA)            |             |               Widget Data Service                |
+    |         [Container: Vue.js]           |             |           [Container: Python FastAPI]            |
+    |                                       |<----------->|    WebSocket interface provides access to        |
+    | SPA interacts with SCP and displays   |             |   processed market data for client-side code     |
+    | market data in widgets received from  |             |                                                  |
+    | the WDS                               |             +------------------------^-------------------------+
+    +-----------^---------------------------+                                      |
+                |                                                                  |
+                |                                                                  |
+          +-----+-----+                                                            |
+          | User      |                                                            |
+          | [Person]  |                                                            |
+          +-----+-----+                                                            |
+                |                                                                  |
+                |                                                                  |
+                v                                                                  |
+      +---------------------------+                       +------------------------+-------------------------+
+      |  Service Control Plane    |                       |                 Market Data Cache                |
+      |   [Container: Py4web]     |                       |                [Container: Redis]                |
+      |                           |                       |                                                  |
+      | 1. AuthN/AuthZ            |                       |   The processed market data is stored in the     |
+      | 2. Static/dynamic content |                       |   Market Data Cache for consumption by the       |
+      | 3. Control plane          |                       |   Widget Data Service (WDS).                     |
+      | 4. API                    |                       +------------------------^-------------------------+
+      +---------------------------+                                                |
+                                                                                   |
+                                                                                   |
+                                                                   +---------------+----------------+
+                                                                   |      Market Data Processor     |
+                                                                   |  [Container: Python FastAPI]   |
+                                                                   |                                |
+                                                                   | The MDP is responsible for the |
+                                                 /-----------------+ "heavy lifting" which would    |
+                                                 |                 | otherwise constrain the message|
+                                                 |                 | handling speed of the MDL.     |
+                                                 |                 +---------------^----------------+
+                                                 |                                 |
+                                                 |                                 |
+                                                 |                 +---------------+----------------+
+                                                 |                 |       Market Data Queues       |
+                                                 |                 |     [Container: RabbitMQ]      |
+                                                 |                 |                                |
+                                                 |                 |   Decouples the MDL and MDP    |
+                                                 |                 +---------------^----------------+
+                                                 |                                 |
+                                                 |                                 |
+                                                 |                 +---------------+----------------+
+                                                 |                 |       Market Data Listener     |
+                                                 |                 |   [Container: Python FastAPI]  |
+                                                 |                 |                                |
+                                                 |                 | Receives streaming messages    |
+                                                 |                 | from the market data provider  |
+                                                 |                 | and distributes messages to    |
+                                                 |                 | event specific queues          |
+                                                 |                 +---------------^----------------+
+                                                 |                                 |
+                                                 |                                 |
+                                      +----------v------------+        +-----------+-----------+
+                                      |      Massive.com      |        |      Massive.com      |
+                                      |      [REST API]       |        |      [WebSocket]      |
+                                      |                       |        |                       |
+                                      | On-demand market data |        | Streaming market data |
+                                      +-----------------------+        +-----------------------+
+
+
 
 Component Descriptions
 ======================
