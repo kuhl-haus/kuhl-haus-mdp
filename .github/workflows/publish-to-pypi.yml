@@ -5,7 +5,6 @@ permissions:
 
 on:
   push:
-    branches: [ mainline ]
   workflow_dispatch:
 
 jobs:
