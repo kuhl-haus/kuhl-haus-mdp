@@ -1,17 +1,14 @@
 import asyncio
 import json
 import logging
-from typing import Dict
 
 import aio_pika
-import redis
 import redis.asyncio as aioredis
 from aio_pika.abc import AbstractIncomingMessage
-from aio_pika.exceptions import AMQPConnectionError
 
 from kuhl_haus.mdp.analyzers.massive_data_analyzer import MassiveDataAnalyzer
-from kuhl_haus.mdp.models.market_data_analyzer_result import MarketDataAnalyzerResult
 from kuhl_haus.mdp.integ.web_socket_message_serde import WebSocketMessageSerde
+from kuhl_haus.mdp.models.market_data_analyzer_result import MarketDataAnalyzerResult
 
 
 class MassiveDataProcessor:

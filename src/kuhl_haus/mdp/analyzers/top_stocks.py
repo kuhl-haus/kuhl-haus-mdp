@@ -16,6 +16,7 @@ from massive.websocket.models import (
 )
 
 from kuhl_haus.mdp.analyzers.analyzer import Analyzer
+from kuhl_haus.mdp.components.market_data_cache import MarketDataCache
 from kuhl_haus.mdp.models.market_data_analyzer_result import MarketDataAnalyzerResult
 from kuhl_haus.mdp.models.market_data_cache_keys import MarketDataCacheKeys
 from kuhl_haus.mdp.models.market_data_pubsub_keys import MarketDataPubSubKeys
@@ -24,11 +25,11 @@ from kuhl_haus.mdp.models.top_stocks_cache_item import TopStocksCacheItem
 
 class TopStocksAnalyzer(Analyzer):
 
-    def __init__(self, rest_client: RESTClient, **kwargs):
+    def __init__(self, cache: MarketDataCache, **kwargs):
         if "cache_key" not in kwargs:
             kwargs["cache_key"] = MarketDataCacheKeys.TOP_STOCKS_SCANNER.value
         super().__init__(**kwargs)
-        self.rest_client = rest_client
+        self.cache = cache
         self.logger = logging.getLogger(__name__)
         self.cache_item = TopStocksCacheItem()
         self.last_update_time = 0
@@ -135,7 +136,7 @@ class TopStocksAnalyzer(Analyzer):
             prev_day_vwap = 0
             while retry_count < max_tries:
                 try:
-                    snapshot = await self.get_ticker_snapshot(event.symbol)
+                    snapshot = await self.cache.get_ticker_snapshot(event.symbol)
                     prev_day_close = snapshot.prev_day.close
                     prev_day_volume = snapshot.prev_day.volume
                     prev_day_vwap = snapshot.prev_day.vwap
@@ -153,7 +154,7 @@ class TopStocksAnalyzer(Analyzer):
             avg_volume = 0
             while retry_count < max_tries:
                 try:
-                    avg_volume = await self.get_avg_volume(event.symbol)
+                    avg_volume = await self.cache.get_avg_volume(event.symbol)
                     break
                 except (BadResponse, ZeroDivisionError) as e:
                     self.logger.error(f"Error getting average volume for {event.symbol}: {repr(e)}", exc_info=e, stack_info=True)
@@ -217,44 +218,3 @@ class TopStocksAnalyzer(Analyzer):
             "start_timestamp": event.start_timestamp,
             "end_timestamp": event.end_timestamp,
         }
-
-    async def get_ticker_snapshot(self, ticker: str) -> TickerSnapshot:
-        self.logger.debug(f"Getting snapshot for {ticker}")
-        result: TickerSnapshot = self.rest_client.get_snapshot_ticker(
-            market_type="stocks",
-            ticker=ticker
-        )
-        self.logger.debug(f"Snapshot result: {result}")
-        return result
-
-    async def get_avg_volume(self, ticker: str):
-        self.logger.debug(f"Getting average volume for {ticker}")
-        # Get date string in YYYY-MM-DD format
-        end_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        # Get date from 30 trading sessions ago in YYYY-MM-DD format
-        start_date = (datetime.now(timezone.utc) - timedelta(days=42)).strftime("%Y-%m-%d")
-
-        result: Iterator[Agg] = self.rest_client.list_aggs(
-            ticker=ticker,
-            multiplier=1,
-            timespan="day",
-            from_=start_date,
-            to=end_date,
-            adjusted=True,
-            sort="desc"
-        )
-        self.logger.debug(f"average volume result: {result}")
-
-        total_volume = 0
-        max_periods = 30
-        periods_calculated = 0
-        for agg in result:
-            if periods_calculated < max_periods:
-                total_volume += agg.volume
-                periods_calculated += 1
-            else:
-                break
-        avg_volume = total_volume / periods_calculated
-
-        self.logger.debug(f"average volume {ticker}: {avg_volume}")
-        return avg_volume

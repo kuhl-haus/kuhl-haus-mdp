@@ -2,20 +2,20 @@ from datetime import datetime, timezone
 from unittest.mock import patch, MagicMock
 
 import pytest
-from massive.rest import RESTClient
 
 from kuhl_haus.mdp.analyzers.top_stocks import TopStocksAnalyzer
 from kuhl_haus.mdp.models.top_stocks_cache_item import TopStocksCacheItem
+from kuhl_haus.mdp.components.market_data_cache import MarketDataCache
 
 
 @pytest.fixture
-def mock_rest_client():
-    return MagicMock(spec=RESTClient)
+def mock_market_data_cache():
+    return MagicMock(spec=MarketDataCache)
 
 
 @pytest.fixture
-def top_stocks_analyzer(mock_rest_client):
-    return TopStocksAnalyzer(rest_client=mock_rest_client)
+def top_stocks_analyzer(mock_market_data_cache):
+    return TopStocksAnalyzer(cache=mock_market_data_cache)
 
 
 @pytest.fixture
@@ -24,9 +24,9 @@ def mock_logger():
 
 
 @pytest.fixture
-def analyzer(mock_rest_client, mock_logger):
+def analyzer(mock_market_data_cache, mock_logger):
     """Fixture to set up the TopStocksAnalyzer system under test."""
-    sut = TopStocksAnalyzer(rest_client=mock_rest_client)
+    sut = TopStocksAnalyzer(cache=mock_market_data_cache)
     sut.logger = mock_logger
     sut.cache_item = TopStocksCacheItem()
     sut.cache_item.day_start_time = datetime(2026, 1, 1, 4, 0, 0, tzinfo=timezone.utc).timestamp()

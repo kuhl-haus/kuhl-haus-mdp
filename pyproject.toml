@@ -17,15 +17,16 @@ classifiers = [
     "Programming Language :: Python"
 ]
 dependencies = [
-    "websockets",
+    "aiohttp",
     "aio-pika",
-    "redis[asyncio]",
-    "tenacity",
     "fastapi",
-    "uvicorn[standard]",
+    "massive",
     "pydantic-settings",
     "python-dotenv",
-    "massive"
+    "redis[asyncio]",
+    "tenacity",
+    "uvicorn[standard]",
+    "websockets",
 ]
 
 [project.urls]

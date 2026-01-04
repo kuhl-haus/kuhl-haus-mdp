@@ -8,6 +8,7 @@ class MarketDataCacheTTL(Enum):
     FOUR_HOURS = 14400
     SIX_HOURS = 21600
     EIGHT_HOURS = 28800
+    TWELVE_HOURS = 43200
 
     # Days
     ONE_DAY = 86400

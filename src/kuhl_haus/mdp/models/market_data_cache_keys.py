@@ -16,6 +16,9 @@ class MarketDataCacheKeys(Enum):
 
     # MARKET DATA CACHE
     DAILY_AGGREGATES = 'aggregate:daily'
+    TICKER_SNAPSHOTS = 'snapshots'
+    TICKER_AVG_VOLUME = 'avg_volume'
+    TICKER_FREE_FLOAT = 'free_float'
 
     # MARKET DATA PROCESSOR CACHE
     TOP_TRADES_SCANNER = f'cache:{MarketDataScannerNames.TOP_TRADES.value}'
