@@ -1,5 +1,6 @@
 import logging
 import os
+from typing import Dict, Any
 
 from massive.rest.models import TickerSnapshot
 
@@ -38,7 +39,7 @@ def get_massive_api_key():
     return api_key
 
 
-def ticker_snapshot_to_dict(snapshot: TickerSnapshot) -> dict:
+def ticker_snapshot_to_dict(snapshot: TickerSnapshot) -> Dict[str, Any]:
     """
     Convert a TickerSnapshot instance into a JSON-serializable dictionary.
 

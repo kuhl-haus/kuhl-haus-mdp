@@ -45,6 +45,7 @@ class TopStocksCacheItem:
                 ret.append({
                     "symbol": ticker,
                     "volume": self.symbol_data_cache[ticker]["volume"],
+                    "free_float": self.symbol_data_cache[ticker]["free_float"],
                     "accumulated_volume": self.symbol_data_cache[ticker]["accumulated_volume"],
                     "relative_volume": self.symbol_data_cache[ticker]["relative_volume"],
                     "official_open_price": self.symbol_data_cache[ticker]["official_open_price"],
@@ -81,6 +82,7 @@ class TopStocksCacheItem:
                 ret.append({
                     "symbol": ticker,
                     "volume": self.symbol_data_cache[ticker]["volume"],
+                    "free_float": self.symbol_data_cache[ticker]["free_float"],
                     "accumulated_volume": self.symbol_data_cache[ticker]["accumulated_volume"],
                     "relative_volume": self.symbol_data_cache[ticker]["relative_volume"],
                     "official_open_price": self.symbol_data_cache[ticker]["official_open_price"],
@@ -117,6 +119,7 @@ class TopStocksCacheItem:
                 ret.append({
                     "symbol": ticker,
                     "volume": self.symbol_data_cache[ticker]["volume"],
+                    "free_float": self.symbol_data_cache[ticker]["free_float"],
                     "accumulated_volume": self.symbol_data_cache[ticker]["accumulated_volume"],
                     "relative_volume": self.symbol_data_cache[ticker]["relative_volume"],
                     "official_open_price": self.symbol_data_cache[ticker]["official_open_price"],

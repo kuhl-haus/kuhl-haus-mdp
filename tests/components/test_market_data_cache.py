@@ -5,6 +5,8 @@ import pytest
 from kuhl_haus.mdp.components.market_data_cache import MarketDataCache
 from massive.rest.models import TickerSnapshot
 
+from kuhl_haus.mdp.models.market_data_cache_keys import MarketDataCacheKeys
+
 
 @pytest.fixture
 def mock_massive_api_key():
@@ -93,7 +95,7 @@ async def test_get_ticker_snapshot_with_cache_hit_expect_ticker_snapshot_returne
     mock_redis_client = AsyncMock()
     mock_rest_client = MagicMock()
     sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-    mock_cache_key = "snapshots:TEST"
+    mock_cache_key = f"{MarketDataCacheKeys.TICKER_SNAPSHOTS.value}:TEST"
     mock_cached_value = mock_data_dict
     mock_redis_client.get.return_value = json.dumps(mock_cached_value)
     mock_snapshot.return_value = TickerSnapshot(**mock_cached_value)
@@ -115,7 +117,7 @@ async def test_get_ticker_snapshot_without_cache_hit_expect_ticker_snapshot_retu
     mock_redis_client = AsyncMock()
     mock_rest_client = MagicMock()
     sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-    mock_cache_key = "snapshots:TEST"
+    mock_cache_key = f"{MarketDataCacheKeys.TICKER_SNAPSHOTS.value}:TEST"
     mock_snapshot_instance = MagicMock(spec=TickerSnapshot)
     mock_snapshot_instance.ticker = "TEST"
     mock_snapshot_instance.todays_change = 5.0
@@ -145,7 +147,7 @@ async def test_get_ticker_snapshot_with_invalid_cache_data_expect_exception(mock
     mock_redis_client = AsyncMock()
     mock_rest_client = MagicMock()
     sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-    mock_cache_key = "snapshots:TEST"
+    mock_cache_key = f"{MarketDataCacheKeys.TICKER_SNAPSHOTS.value}:TEST"
     mock_redis_client.get.return_value = json.dumps({"invalid": "data"})
     mock_from_dict.side_effect = ValueError("Invalid cache data")
 
@@ -163,7 +165,7 @@ async def test_get_ticker_snapshot_with_invalid_cache_data_expect_exception():
     mock_redis_client = AsyncMock()
     mock_rest_client = MagicMock()
     sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-    mock_cache_key = "snapshots:TEST"
+    mock_cache_key = f"{MarketDataCacheKeys.TICKER_SNAPSHOTS.value}:TEST"
     mock_redis_client.get.return_value = json.dumps({"invalid": "data"})
 
     # Act & Assert
@@ -180,7 +182,7 @@ async def test_get_avg_volume_with_cache_hit_expect_cached_value_returned():
     mock_redis_client = AsyncMock()
     mock_rest_client = MagicMock()
     sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-    mock_cache_key = "avg_volume:TEST"
+    mock_cache_key = f"{MarketDataCacheKeys.TICKER_AVG_VOLUME.value}:TEST"
     mock_cached_value = 1500000
     mock_redis_client.get.return_value = json.dumps(mock_cached_value)
 
@@ -199,7 +201,7 @@ async def test_get_avg_volume_without_cache_hit_expect_avg_volume_returned():
     mock_redis_client = AsyncMock()
     mock_rest_client = MagicMock()
     sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-    mock_cache_key = "avg_volume:TEST"
+    mock_cache_key = f"{MarketDataCacheKeys.TICKER_AVG_VOLUME.value}:TEST"
     mock_avg_volume = 2500000
 
     # Create mock FinancialRatio object
@@ -225,7 +227,7 @@ async def test_get_avg_volume_without_cache_hit_expect_avg_volume_returned():
 #     mock_redis_client = AsyncMock()
 #     mock_rest_client = MagicMock()
 #     sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-#     mock_cache_key = "avg_volume:TEST"
+#     mock_cache_key = f"{MarketDataCacheKeys.TICKER_AVG_VOLUME.value}:TEST"
 #
 #     mock_redis_client.get.return_value = None
 #     mock_rest_client.list_financials_ratios.return_value = iter([])
@@ -245,7 +247,7 @@ async def test_get_avg_volume_without_cache_hit_expect_avg_volume_returned():
 #     mock_redis_client = AsyncMock()
 #     mock_rest_client = MagicMock()
 #     sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-#     mock_cache_key = "avg_volume:TEST"
+#     mock_cache_key = f"{MarketDataCacheKeys.TICKER_AVG_VOLUME.value}:TEST"
 #
 #     # Create multiple mock FinancialRatio objects
 #     mock_financial_ratio_1 = MagicMock()
@@ -271,7 +273,7 @@ async def test_get_avg_volume_caches_with_correct_ttl():
     mock_redis_client = AsyncMock()
     mock_rest_client = MagicMock()
     sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-    mock_cache_key = "avg_volume:TEST"
+    mock_cache_key = f"{MarketDataCacheKeys.TICKER_AVG_VOLUME.value}:TEST"
     mock_avg_volume = 3500000
 
     # Create mock FinancialRatio object
@@ -300,7 +302,7 @@ async def test_get_avg_volume_caches_with_correct_ttl():
     mock_redis_client = AsyncMock()
     mock_rest_client = MagicMock()
     sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-    mock_cache_key = "avg_volume:TEST"
+    mock_cache_key = f"{MarketDataCacheKeys.TICKER_AVG_VOLUME.value}:TEST"
     mock_avg_volume = 3500000
 
     # Create mock FinancialRatio object
@@ -329,12 +331,12 @@ async def test_get_free_float_with_cache_hit_expect_cached_value_returned():
     mock_redis_client = AsyncMock()
     mock_rest_client = MagicMock()
     sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-    mock_cache_key = "free_float:TSLA"
+    mock_cache_key = f"{MarketDataCacheKeys.TICKER_FREE_FLOAT.value}:TEST"
     mock_cached_value = 2643494955
     mock_redis_client.get.return_value = json.dumps(mock_cached_value)
 
     # Act
-    result = await sut.get_free_float("TSLA")
+    result = await sut.get_free_float("TEST")
 
     # Assert
     mock_redis_client.get.assert_awaited_once_with(mock_cache_key)
@@ -347,7 +349,7 @@ async def test_get_free_float_without_cache_hit_expect_free_float_returned():
     mock_redis_client = AsyncMock()
     mock_rest_client = MagicMock()
     sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_api_key")
-    mock_cache_key = "free_float:TSLA"
+    mock_cache_key = f"{MarketDataCacheKeys.TICKER_FREE_FLOAT.value}:TEST"
     mock_free_float = 2643494955
 
     # Mock API response
@@ -358,7 +360,7 @@ async def test_get_free_float_without_cache_hit_expect_free_float_returned():
                 "effective_date": "2025-11-14",
                 "free_float": mock_free_float,
                 "free_float_percent": 79.5,
-                "ticker": "TSLA"
+                "ticker": "TEST"
             }
         ],
         "status": "OK"
@@ -382,14 +384,14 @@ async def test_get_free_float_without_cache_hit_expect_free_float_returned():
     sut.http_session = mock_session
 
     # Act
-    result = await sut.get_free_float("TSLA")
+    result = await sut.get_free_float("TEST")
 
     # Assert
     mock_redis_client.get.assert_awaited_once_with(mock_cache_key)
     mock_session.get.assert_called_once()
     call_args = mock_session.get.call_args
     assert call_args[0][0] == "https://api.massive.com/stocks/vX/float"
-    assert call_args[1]["params"]["ticker"] == "TSLA"
+    assert call_args[1]["params"]["ticker"] == "TEST"
     assert call_args[1]["params"]["apiKey"] == "test_api_key"
     mock_response.json.assert_awaited_once()
     mock_redis_client.setex.assert_awaited_once()
@@ -402,7 +404,7 @@ async def test_get_free_float_caches_with_correct_ttl():
     mock_redis_client = AsyncMock()
     mock_rest_client = MagicMock()
     sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-    mock_cache_key = "free_float:TSLA"
+    mock_cache_key = f"{MarketDataCacheKeys.TICKER_FREE_FLOAT.value}:TEST"
     mock_free_float = 2643494955
 
     # Mock API response
@@ -413,7 +415,7 @@ async def test_get_free_float_caches_with_correct_ttl():
                 "effective_date": "2025-11-14",
                 "free_float": mock_free_float,
                 "free_float_percent": 79.5,
-                "ticker": "TSLA"
+                "ticker": "TEST"
             }
         ],
         "status": "OK"
@@ -436,7 +438,7 @@ async def test_get_free_float_caches_with_correct_ttl():
     sut.http_session = mock_session
 
     # Act
-    result = await sut.get_free_float("TSLA")
+    result = await sut.get_free_float("TEST")
 
     # Assert
     mock_redis_client.get.assert_awaited_once_with(mock_cache_key)
@@ -482,8 +484,8 @@ async def test_get_free_float_with_empty_results_expect_exception():
     sut.http_session = mock_session
 
     # Act & Assert
-    with pytest.raises(Exception, match="No free float data returned for TSLA"):
-        await sut.get_free_float("TSLA")
+    with pytest.raises(Exception, match="No free float data returned for TEST"):
+        await sut.get_free_float("TEST")
 
     mock_redis_client.setex.assert_not_awaited()
 
@@ -523,8 +525,8 @@ async def test_get_free_float_with_invalid_status_expect_exception():
     sut.http_session = mock_session
 
     # Act & Assert
-    with pytest.raises(Exception, match="Invalid response from Massive API for TSLA"):
-        await sut.get_free_float("TSLA")
+    with pytest.raises(Exception, match="Invalid response from Massive API for TEST"):
+        await sut.get_free_float("TEST")
 
     mock_redis_client.setex.assert_not_awaited()
 
@@ -559,7 +561,7 @@ async def test_get_free_float_with_client_error_expect_exception():
 
     # Act & Assert
     with pytest.raises(aiohttp.ClientError, match="Connection timeout"):
-        await sut.get_free_float("TSLA")
+        await sut.get_free_float("TEST")
 
     mock_redis_client.setex.assert_not_awaited()
 
@@ -592,7 +594,7 @@ async def test_get_free_float_with_http_error_expect_exception():
 
     # Act & Assert
     with pytest.raises(Exception, match="HTTP 500 Error"):
-        await sut.get_free_float("TSLA")
+        await sut.get_free_float("TEST")
 
     mock_redis_client.setex.assert_not_awaited()
 
@@ -674,8 +676,8 @@ async def test_publish_data_expect_publish_called():
     mock_rest_client = MagicMock()
     sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
 
-    test_data = {"symbol": "TSLA", "price": 250.50, "volume": 1000000}
-    test_publish_key = "market:updates:TSLA"
+    test_data = {"symbol": "TEST", "price": 250.50, "volume": 1000000}
+    test_publish_key = "market:updates:TEST"
 
     # Act
     await sut.publish_data(data=test_data, publish_key=test_publish_key)
