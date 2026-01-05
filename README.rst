@@ -64,7 +64,7 @@ Non-business Massive (AKA Polygon.IO) accounts are limited to a single WebSocket
 
 ::
 
-    +---------------------------------------+             +------------------------+-------------------------+
+    +---------------------------------------+             +--------------------------------------------------+
     |           Web Client (SPA)            |             |               Widget Data Service                |
     |         [Container: Vue.js]           |             |           [Container: Python FastAPI]            |
     |                                       |<----------->|    WebSocket interface provides access to        |
