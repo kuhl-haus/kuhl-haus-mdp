@@ -31,7 +31,7 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/kuhl-haus/kuhl-haus-mdp"
-Documentation = "https://github.com/kuhl-haus/kuhl-haus-mdp/wiki"
+Documentation = "https://kuhl-haus-mdp.readthedocs.io"
 Source = "https://github.com/kuhl-haus/kuhl-haus-mdp.git"
 Changelog = "https://github.com/kuhl-haus/kuhl-haus-mdp/commits"
 Tracker = "https://github.com/kuhl-haus/kuhl-haus-mdp/issues"
