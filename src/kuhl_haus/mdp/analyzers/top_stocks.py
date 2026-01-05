@@ -26,21 +26,15 @@ from kuhl_haus.mdp.models.top_stocks_cache_item import TopStocksCacheItem
 class TopStocksAnalyzer(Analyzer):
 
     def __init__(self, cache: MarketDataCache, **kwargs):
-        if "cache_key" not in kwargs:
-            kwargs["cache_key"] = MarketDataCacheKeys.TOP_STOCKS_SCANNER.value
-        super().__init__(**kwargs)
+        super().__init__(cache=cache, **kwargs)
         self.cache = cache
+        self.cache_key = MarketDataCacheKeys.TOP_STOCKS_SCANNER.value
         self.logger = logging.getLogger(__name__)
         self.cache_item = TopStocksCacheItem()
         self.last_update_time = 0
         self.pre_market_reset = False
 
-    async def rehydrate(self, data: dict):
-        if not data:
-            self.cache_item = TopStocksCacheItem()
-            self.logger.info("No data to rehydrate TopStocksCacheItem.")
-            return
-
+    async def rehydrate(self):
         # Get current time in UTC, then convert to Eastern Time
         utc_now = datetime.now(timezone.utc)
         et_now = utc_now.astimezone(ZoneInfo("America/New_York"))
@@ -51,6 +45,11 @@ class TopStocksAnalyzer(Analyzer):
         if not is_weekday or not is_trading_hours:
             self.cache_item = TopStocksCacheItem()
             self.logger.info(f"Outside market hours ({et_now.strftime('%H:%M:%S %Z')}), clearing cache.")
+            return
+        data = await self.cache.get_cache(self.cache_key)
+        if not data:
+            self.cache_item = TopStocksCacheItem()
+            self.logger.info("No data to rehydrate TopStocksCacheItem.")
             return
         self.cache_item = TopStocksCacheItem(**data)
         self.logger.info("Rehydrated TopStocksCacheItem")

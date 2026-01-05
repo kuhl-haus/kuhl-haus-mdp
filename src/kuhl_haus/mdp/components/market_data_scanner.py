@@ -1,13 +1,16 @@
 import asyncio
 import json
 import logging
-from typing import Union, Optional, List
+from typing import Any, Union, Optional, List
 
 import redis.asyncio as aioredis
 from redis.exceptions import ConnectionError
 
+from massive.rest import RESTClient
+
 from kuhl_haus.mdp.analyzers.analyzer import Analyzer
 from kuhl_haus.mdp.models.market_data_analyzer_result import MarketDataAnalyzerResult
+from kuhl_haus.mdp.components.market_data_cache import MarketDataCache
 
 
 class MarketDataScanner:
@@ -18,10 +21,13 @@ class MarketDataScanner:
     error: int
     restarts: int
 
-    def __init__(self, redis_url: str, analyzer: Analyzer, subscriptions: List[str]):
+    def __init__(self, redis_url: str, massive_api_key: str, subscriptions: List[str], analyzer_class: Any):
         self.redis_url = redis_url
-        self.analyzer = analyzer
+        self.massive_api_key = massive_api_key
         self.logger = logging.getLogger(__name__)
+
+        self.analyzer: Analyzer = None
+        self.analyzer_class = analyzer_class
 
         # Connection objects
         self.redis_client = None  # : aioredis.Redis = None
@@ -30,6 +36,7 @@ class MarketDataScanner:
         # State
         self.mdc_connected = False
         self.running = False
+        self.mdc: Optional[MarketDataCache] = None
 
         self.subscriptions: List[str] = subscriptions
         self._pubsub_task: Union[asyncio.Task, None] = None
@@ -48,9 +55,9 @@ class MarketDataScanner:
         await self.connect()
         self.pubsub_client = self.redis_client.pubsub()
 
-        scanner_cache = await self.get_cache(self.analyzer.cache_key)
+        self.analyzer = self.analyzer_class(cache=self.mdc)
         self.logger.info(f"mds rehydrating from cache")
-        await self.analyzer.rehydrate(scanner_cache)
+        await self.analyzer.rehydrate()
         self.logger.info("mds rehydration complete")
 
         for subscription in self.subscriptions:
@@ -72,6 +79,10 @@ class MarketDataScanner:
             except asyncio.CancelledError:
                 pass
             self._pubsub_task = None
+
+        if self.mdc:
+            await self.mdc.close()
+            self.mdc = None
 
         if self.pubsub_client:
             for subscription in self.subscriptions:
@@ -104,6 +115,11 @@ class MarketDataScanner:
 
                 # Test Redis connection
                 await self.redis_client.ping()
+                self.mdc = MarketDataCache(
+                    rest_client=RESTClient(api_key=self.massive_api_key),
+                    redis_client=self.redis_client,
+                    massive_api_key=self.massive_api_key
+                )
                 self.mdc_connected = True
                 self.logger.debug(f"Connected to Redis: {self.redis_url}")
             except Exception as e:
