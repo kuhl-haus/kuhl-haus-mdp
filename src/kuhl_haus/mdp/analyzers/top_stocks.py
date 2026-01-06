@@ -136,7 +136,8 @@ class TopStocksAnalyzer(Analyzer):
                     prev_day_volume = snapshot.prev_day.volume
                     prev_day_vwap = snapshot.prev_day.vwap
                     break
-                except Exception:
+                except Exception as e:
+                    self.logger.error(f"Failed to get snapshot for {event.symbol}: {e}")
                     retry_count += 1
             if retry_count == max_tries and prev_day_close == 0:
                 self.logger.error(f"Failed to get snapshot for {event.symbol} after {max_tries} tries.")
@@ -150,7 +151,8 @@ class TopStocksAnalyzer(Analyzer):
                 try:
                     avg_volume = await self.cache.get_avg_volume(event.symbol)
                     break
-                except Exception:
+                except Exception as e:
+                    self.logger.error(f"Failed to get average volume for {event.symbol}: {e}")
                     retry_count += 1
             if retry_count == max_tries and avg_volume == 0:
                 self.logger.error(f"Failed to get average volume for {event.symbol} after {max_tries} tries.")
@@ -164,7 +166,8 @@ class TopStocksAnalyzer(Analyzer):
                 try:
                     free_float = await self.cache.get_free_float(event.symbol)
                     break
-                except Exception:
+                except Exception as e:
+                    self.logger.error(f"Failed to get free float for {event.symbol}: {e}")
                     retry_count += 1
             if retry_count == max_tries and free_float == 0:
                 self.logger.error(f"Failed to get free float for {event.symbol} after {max_tries} tries.")
