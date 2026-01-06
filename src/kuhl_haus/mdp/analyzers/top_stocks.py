@@ -145,6 +145,7 @@ class TopStocksAnalyzer(Analyzer):
                     retry_count += 1
             if retry_count == max_tries and prev_day_close == 0:
                 self.logger.error(f"Failed to get snapshot for {event.symbol} after {max_tries} tries.")
+                return
 
             # Get average volume
             retry_count = 0
@@ -158,6 +159,7 @@ class TopStocksAnalyzer(Analyzer):
                     retry_count += 1
             if retry_count == max_tries and avg_volume == 0:
                 self.logger.error(f"Failed to get average volume for {event.symbol} after {max_tries} tries.")
+                return
 
             # Get free float - this uses an experimental API
             retry_count = 0
