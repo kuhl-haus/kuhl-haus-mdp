@@ -58,8 +58,8 @@ class MassiveDataAnalyzer:
     def handle_equity_agg_event(data: dict, symbol: str) -> Optional[List[MarketDataAnalyzerResult]]:
         return [MarketDataAnalyzerResult(
             data=data,
-            cache_key=f"{MarketDataCacheKeys.AGGREGATE.value}:{symbol}",
-            cache_ttl=MarketDataCacheTTL.AGGREGATE.value,
+            # cache_key=f"{MarketDataCacheKeys.AGGREGATE.value}:{symbol}",
+            # cache_ttl=MarketDataCacheTTL.AGGREGATE.value,
             publish_key=f"{MarketDataCacheKeys.AGGREGATE.value}:{symbol}",
         )]
 
@@ -67,8 +67,8 @@ class MassiveDataAnalyzer:
     def handle_equity_trade_event(data: dict, symbol: str) -> Optional[List[MarketDataAnalyzerResult]]:
         return [MarketDataAnalyzerResult(
             data=data,
-            cache_key=f"{MarketDataCacheKeys.TRADES.value}:{symbol}",
-            cache_ttl=MarketDataCacheTTL.TRADES.value,
+            # cache_key=f"{MarketDataCacheKeys.TRADES.value}:{symbol}",
+            # cache_ttl=MarketDataCacheTTL.TRADES.value,
             publish_key=f"{MarketDataCacheKeys.TRADES.value}:{symbol}",
         )]
 
@@ -76,8 +76,8 @@ class MassiveDataAnalyzer:
     def handle_equity_quote_event(data: dict, symbol: str) -> Optional[List[MarketDataAnalyzerResult]]:
         return [MarketDataAnalyzerResult(
             data=data,
-            cache_key=f"{MarketDataCacheKeys.QUOTES.value}:{symbol}",
-            cache_ttl=MarketDataCacheTTL.QUOTES.value,
+            # cache_key=f"{MarketDataCacheKeys.QUOTES.value}:{symbol}",
+            # cache_ttl=MarketDataCacheTTL.QUOTES.value,
             publish_key=f"{MarketDataCacheKeys.QUOTES.value}:{symbol}",
         )]
 
