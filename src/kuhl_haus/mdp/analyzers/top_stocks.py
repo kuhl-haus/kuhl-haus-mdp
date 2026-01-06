@@ -1,15 +1,9 @@
 import logging
 import time
-from datetime import datetime, timezone, timedelta
-from typing import Optional, List, Iterator
+from datetime import datetime, timezone
+from typing import Optional, List
 from zoneinfo import ZoneInfo
 
-from massive.exceptions import BadResponse
-from massive.rest import RESTClient
-from massive.rest.models import (
-    TickerSnapshot,
-    Agg,
-)
 from massive.websocket.models import (
     EquityAgg,
     EventType
@@ -19,6 +13,7 @@ from kuhl_haus.mdp.analyzers.analyzer import Analyzer
 from kuhl_haus.mdp.components.market_data_cache import MarketDataCache
 from kuhl_haus.mdp.models.market_data_analyzer_result import MarketDataAnalyzerResult
 from kuhl_haus.mdp.models.market_data_cache_keys import MarketDataCacheKeys
+from kuhl_haus.mdp.models.market_data_cache_ttl import MarketDataCacheTTL
 from kuhl_haus.mdp.models.market_data_pubsub_keys import MarketDataPubSubKeys
 from kuhl_haus.mdp.models.top_stocks_cache_item import TopStocksCacheItem
 
@@ -94,24 +89,24 @@ class TopStocksAnalyzer(Analyzer):
             MarketDataAnalyzerResult(
                 data=self.cache_item.to_dict(),
                 cache_key=self.cache_key,
-                cache_ttl=28500,  # 7 hours, 55 minutes
+                cache_ttl=MarketDataCacheTTL.TOP_STOCKS_SCANNER.value,
             ),
             MarketDataAnalyzerResult(
                 data=self.cache_item.top_volume(100),
                 cache_key=MarketDataPubSubKeys.TOP_VOLUME_SCANNER.value,
-                cache_ttl=259200,  # 3 days
+                cache_ttl=MarketDataCacheTTL.TOP_VOLUME_SCANNER.value,
                 publish_key=MarketDataPubSubKeys.TOP_VOLUME_SCANNER.value,
             ),
             MarketDataAnalyzerResult(
                 data=self.cache_item.top_gainers(500),
                 cache_key=MarketDataPubSubKeys.TOP_GAINERS_SCANNER.value,
-                cache_ttl=259200,  # 3 days
+                cache_ttl=MarketDataCacheTTL.TOP_GAINERS_SCANNER.value,
                 publish_key=MarketDataPubSubKeys.TOP_GAINERS_SCANNER.value,
             ),
             MarketDataAnalyzerResult(
                 data=self.cache_item.top_gappers(500),
                 cache_key=MarketDataPubSubKeys.TOP_GAPPERS_SCANNER.value,
-                cache_ttl=259200,  # 3 days
+                cache_ttl=MarketDataCacheTTL.TOP_GAPPERS_SCANNER.value,
                 publish_key=MarketDataPubSubKeys.TOP_GAPPERS_SCANNER.value,
             )
         ]

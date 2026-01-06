@@ -1,20 +1,30 @@
 from enum import Enum
+from kuhl_haus.mdp.models.constants import (
+    EIGHT_HOURS,
+    FIVE_MINUTES,
+    ONE_DAY,
+    ONE_HOUR,
+    THREE_DAYS,
+    TWELVE_HOURS,
+)
 
 
 class MarketDataCacheTTL(Enum):
-    # Hours
-    ONE_HOUR = 3600
-    TWO_HOURS = 7200
-    FOUR_HOURS = 14400
-    SIX_HOURS = 21600
-    EIGHT_HOURS = 28800
-    TWELVE_HOURS = 43200
+    # Raw market data caches
+    AGGREGATE = FIVE_MINUTES
+    HALTS = ONE_DAY
+    QUOTES = ONE_HOUR
+    TRADES = ONE_HOUR
+    UNKNOWN = ONE_DAY
 
-    # Days
-    ONE_DAY = 86400
-    TWO_DAYS = 172800
-    THREE_DAYS = 259200
-    FOUR_DAYS = 345600
-    FIVE_DAYS = 432000
-    SIX_DAYS = 518400
-    SEVEN_DAYS = 604800
+    # Ticker caches
+    TICKER_AVG_VOLUME = TWELVE_HOURS
+    TICKER_FREE_FLOAT = TWELVE_HOURS
+    TICKER_SNAPSHOTS = EIGHT_HOURS
+
+    # Scanner caches
+    TOP_STOCKS_SCANNER = EIGHT_HOURS
+    TOP_VOLUME_SCANNER = THREE_DAYS
+    TOP_GAINERS_SCANNER = THREE_DAYS
+    TOP_GAPPERS_SCANNER = THREE_DAYS
+

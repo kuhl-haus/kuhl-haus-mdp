@@ -50,7 +50,7 @@ class MassiveDataAnalyzer:
         return [MarketDataAnalyzerResult(
             data=data,
             cache_key=f"{MarketDataCacheKeys.HALTS.value}:{symbol}",
-            cache_ttl=MarketDataCacheTTL.THREE_DAYS.value,
+            cache_ttl=MarketDataCacheTTL.HALTS.value,
             publish_key=f"{MarketDataCacheKeys.HALTS.value}:{symbol}",
         )]
 
@@ -59,7 +59,7 @@ class MassiveDataAnalyzer:
         return [MarketDataAnalyzerResult(
             data=data,
             cache_key=f"{MarketDataCacheKeys.AGGREGATE.value}:{symbol}",
-            cache_ttl=MarketDataCacheTTL.THREE_DAYS.value,
+            cache_ttl=MarketDataCacheTTL.AGGREGATE.value,
             publish_key=f"{MarketDataCacheKeys.AGGREGATE.value}:{symbol}",
         )]
 
@@ -68,7 +68,7 @@ class MassiveDataAnalyzer:
         return [MarketDataAnalyzerResult(
             data=data,
             cache_key=f"{MarketDataCacheKeys.TRADES.value}:{symbol}",
-            cache_ttl=MarketDataCacheTTL.EIGHT_HOURS.value,
+            cache_ttl=MarketDataCacheTTL.TRADES.value,
             publish_key=f"{MarketDataCacheKeys.TRADES.value}:{symbol}",
         )]
 
@@ -77,7 +77,7 @@ class MassiveDataAnalyzer:
         return [MarketDataAnalyzerResult(
             data=data,
             cache_key=f"{MarketDataCacheKeys.QUOTES.value}:{symbol}",
-            cache_ttl=MarketDataCacheTTL.THREE_DAYS.value,
+            cache_ttl=MarketDataCacheTTL.QUOTES.value,
             publish_key=f"{MarketDataCacheKeys.QUOTES.value}:{symbol}",
         )]
 
@@ -88,6 +88,6 @@ class MassiveDataAnalyzer:
         return [MarketDataAnalyzerResult(
             data=data,
             cache_key=cache_key,
-            cache_ttl=MarketDataCacheTTL.ONE_DAY.value,
+            cache_ttl=MarketDataCacheTTL.UNKNOWN.value,
             publish_key=f"{MarketDataCacheKeys.UNKNOWN.value}",
         )]

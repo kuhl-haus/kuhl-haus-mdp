@@ -50,7 +50,7 @@ def test_analyze_data_with_valid_luld_event_expect_valid_result(valid_symbol, va
     # Assert
     assert len(result) == 1
     assert result[0].cache_key == f"{MarketDataCacheKeys.HALTS.value}:{symbol}"
-    assert result[0].cache_ttl == MarketDataCacheTTL.THREE_DAYS.value
+    assert result[0].cache_ttl == MarketDataCacheTTL.HALTS.value
     assert result[0].publish_key == f"{MarketDataCacheKeys.HALTS.value}:{symbol}"
     assert result[0].data == data
 
@@ -65,7 +65,7 @@ def test_analyze_data_with_equity_agg_event_happy_path(valid_symbol, valid_equit
     # Assert
     assert len(result) == 1
     assert result[0].cache_key == f"{MarketDataCacheKeys.AGGREGATE.value}:{valid_symbol}"
-    assert result[0].cache_ttl == MarketDataCacheTTL.THREE_DAYS.value
+    assert result[0].cache_ttl == MarketDataCacheTTL.AGGREGATE.value
     assert result[0].publish_key == f"{MarketDataCacheKeys.AGGREGATE.value}:{valid_symbol}"
     assert result[0].data == valid_equity_agg_data
 
@@ -80,7 +80,7 @@ def test_analyze_data_with_equity_agg_min_event_happy_path(valid_symbol, valid_e
     # Assert
     assert len(result) == 1
     assert result[0].cache_key == f"{MarketDataCacheKeys.AGGREGATE.value}:{valid_symbol}"
-    assert result[0].cache_ttl == MarketDataCacheTTL.THREE_DAYS.value
+    assert result[0].cache_ttl == MarketDataCacheTTL.AGGREGATE.value
     assert result[0].publish_key == f"{MarketDataCacheKeys.AGGREGATE.value}:{valid_symbol}"
     assert result[0].data == valid_equity_agg_minute_data
 
@@ -95,7 +95,7 @@ def test_analyze_data_with_equity_trade_event_happy_path(valid_symbol, valid_equ
     # Assert
     assert len(result) == 1
     assert result[0].cache_key == f"{MarketDataCacheKeys.TRADES.value}:{valid_symbol}"
-    assert result[0].cache_ttl == MarketDataCacheTTL.EIGHT_HOURS.value
+    assert result[0].cache_ttl == MarketDataCacheTTL.TRADES.value
     assert result[0].publish_key == f"{MarketDataCacheKeys.TRADES.value}:{valid_symbol}"
     assert result[0].data == valid_equity_trade_data
 
@@ -110,7 +110,7 @@ def test_analyze_data_equity_quote_event_happy_path(valid_symbol, valid_equity_q
     # Assert
     assert len(result) == 1
     assert result[0].cache_key == f"{MarketDataCacheKeys.QUOTES.value}:{valid_symbol}"
-    assert result[0].cache_ttl == MarketDataCacheTTL.THREE_DAYS.value
+    assert result[0].cache_ttl == MarketDataCacheTTL.QUOTES.value
     assert result[0].publish_key == f"{MarketDataCacheKeys.QUOTES.value}:{valid_symbol}"
     assert result[0].data == valid_equity_quote_data
 
@@ -167,7 +167,7 @@ def test_handle_luld_event_happy_path(valid_symbol, valid_luld_data):
     # Assert
     assert len(result) == 1
     assert result[0].cache_key == f"{MarketDataCacheKeys.HALTS.value}:{valid_symbol}"
-    assert result[0].cache_ttl == MarketDataCacheTTL.THREE_DAYS.value
+    assert result[0].cache_ttl == MarketDataCacheTTL.HALTS.value
     assert result[0].publish_key == f"{MarketDataCacheKeys.HALTS.value}:{valid_symbol}"
     assert result[0].data == valid_luld_data
 
@@ -182,7 +182,7 @@ def test_handle_equity_agg_event_happy_path(valid_symbol, valid_equity_agg_data)
     # Assert
     assert len(result) == 1
     assert result[0].cache_key == f"{MarketDataCacheKeys.AGGREGATE.value}:{valid_symbol}"
-    assert result[0].cache_ttl == MarketDataCacheTTL.THREE_DAYS.value
+    assert result[0].cache_ttl == MarketDataCacheTTL.AGGREGATE.value
     assert result[0].publish_key == f"{MarketDataCacheKeys.AGGREGATE.value}:{valid_symbol}"
     assert result[0].data == valid_equity_agg_data
 
@@ -197,7 +197,7 @@ def test_handle_equity_trade_event_happy_path(valid_symbol, valid_equity_trade_d
     # Assert
     assert len(result) == 1
     assert result[0].cache_key == f"{MarketDataCacheKeys.TRADES.value}:{valid_symbol}"
-    assert result[0].cache_ttl == MarketDataCacheTTL.EIGHT_HOURS.value
+    assert result[0].cache_ttl == MarketDataCacheTTL.TRADES.value
     assert result[0].publish_key == f"{MarketDataCacheKeys.TRADES.value}:{valid_symbol}"
     assert result[0].data == valid_equity_trade_data
 
@@ -212,7 +212,7 @@ def test_handle_equity_quote_event_happy_path(valid_symbol, valid_equity_quote_d
     # Assert
     assert len(result) == 1
     assert result[0].cache_key == f"{MarketDataCacheKeys.QUOTES.value}:{valid_symbol}"
-    assert result[0].cache_ttl == MarketDataCacheTTL.THREE_DAYS.value
+    assert result[0].cache_ttl == MarketDataCacheTTL.QUOTES.value
     assert result[0].publish_key == f"{MarketDataCacheKeys.QUOTES.value}:{valid_symbol}"
     assert result[0].data == valid_equity_quote_data
 
@@ -228,6 +228,6 @@ def test_handle_unknown_event_happy_path():
     # Assert
     assert len(result) == 1
     assert result[0].cache_key.startswith(f"{MarketDataCacheKeys.UNKNOWN.value}:")
-    assert result[0].cache_ttl == MarketDataCacheTTL.ONE_DAY.value
+    assert result[0].cache_ttl == MarketDataCacheTTL.UNKNOWN.value
     assert result[0].publish_key == MarketDataCacheKeys.UNKNOWN.value
     assert result[0].data == data

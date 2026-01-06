@@ -61,7 +61,7 @@ class MarketDataCache:
             await self.cache_data(
                 data=data,
                 cache_key=cache_key,
-                cache_ttl=MarketDataCacheTTL.EIGHT_HOURS.value
+                cache_ttl=MarketDataCacheTTL.TICKER_SNAPSHOTS.value
             )
         return snapshot
 
@@ -109,13 +109,15 @@ class MarketDataCache:
                     periods_calculated += 1
                 else:
                     break
+            if periods_calculated == 0:
+                raise Exception(f"No volume data returned for {ticker}")
             avg_volume = total_volume / periods_calculated
 
         self.logger.info(f"average volume {ticker}: {avg_volume}")
         await self.cache_data(
             data=avg_volume,
             cache_key=cache_key,
-            cache_ttl=MarketDataCacheTTL.TWELVE_HOURS.value
+            cache_ttl=MarketDataCacheTTL.TICKER_AVG_VOLUME.value
         )
         return avg_volume
 
@@ -162,7 +164,7 @@ class MarketDataCache:
         await self.cache_data(
             data=free_float,
             cache_key=cache_key,
-            cache_ttl=MarketDataCacheTTL.TWELVE_HOURS.value
+            cache_ttl=MarketDataCacheTTL.TICKER_FREE_FLOAT.value
         )
         return free_float
 

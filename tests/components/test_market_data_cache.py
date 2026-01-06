@@ -6,6 +6,7 @@ from kuhl_haus.mdp.components.market_data_cache import MarketDataCache
 from massive.rest.models import TickerSnapshot
 
 from kuhl_haus.mdp.models.market_data_cache_keys import MarketDataCacheKeys
+from kuhl_haus.mdp.models.market_data_cache_ttl import MarketDataCacheTTL
 
 
 @pytest.fixture
@@ -289,10 +290,10 @@ async def test_get_avg_volume_caches_with_correct_ttl():
     # Assert
     mock_redis_client.get.assert_awaited_once_with(mock_cache_key)
     mock_rest_client.list_financials_ratios.assert_called_once_with(ticker="TEST")
-    # Verify setex was called with the correct TTL (TWELVE_HOURS = 43200 seconds)
+    # Verify setex was called with the correct TTL
     call_args = mock_redis_client.setex.await_args
     assert call_args[0][0] == mock_cache_key
-    assert call_args[0][1] == 43200  # MarketDataCacheTTL.TWELVE_HOURS.value
+    assert call_args[0][1] == MarketDataCacheTTL.TICKER_AVG_VOLUME.value
     assert result == mock_avg_volume
 
 
@@ -318,10 +319,10 @@ async def test_get_avg_volume_caches_with_correct_ttl():
     # Assert
     mock_redis_client.get.assert_awaited_once_with(mock_cache_key)
     mock_rest_client.list_financials_ratios.assert_called_once_with(ticker="TEST")
-    # Verify setex was called with the correct TTL (TWELVE_HOURS = 43200 seconds)
+    # Verify setex was called with the correct TTL
     call_args = mock_redis_client.setex.await_args
     assert call_args[0][0] == mock_cache_key
-    assert call_args[0][1] == 43200  # MarketDataCacheTTL.TWELVE_HOURS.value
+    assert call_args[0][1] == MarketDataCacheTTL.TICKER_AVG_VOLUME.value
     assert result == mock_avg_volume
 
 
@@ -445,7 +446,7 @@ async def test_get_free_float_caches_with_correct_ttl():
     # Verify setex was called with the correct TTL (TWELVE_HOURS = 43200 seconds)
     call_args = mock_redis_client.setex.await_args
     assert call_args[0][0] == mock_cache_key
-    assert call_args[0][1] == 43200  # MarketDataCacheTTL.TWELVE_HOURS.value
+    assert call_args[0][1] == MarketDataCacheTTL.TICKER_FREE_FLOAT.value
     assert result == mock_free_float
 
 
