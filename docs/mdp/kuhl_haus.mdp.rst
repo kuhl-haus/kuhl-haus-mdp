@@ -9,9 +9,9 @@ Subpackages
 
    kuhl_haus.mdp.analyzers
    kuhl_haus.mdp.components
+   kuhl_haus.mdp.data
+   kuhl_haus.mdp.enum
    kuhl_haus.mdp.helpers
-   kuhl_haus.mdp.integ
-   kuhl_haus.mdp.models
 
 Module contents
 ---------------
