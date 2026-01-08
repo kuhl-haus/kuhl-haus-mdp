@@ -26,6 +26,18 @@ class MarketDataCache:
         self.redis_client = redis_client
         self.http_session = None
 
+    async def delete_cache(self, cache_key: str):
+        """
+            Delete cache entry.
+
+            :arg cache_key: Cache key to delete
+        """
+        try:
+            await self.redis_client.delete(cache_key)
+            self.logger.info(f"Deleted cache entry: {cache_key}")
+        except Exception as e:
+            self.logger.error(f"Error deleting cache entry: {e}")
+
     async def get_cache(self, cache_key: str) -> Optional[dict]:
         """Fetch current value from Redis cache (for snapshot requests)."""
         value = await self.redis_client.get(cache_key)
@@ -43,6 +55,16 @@ class MarketDataCache:
     async def publish_data(self, data: Any, publish_key: str = None):
         await self.redis_client.publish(publish_key, json.dumps(data))
         self.logger.info(f"Published data for {publish_key}")
+
+    async def delete_ticker_snapshot(self, ticker: str):
+        """
+        Delete ticker snapshot from cache.
+
+        :param ticker: symbol of ticker to delete snapshot for
+        :return: None
+        """
+        cache_key = f"{MarketDataCacheKeys.TICKER_SNAPSHOTS.value}:{ticker}"
+        await self.delete_cache(cache_key=cache_key)
 
     async def get_ticker_snapshot(self, ticker: str) -> TickerSnapshot:
         self.logger.info(f"Getting snapshot for {ticker}")

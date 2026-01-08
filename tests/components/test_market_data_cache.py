@@ -782,3 +782,104 @@ async def test_get_http_session_singleton_behavior(mock_client_session):
     mock_client_session.assert_called_once()  # Should only be called once
     assert result1 == result2 == result3 == mock_session  # All should return same instance
     assert id(result1) == id(result2) == id(result3)  # Verify same object in memory
+
+
+@pytest.mark.asyncio
+async def test_delete_ticker_snapshot_with_valid_ticker_expect_cache_deleted():
+    # Arrange
+    mock_redis_client = AsyncMock()
+    mock_rest_client = MagicMock()
+    sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
+    ticker = "TEST"
+    cache_key = f"{MarketDataCacheKeys.TICKER_SNAPSHOTS.value}:{ticker}"
+
+    # Act
+    await sut.delete_ticker_snapshot(ticker)
+
+    # Assert
+    mock_redis_client.delete.assert_awaited_once_with(cache_key)
+
+
+@pytest.mark.asyncio
+async def test_delete_ticker_snapshot_with_empty_ticker_expect_no_side_effect():
+    # Arrange
+    mock_redis_client = AsyncMock()
+    mock_rest_client = MagicMock()
+    sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
+    ticker = ""
+    cache_key = f"{MarketDataCacheKeys.TICKER_SNAPSHOTS.value}:{ticker}"
+
+    # Act
+    await sut.delete_ticker_snapshot(ticker)
+
+    # Assert
+    mock_redis_client.delete.assert_awaited_once_with(cache_key)
+
+
+@pytest.mark.asyncio
+@patch("logging.Logger.error")
+async def test_delete_ticker_snapshot_with_redis_error_expect_logged_error(mock_logger):
+    # Arrange
+    mock_redis_client = AsyncMock()
+    mock_redis_client.delete = AsyncMock(side_effect=Exception("Redis connection error"))
+    mock_rest_client = MagicMock()
+    sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
+    ticker = "TEST"
+    cache_key = f"{MarketDataCacheKeys.TICKER_SNAPSHOTS.value}:{ticker}"
+
+    # Act
+    await sut.delete_ticker_snapshot(ticker)
+
+    # Assert
+    mock_redis_client.delete.assert_awaited_once_with(cache_key)
+    mock_logger.assert_called_once_with("Error deleting cache entry: Redis connection error")
+
+
+@pytest.mark.asyncio
+async def test_delete_cache_with_existing_key_expect_cache_deleted():
+    # Arrange
+    mock_redis_client = AsyncMock()
+    mock_rest_client = MagicMock()
+    sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
+    test_cache_key = "test:cache:key"
+
+    # Act
+    await sut.delete_cache(test_cache_key)
+
+    # Assert
+    mock_redis_client.delete.assert_awaited_once_with(test_cache_key)
+
+
+@pytest.mark.asyncio
+@patch("logging.Logger.error")
+async def test_delete_cache_with_redis_error_expect_error_logged(mock_logger):
+    # Arrange
+    mock_redis_client = AsyncMock()
+    mock_redis_client.delete = AsyncMock(side_effect=Exception("Redis connection error"))
+    mock_rest_client = MagicMock()
+    sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
+    test_cache_key = "test:cache:key"
+
+    # Act
+    await sut.delete_cache(test_cache_key)
+
+    # Assert
+    mock_redis_client.delete.assert_awaited_once_with(test_cache_key)
+    mock_logger.assert_called_once_with(f"Error deleting cache entry: Redis connection error")
+
+
+@pytest.mark.asyncio
+@patch("logging.Logger.info")
+async def test_delete_cache_with_successful_deletion_expect_info_logged(mock_logger):
+    # Arrange
+    mock_redis_client = AsyncMock()
+    mock_rest_client = MagicMock()
+    sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
+    test_cache_key = "test:cache:key"
+
+    # Act
+    await sut.delete_cache(test_cache_key)
+
+    # Assert
+    mock_redis_client.delete.assert_awaited_once_with(test_cache_key)
+    mock_logger.assert_called_once_with(f"Deleted cache entry: {test_cache_key}")

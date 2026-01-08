@@ -136,6 +136,9 @@ class TopStocksAnalyzer(Analyzer):
                     prev_day_volume = snapshot.prev_day.volume
                     prev_day_vwap = snapshot.prev_day.vwap
                     break
+                except KeyError:
+                    retry_count += 1
+                    await self.cache.delete_ticker_snapshot(event.symbol)
                 except Exception as e:
                     self.logger.error(f"Failed to get snapshot for {event.symbol}: {e}")
                     retry_count += 1
