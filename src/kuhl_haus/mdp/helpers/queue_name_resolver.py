@@ -6,7 +6,7 @@ from massive.websocket.models import (
     LimitUpLimitDown,
 )
 
-from kuhl_haus.mdp.models.massive_data_queue import MassiveDataQueue
+from kuhl_haus.mdp.enum.massive_data_queue import MassiveDataQueue
 
 
 class QueueNameResolver:

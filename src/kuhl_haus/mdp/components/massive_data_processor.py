@@ -7,8 +7,8 @@ import redis.asyncio as aioredis
 from aio_pika.abc import AbstractIncomingMessage
 
 from kuhl_haus.mdp.analyzers.massive_data_analyzer import MassiveDataAnalyzer
-from kuhl_haus.mdp.integ.web_socket_message_serde import WebSocketMessageSerde
-from kuhl_haus.mdp.models.market_data_analyzer_result import MarketDataAnalyzerResult
+from kuhl_haus.mdp.helpers.web_socket_message_serde import WebSocketMessageSerde
+from kuhl_haus.mdp.data.market_data_analyzer_result import MarketDataAnalyzerResult
 
 
 class MassiveDataProcessor:

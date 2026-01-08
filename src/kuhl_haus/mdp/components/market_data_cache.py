@@ -14,8 +14,8 @@ from massive.rest.models import (
 )
 
 from kuhl_haus.mdp.helpers.utils import ticker_snapshot_to_dict
-from kuhl_haus.mdp.models.market_data_cache_keys import MarketDataCacheKeys
-from kuhl_haus.mdp.models.market_data_cache_ttl import MarketDataCacheTTL
+from kuhl_haus.mdp.enum.market_data_cache_keys import MarketDataCacheKeys
+from kuhl_haus.mdp.enum.market_data_cache_ttl import MarketDataCacheTTL
 
 
 class MarketDataCache:
@@ -26,7 +26,7 @@ class MarketDataCache:
         self.redis_client = redis_client
         self.http_session = None
 
-    async def delete_cache(self, cache_key: str):
+    async def delete(self, cache_key: str):
         """
             Delete cache entry.
 
@@ -38,21 +38,21 @@ class MarketDataCache:
         except Exception as e:
             self.logger.error(f"Error deleting cache entry: {e}")
 
-    async def get_cache(self, cache_key: str) -> Optional[dict]:
+    async def read(self, cache_key: str) -> Optional[dict]:
         """Fetch current value from Redis cache (for snapshot requests)."""
         value = await self.redis_client.get(cache_key)
         if value:
             return json.loads(value)
         return None
 
-    async def cache_data(self, data: Any, cache_key: str, cache_ttl: int = 0):
+    async def write(self, data: Any, cache_key: str, cache_ttl: int = 0):
         if cache_ttl > 0:
             await self.redis_client.setex(cache_key, cache_ttl, json.dumps(data))
         else:
             await self.redis_client.set(cache_key, json.dumps(data))
         self.logger.info(f"Cached data for {cache_key}")
 
-    async def publish_data(self, data: Any, publish_key: str = None):
+    async def broadcast(self, data: Any, publish_key: str = None):
         await self.redis_client.publish(publish_key, json.dumps(data))
         self.logger.info(f"Published data for {publish_key}")
 
@@ -64,12 +64,12 @@ class MarketDataCache:
         :return: None
         """
         cache_key = f"{MarketDataCacheKeys.TICKER_SNAPSHOTS.value}:{ticker}"
-        await self.delete_cache(cache_key=cache_key)
+        await self.delete(cache_key=cache_key)
 
     async def get_ticker_snapshot(self, ticker: str) -> TickerSnapshot:
         self.logger.info(f"Getting snapshot for {ticker}")
         cache_key = f"{MarketDataCacheKeys.TICKER_SNAPSHOTS.value}:{ticker}"
-        result = await self.get_cache(cache_key=cache_key)
+        result = await self.read(cache_key=cache_key)
         if result:
             self.logger.info(f"Returning cached snapshot for {ticker}")
             snapshot = TickerSnapshot(**result)
@@ -80,7 +80,7 @@ class MarketDataCache:
             )
             self.logger.info(f"Snapshot result: {snapshot}")
             data = ticker_snapshot_to_dict(snapshot)
-            await self.cache_data(
+            await self.write(
                 data=data,
                 cache_key=cache_key,
                 cache_ttl=MarketDataCacheTTL.TICKER_SNAPSHOTS.value
@@ -90,7 +90,7 @@ class MarketDataCache:
     async def get_avg_volume(self, ticker: str):
         self.logger.info(f"Getting average volume for {ticker}")
         cache_key = f"{MarketDataCacheKeys.TICKER_AVG_VOLUME.value}:{ticker}"
-        avg_volume = await self.get_cache(cache_key=cache_key)
+        avg_volume = await self.read(cache_key=cache_key)
         if avg_volume:
             self.logger.info(f"Returning cached value for {ticker}: {avg_volume}")
             return avg_volume
@@ -136,7 +136,7 @@ class MarketDataCache:
             avg_volume = total_volume / periods_calculated
 
         self.logger.info(f"average volume {ticker}: {avg_volume}")
-        await self.cache_data(
+        await self.write(
             data=avg_volume,
             cache_key=cache_key,
             cache_ttl=MarketDataCacheTTL.TICKER_AVG_VOLUME.value
@@ -146,7 +146,7 @@ class MarketDataCache:
     async def get_free_float(self, ticker: str):
         self.logger.info(f"Getting free float for {ticker}")
         cache_key = f"{MarketDataCacheKeys.TICKER_FREE_FLOAT.value}:{ticker}"
-        free_float = await self.get_cache(cache_key=cache_key)
+        free_float = await self.read(cache_key=cache_key)
         if free_float:
             self.logger.info(f"Returning cached value for {ticker}: {free_float}")
             return free_float
@@ -183,7 +183,7 @@ class MarketDataCache:
             raise
 
         self.logger.info(f"free float {ticker}: {free_float}")
-        await self.cache_data(
+        await self.write(
             data=free_float,
             cache_key=cache_key,
             cache_ttl=MarketDataCacheTTL.TICKER_FREE_FLOAT.value

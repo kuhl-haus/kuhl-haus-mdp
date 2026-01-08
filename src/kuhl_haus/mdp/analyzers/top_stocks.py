@@ -11,11 +11,11 @@ from massive.websocket.models import (
 
 from kuhl_haus.mdp.analyzers.analyzer import Analyzer
 from kuhl_haus.mdp.components.market_data_cache import MarketDataCache
-from kuhl_haus.mdp.models.market_data_analyzer_result import MarketDataAnalyzerResult
-from kuhl_haus.mdp.models.market_data_cache_keys import MarketDataCacheKeys
-from kuhl_haus.mdp.models.market_data_cache_ttl import MarketDataCacheTTL
-from kuhl_haus.mdp.models.market_data_pubsub_keys import MarketDataPubSubKeys
-from kuhl_haus.mdp.models.top_stocks_cache_item import TopStocksCacheItem
+from kuhl_haus.mdp.data.market_data_analyzer_result import MarketDataAnalyzerResult
+from kuhl_haus.mdp.data.top_stocks_cache_item import TopStocksCacheItem
+from kuhl_haus.mdp.enum.market_data_cache_keys import MarketDataCacheKeys
+from kuhl_haus.mdp.enum.market_data_cache_ttl import MarketDataCacheTTL
+from kuhl_haus.mdp.enum.market_data_pubsub_keys import MarketDataPubSubKeys
 
 
 class TopStocksAnalyzer(Analyzer):
@@ -41,7 +41,7 @@ class TopStocksAnalyzer(Analyzer):
             self.cache_item = TopStocksCacheItem()
             self.logger.info(f"Outside market hours ({et_now.strftime('%H:%M:%S %Z')}), clearing cache.")
             return
-        data = await self.cache.get_cache(self.cache_key)
+        data = await self.cache.read(self.cache_key)
         if not data:
             self.cache_item = TopStocksCacheItem()
             self.logger.info("No data to rehydrate TopStocksCacheItem.")

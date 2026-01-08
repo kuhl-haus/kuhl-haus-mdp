@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import MagicMock
 
 from kuhl_haus.mdp.helpers.queue_name_resolver import QueueNameResolver
-from kuhl_haus.mdp.models.massive_data_queue import MassiveDataQueue
+from kuhl_haus.mdp.enum.massive_data_queue import MassiveDataQueue
 from massive.websocket.models import EquityAgg, EquityTrade, EquityQuote, LimitUpLimitDown, WebSocketMessage
 
 

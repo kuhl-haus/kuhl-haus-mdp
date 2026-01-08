@@ -9,7 +9,7 @@ from redis.exceptions import ConnectionError
 from massive.rest import RESTClient
 
 from kuhl_haus.mdp.analyzers.analyzer import Analyzer
-from kuhl_haus.mdp.models.market_data_analyzer_result import MarketDataAnalyzerResult
+from kuhl_haus.mdp.data.market_data_analyzer_result import MarketDataAnalyzerResult
 from kuhl_haus.mdp.components.market_data_cache import MarketDataCache
 
 

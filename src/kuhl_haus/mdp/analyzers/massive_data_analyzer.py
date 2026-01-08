@@ -3,14 +3,21 @@ from time import time
 from typing import List, Optional
 from massive.websocket.models import EventType
 
-from kuhl_haus.mdp.models.market_data_analyzer_result import MarketDataAnalyzerResult
-from kuhl_haus.mdp.models.market_data_cache_keys import MarketDataCacheKeys
-from kuhl_haus.mdp.models.market_data_cache_ttl import MarketDataCacheTTL
+from kuhl_haus.mdp.data.market_data_analyzer_result import MarketDataAnalyzerResult
+from kuhl_haus.mdp.enum.market_data_cache_keys import MarketDataCacheKeys
+from kuhl_haus.mdp.enum.market_data_cache_ttl import MarketDataCacheTTL
 
 
 class MassiveDataAnalyzer:
-    def __init__(self):
+    cache_agg_event: bool
+    cache_trade_event: bool
+    cache_quote_event: bool
+
+    def __init__(self, cache_agg_event: bool = False, cache_trade_event: bool = False, cache_quote_event: bool = False):
         self.logger = logging.getLogger(__name__)
+        self.cache_agg_event = cache_agg_event
+        self.cache_trade_event = cache_trade_event
+        self.cache_quote_event = cache_quote_event
         self.event_handlers = {
             EventType.LimitUpLimitDown.value: self.handle_luld_event,
             EventType.EquityAgg.value: self.handle_equity_agg_event,
@@ -54,32 +61,49 @@ class MassiveDataAnalyzer:
             publish_key=f"{MarketDataCacheKeys.HALTS.value}:{symbol}",
         )]
 
-    @staticmethod
-    def handle_equity_agg_event(data: dict, symbol: str) -> Optional[List[MarketDataAnalyzerResult]]:
-        return [MarketDataAnalyzerResult(
-            data=data,
-            # cache_key=f"{MarketDataCacheKeys.AGGREGATE.value}:{symbol}",
-            # cache_ttl=MarketDataCacheTTL.AGGREGATE.value,
-            publish_key=f"{MarketDataCacheKeys.AGGREGATE.value}:{symbol}",
-        )]
+    def handle_equity_agg_event(self, data: dict, symbol: str) -> Optional[List[MarketDataAnalyzerResult]]:
+        if self.cache_agg_event:
+            return [MarketDataAnalyzerResult(
+                data=data,
+                cache_key=f"{MarketDataCacheKeys.AGGREGATE.value}:{symbol}",
+                cache_ttl=MarketDataCacheTTL.AGGREGATE.value,
+                publish_key=f"{MarketDataCacheKeys.AGGREGATE.value}:{symbol}",
+            )]
+        else:
+            return [MarketDataAnalyzerResult(
+                data=data,
+                publish_key=f"{MarketDataCacheKeys.AGGREGATE.value}:{symbol}",
+            )]
 
-    @staticmethod
-    def handle_equity_trade_event(data: dict, symbol: str) -> Optional[List[MarketDataAnalyzerResult]]:
-        return [MarketDataAnalyzerResult(
-            data=data,
-            # cache_key=f"{MarketDataCacheKeys.TRADES.value}:{symbol}",
-            # cache_ttl=MarketDataCacheTTL.TRADES.value,
-            publish_key=f"{MarketDataCacheKeys.TRADES.value}:{symbol}",
-        )]
+    def handle_equity_trade_event(self, data: dict, symbol: str) -> Optional[List[MarketDataAnalyzerResult]]:
+        if self.cache_trade_event:
+            return [MarketDataAnalyzerResult(
+                data=data,
+                cache_key=f"{MarketDataCacheKeys.TRADES.value}:{symbol}",
+                cache_ttl=MarketDataCacheTTL.TRADES.value,
+                publish_key=f"{MarketDataCacheKeys.TRADES.value}:{symbol}",
+            )]
+        else:
+            return [MarketDataAnalyzerResult(
+                data=data,
+                publish_key=f"{MarketDataCacheKeys.TRADES.value}:{symbol}",
+            )]
 
-    @staticmethod
-    def handle_equity_quote_event(data: dict, symbol: str) -> Optional[List[MarketDataAnalyzerResult]]:
-        return [MarketDataAnalyzerResult(
-            data=data,
-            # cache_key=f"{MarketDataCacheKeys.QUOTES.value}:{symbol}",
-            # cache_ttl=MarketDataCacheTTL.QUOTES.value,
-            publish_key=f"{MarketDataCacheKeys.QUOTES.value}:{symbol}",
-        )]
+    def handle_equity_quote_event(self, data: dict, symbol: str) -> Optional[List[MarketDataAnalyzerResult]]:
+        if self.cache_quote_event:
+            return [MarketDataAnalyzerResult(
+                data=data,
+                cache_key=f"{MarketDataCacheKeys.QUOTES.value}:{symbol}",
+                cache_ttl=MarketDataCacheTTL.QUOTES.value,
+                publish_key=f"{MarketDataCacheKeys.QUOTES.value}:{symbol}",
+            )]
+        else:
+            return [MarketDataAnalyzerResult(
+                data=data,
+                # cache_key=f"{MarketDataCacheKeys.QUOTES.value}:{symbol}",
+                # cache_ttl=MarketDataCacheTTL.QUOTES.value,
+                publish_key=f"{MarketDataCacheKeys.QUOTES.value}:{symbol}",
+            )]
 
     @staticmethod
     def handle_unknown_event(data: dict) -> Optional[List[MarketDataAnalyzerResult]]:

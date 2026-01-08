@@ -2,7 +2,7 @@
 import unittest
 from collections import defaultdict
 
-from src.kuhl_haus.mdp.models.top_stocks_cache_item import TopStocksCacheItem
+from kuhl_haus.mdp.data.top_stocks_cache_item import TopStocksCacheItem
 
 
 class TestTopStocksCacheItem(unittest.TestCase):

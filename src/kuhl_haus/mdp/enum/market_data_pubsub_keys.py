@@ -1,6 +1,6 @@
 from enum import Enum
 
-from kuhl_haus.mdp.models.market_data_scanner_names import MarketDataScannerNames
+from kuhl_haus.mdp.enum.market_data_scanner_names import MarketDataScannerNames
 
 
 class MarketDataPubSubKeys(Enum):

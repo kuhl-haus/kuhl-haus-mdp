@@ -5,8 +5,8 @@ import pytest
 from kuhl_haus.mdp.components.market_data_cache import MarketDataCache
 from massive.rest.models import TickerSnapshot
 
-from kuhl_haus.mdp.models.market_data_cache_keys import MarketDataCacheKeys
-from kuhl_haus.mdp.models.market_data_cache_ttl import MarketDataCacheTTL
+from kuhl_haus.mdp.enum.market_data_cache_keys import MarketDataCacheKeys
+from kuhl_haus.mdp.enum.market_data_cache_ttl import MarketDataCacheTTL
 
 
 @pytest.fixture
@@ -663,7 +663,7 @@ async def test_cache_data_without_ttl_expect_set_called():
     test_cache_key = "test:cache:key"
 
     # Act
-    await sut.cache_data(data=test_data, cache_key=test_cache_key, cache_ttl=0)
+    await sut.write(data=test_data, cache_key=test_cache_key, cache_ttl=0)
 
     # Assert
     mock_redis_client.set.assert_awaited_once_with(test_cache_key, json.dumps(test_data))
@@ -681,7 +681,7 @@ async def test_publish_data_expect_publish_called():
     test_publish_key = "market:updates:TEST"
 
     # Act
-    await sut.publish_data(data=test_data, publish_key=test_publish_key)
+    await sut.broadcast(data=test_data, publish_key=test_publish_key)
 
     # Assert
     mock_redis_client.publish.assert_awaited_once_with(test_publish_key, json.dumps(test_data))
@@ -844,7 +844,7 @@ async def test_delete_cache_with_existing_key_expect_cache_deleted():
     test_cache_key = "test:cache:key"
 
     # Act
-    await sut.delete_cache(test_cache_key)
+    await sut.delete(test_cache_key)
 
     # Assert
     mock_redis_client.delete.assert_awaited_once_with(test_cache_key)
@@ -861,7 +861,7 @@ async def test_delete_cache_with_redis_error_expect_error_logged(mock_logger):
     test_cache_key = "test:cache:key"
 
     # Act
-    await sut.delete_cache(test_cache_key)
+    await sut.delete(test_cache_key)
 
     # Assert
     mock_redis_client.delete.assert_awaited_once_with(test_cache_key)
@@ -878,7 +878,7 @@ async def test_delete_cache_with_successful_deletion_expect_info_logged(mock_log
     test_cache_key = "test:cache:key"
 
     # Act
-    await sut.delete_cache(test_cache_key)
+    await sut.delete(test_cache_key)
 
     # Assert
     mock_redis_client.delete.assert_awaited_once_with(test_cache_key)

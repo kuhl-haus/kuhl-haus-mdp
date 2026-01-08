@@ -1,5 +1,5 @@
 from enum import Enum
-from kuhl_haus.mdp.models.constants import (
+from kuhl_haus.mdp.enum.constants import (
     EIGHT_HOURS,
     FIVE_MINUTES,
     ONE_DAY,

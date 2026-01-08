@@ -5,7 +5,7 @@ from unittest.mock import patch, MagicMock, AsyncMock
 import pytest
 
 from kuhl_haus.mdp.analyzers.top_stocks import TopStocksAnalyzer
-from kuhl_haus.mdp.models.top_stocks_cache_item import TopStocksCacheItem
+from kuhl_haus.mdp.data.top_stocks_cache_item import TopStocksCacheItem
 from kuhl_haus.mdp.components.market_data_cache import MarketDataCache
 
 
@@ -65,7 +65,7 @@ async def test_rehydrate_no_data(mock_zoneinfo, top_stocks_analyzer, mock_logger
     # Configure ZoneInfo mock to return timezone.utc so astimezone works properly
     mock_zoneinfo.return_value = timezone.utc
     top_stocks_analyzer.logger = mock_logger
-    top_stocks_analyzer.cache.get_cache.return_value = None
+    top_stocks_analyzer.cache.read.return_value = None
 
     # Act
     _ = await top_stocks_analyzer.rehydrate()
@@ -84,7 +84,7 @@ async def test_rehydrate_outside_trading_hours(mock_zoneinfo, top_stocks_analyze
     mock_zoneinfo.return_value = timezone.utc
     top_stocks_analyzer.logger = mock_logger
     data = {"day_start_time": 1672531200}
-    top_stocks_analyzer.cache.get_cache.return_value = data
+    top_stocks_analyzer.cache.read.return_value = data
 
     # Act
     await top_stocks_analyzer.rehydrate()
@@ -105,7 +105,7 @@ async def test_rehydrate_within_trading_hours(mock_zoneinfo, top_stocks_analyzer
     # Configure ZoneInfo mock to return timezone.utc so astimezone works properly
     mock_zoneinfo.return_value = timezone.utc
     data = {"day_start_time": 1672531200}
-    top_stocks_analyzer.cache.get_cache.return_value = data
+    top_stocks_analyzer.cache.read.return_value = data
     top_stocks_analyzer.logger = mock_logger
 
     # Act

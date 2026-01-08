@@ -3,9 +3,9 @@ from unittest.mock import MagicMock
 import pytest
 from massive.websocket.models import EventType
 
-from kuhl_haus.mdp.models.market_data_cache_ttl import MarketDataCacheTTL
+from kuhl_haus.mdp.enum.market_data_cache_ttl import MarketDataCacheTTL
 from src.kuhl_haus.mdp.analyzers.massive_data_analyzer import MassiveDataAnalyzer
-from src.kuhl_haus.mdp.models.market_data_cache_keys import MarketDataCacheKeys
+from src.kuhl_haus.mdp.enum.market_data_cache_keys import MarketDataCacheKeys
 
 
 @pytest.fixture
@@ -49,8 +49,8 @@ def test_analyze_data_with_valid_luld_event_expect_valid_result(valid_symbol, va
 
     # Assert
     assert len(result) == 1
-    # assert result[0].cache_key == f"{MarketDataCacheKeys.HALTS.value}:{symbol}"
-    # assert result[0].cache_ttl == MarketDataCacheTTL.HALTS.value
+    assert result[0].cache_key == f"{MarketDataCacheKeys.HALTS.value}:{symbol}"
+    assert result[0].cache_ttl == MarketDataCacheTTL.HALTS.value
     assert result[0].publish_key == f"{MarketDataCacheKeys.HALTS.value}:{symbol}"
     assert result[0].data == data
 
@@ -172,7 +172,7 @@ def test_handle_luld_event_happy_path(valid_symbol, valid_luld_data):
     assert result[0].data == valid_luld_data
 
 
-def test_handle_equity_agg_event_happy_path(valid_symbol, valid_equity_agg_data):
+def test_handle_equity_agg_event_with_no_cache_happy_path(valid_symbol, valid_equity_agg_data):
     # Arrange
     sut = MassiveDataAnalyzer()
 
@@ -181,13 +181,28 @@ def test_handle_equity_agg_event_happy_path(valid_symbol, valid_equity_agg_data)
 
     # Assert
     assert len(result) == 1
-    # assert result[0].cache_key == f"{MarketDataCacheKeys.AGGREGATE.value}:{valid_symbol}"
-    # assert result[0].cache_ttl == MarketDataCacheTTL.AGGREGATE.value
+    assert result[0].cache_key is None
+    assert result[0].cache_ttl == 0
     assert result[0].publish_key == f"{MarketDataCacheKeys.AGGREGATE.value}:{valid_symbol}"
     assert result[0].data == valid_equity_agg_data
 
 
-def test_handle_equity_trade_event_happy_path(valid_symbol, valid_equity_trade_data):
+def test_handle_equity_agg_event_with_cache_happy_path(valid_symbol, valid_equity_agg_data):
+    # Arrange
+    sut = MassiveDataAnalyzer(cache_agg_event=True)
+
+    # Act
+    result = sut.handle_equity_agg_event(data=valid_equity_agg_data, symbol=valid_symbol)
+
+    # Assert
+    assert len(result) == 1
+    assert result[0].cache_key == f"{MarketDataCacheKeys.AGGREGATE.value}:{valid_symbol}"
+    assert result[0].cache_ttl == MarketDataCacheTTL.AGGREGATE.value
+    assert result[0].publish_key == f"{MarketDataCacheKeys.AGGREGATE.value}:{valid_symbol}"
+    assert result[0].data == valid_equity_agg_data
+
+
+def test_handle_equity_trade_event_with_no_cache_happy_path(valid_symbol, valid_equity_trade_data):
     # Arrange
     sut = MassiveDataAnalyzer()
 
@@ -196,13 +211,28 @@ def test_handle_equity_trade_event_happy_path(valid_symbol, valid_equity_trade_d
 
     # Assert
     assert len(result) == 1
-    # assert result[0].cache_key == f"{MarketDataCacheKeys.TRADES.value}:{valid_symbol}"
-    # assert result[0].cache_ttl == MarketDataCacheTTL.TRADES.value
+    assert result[0].cache_key is None
+    assert result[0].cache_ttl == 0
     assert result[0].publish_key == f"{MarketDataCacheKeys.TRADES.value}:{valid_symbol}"
     assert result[0].data == valid_equity_trade_data
 
 
-def test_handle_equity_quote_event_happy_path(valid_symbol, valid_equity_quote_data):
+def test_handle_equity_trade_event_with_cache_happy_path(valid_symbol, valid_equity_trade_data):
+    # Arrange
+    sut = MassiveDataAnalyzer(cache_trade_event=True)
+
+    # Act
+    result = sut.handle_equity_trade_event(data=valid_equity_trade_data, symbol=valid_symbol)
+
+    # Assert
+    assert len(result) == 1
+    assert result[0].cache_key == f"{MarketDataCacheKeys.TRADES.value}:{valid_symbol}"
+    assert result[0].cache_ttl == MarketDataCacheTTL.TRADES.value
+    assert result[0].publish_key == f"{MarketDataCacheKeys.TRADES.value}:{valid_symbol}"
+    assert result[0].data == valid_equity_trade_data
+
+
+def test_handle_equity_quote_event_with_no_cache_happy_path(valid_symbol, valid_equity_quote_data):
     # Arrange
     sut = MassiveDataAnalyzer()
 
@@ -211,8 +241,23 @@ def test_handle_equity_quote_event_happy_path(valid_symbol, valid_equity_quote_d
 
     # Assert
     assert len(result) == 1
-    # assert result[0].cache_key == f"{MarketDataCacheKeys.QUOTES.value}:{valid_symbol}"
-    # assert result[0].cache_ttl == MarketDataCacheTTL.QUOTES.value
+    assert result[0].cache_key is None
+    assert result[0].cache_ttl == 0
+    assert result[0].publish_key == f"{MarketDataCacheKeys.QUOTES.value}:{valid_symbol}"
+    assert result[0].data == valid_equity_quote_data
+
+
+def test_handle_equity_quote_event_with_cache_happy_path(valid_symbol, valid_equity_quote_data):
+    # Arrange
+    sut = MassiveDataAnalyzer(cache_quote_event=True)
+
+    # Act
+    result = sut.handle_equity_quote_event(data=valid_equity_quote_data, symbol=valid_symbol)
+
+    # Assert
+    assert len(result) == 1
+    assert result[0].cache_key == f"{MarketDataCacheKeys.QUOTES.value}:{valid_symbol}"
+    assert result[0].cache_ttl == MarketDataCacheTTL.QUOTES.value
     assert result[0].publish_key == f"{MarketDataCacheKeys.QUOTES.value}:{valid_symbol}"
     assert result[0].data == valid_equity_quote_data
 

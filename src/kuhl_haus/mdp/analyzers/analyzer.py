@@ -1,5 +1,5 @@
 from typing import Optional, List
-from kuhl_haus.mdp.models.market_data_analyzer_result import MarketDataAnalyzerResult
+from kuhl_haus.mdp.data.market_data_analyzer_result import MarketDataAnalyzerResult
 from kuhl_haus.mdp.components.market_data_cache import MarketDataCache
 
 

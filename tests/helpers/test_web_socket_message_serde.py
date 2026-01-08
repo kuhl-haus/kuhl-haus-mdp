@@ -11,7 +11,7 @@ from massive.websocket.models import (
     LimitUpLimitDown,
     EventType,
 )
-from src.kuhl_haus.mdp.integ.web_socket_message_serde import WebSocketMessageSerde
+from kuhl_haus.mdp.helpers.web_socket_message_serde import WebSocketMessageSerde
 
 
 class TestWebSocketMessageSerde(unittest.TestCase):

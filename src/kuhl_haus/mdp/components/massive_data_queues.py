@@ -6,9 +6,9 @@ from aio_pika import DeliveryMode
 from aio_pika.abc import AbstractConnection, AbstractChannel
 from massive.websocket.models import WebSocketMessage
 
-from kuhl_haus.mdp.models.massive_data_queue import MassiveDataQueue
+from kuhl_haus.mdp.enum.massive_data_queue import MassiveDataQueue
 from kuhl_haus.mdp.helpers.queue_name_resolver import QueueNameResolver
-from kuhl_haus.mdp.integ.web_socket_message_serde import WebSocketMessageSerde
+from kuhl_haus.mdp.helpers.web_socket_message_serde import WebSocketMessageSerde
 
 
 class MassiveDataQueues:
