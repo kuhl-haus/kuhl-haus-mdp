@@ -92,7 +92,7 @@ class TopStocksAnalyzer(Analyzer):
                 cache_ttl=MarketDataCacheTTL.TOP_STOCKS_SCANNER.value,
             ),
             MarketDataAnalyzerResult(
-                data=self.cache_item.top_volume(100),
+                data=self.cache_item.top_volume(500),
                 cache_key=MarketDataPubSubKeys.TOP_VOLUME_SCANNER.value,
                 cache_ttl=MarketDataCacheTTL.TOP_VOLUME_SCANNER.value,
                 publish_key=MarketDataPubSubKeys.TOP_VOLUME_SCANNER.value,
