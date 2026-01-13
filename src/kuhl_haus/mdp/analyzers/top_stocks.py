@@ -57,6 +57,7 @@ class TopStocksAnalyzer(Analyzer):
             self.logger.info(f"New day: {current_day} - resetting cache.")
             self.cache_item = TopStocksCacheItem()
             self.cache_item.day_start_time = current_day
+            self.pre_market_reset = False
         elif et_now.hour == 9 and et_now.minute == 30 and not self.pre_market_reset:
             self.logger.info("Market is now open; resetting symbol data cache.")
             self.cache_item.symbol_data_cache = {}
@@ -136,8 +137,8 @@ class TopStocksAnalyzer(Analyzer):
                     prev_day_volume = snapshot.prev_day.volume
                     prev_day_vwap = snapshot.prev_day.vwap
                     break
-                except KeyError as e:
-                    self.logger.error(f"KeyError exception thrown when getting snapshot for {event.symbol}: {e}", stack_info=True, exc_info=True)
+                except AttributeError as e:
+                    self.logger.error(f"AttributeError exception thrown when getting snapshot for {event.symbol}: {e}")
                     retry_count += 1
                     await self.cache.delete_ticker_snapshot(event.symbol)
                 except Exception as e:
