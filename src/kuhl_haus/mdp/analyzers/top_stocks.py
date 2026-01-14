@@ -59,8 +59,9 @@ class TopStocksAnalyzer(Analyzer):
             self.cache_item.day_start_time = current_day
             self.pre_market_reset = False
         elif et_now.hour == 9 and et_now.minute == 30 and not self.pre_market_reset:
-            self.logger.info("Market is now open; resetting symbol data cache.")
-            self.cache_item.symbol_data_cache = {}
+            self.logger.info("Market is now open; resetting cache.")
+            self.cache_item = TopStocksCacheItem()
+            self.cache_item.day_start_time = current_day
             self.pre_market_reset = True
 
         event_type = data.get("event_type")
