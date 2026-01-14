@@ -100,8 +100,6 @@ class MassiveDataAnalyzer:
         else:
             return [MarketDataAnalyzerResult(
                 data=data,
-                # cache_key=f"{MarketDataCacheKeys.QUOTES.value}:{symbol}",
-                # cache_ttl=MarketDataCacheTTL.QUOTES.value,
                 publish_key=f"{MarketDataCacheKeys.QUOTES.value}:{symbol}",
             )]
 
