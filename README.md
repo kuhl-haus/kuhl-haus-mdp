@@ -19,7 +19,7 @@
 
 # kuhl-haus-mdp
 
-Market data processing pipeline for stock market scanner.
+Market data processing library.
 
 
 
