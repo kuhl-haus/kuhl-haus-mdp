@@ -47,7 +47,7 @@ def ticker_snapshot_to_dict(snapshot: TickerSnapshot) -> Dict[str, Any]:
         snapshot: TickerSnapshot instance to convert
 
     Returns:
-        Dictionary with keys matching the from_dict format (camelCase)
+        Dictionary with keys in lower snake case
     """
     data = {
         "ticker": snapshot.ticker,
