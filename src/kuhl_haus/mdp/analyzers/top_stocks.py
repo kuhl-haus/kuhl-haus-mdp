@@ -9,7 +9,7 @@ from massive.websocket.models import (
     EventType
 )
 
-from kuhl_haus.mdp.analyzers.analyzer import Analyzer
+from kuhl_haus.mdp.analyzers.analyzer import Analyzer, AnalyzerOptions
 from kuhl_haus.mdp.components.market_data_cache import MarketDataCache
 from kuhl_haus.mdp.data.market_data_analyzer_result import MarketDataAnalyzerResult
 from kuhl_haus.mdp.data.top_stocks_cache_item import TopStocksCacheItem
@@ -20,9 +20,15 @@ from kuhl_haus.mdp.enum.market_data_pubsub_keys import MarketDataPubSubKeys
 
 class TopStocksAnalyzer(Analyzer):
 
-    def __init__(self, cache: MarketDataCache, **kwargs):
-        super().__init__(cache=cache, **kwargs)
-        self.cache = cache
+    def __init__(self, options: AnalyzerOptions):
+        super().__init__(options)
+        self.redis_client = options.new_redis_client()
+        self.rest_client = options.new_rest_client()
+        self.cache = MarketDataCache(
+            rest_client=self.rest_client,
+            redis_client=self.redis_client,
+            massive_api_key=options.massive_api_key
+        )
         self.cache_key = MarketDataCacheKeys.TOP_STOCKS_SCANNER.value
         self.logger = logging.getLogger(__name__)
         self.cache_item = TopStocksCacheItem()

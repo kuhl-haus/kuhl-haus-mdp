@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 from typing import Any, Optional, Iterator, List
@@ -72,7 +73,7 @@ class MarketDataCache:
         result = await self.read(cache_key=cache_key)
         if result:
             self.logger.info(f"Returning cached snapshot for {ticker}")
-            snapshot = TickerSnapshot(**result)
+            snapshot = TickerSnapshot.from_dict(result)
         else:
             snapshot: TickerSnapshot = self.rest_client.get_snapshot_ticker(
                 market_type="stocks",
@@ -171,10 +172,14 @@ class MarketDataCache:
                     if len(results) > 0:
                         free_float = results[0].get("free_float")
                     else:
-                        raise Exception(f"No free float data returned for {ticker}")
+                        # raise Exception(f"No free float data returned for {ticker}")
+                        self.logger.warning(f"No free float data returned for {ticker}")
+                        free_float = 0
                 else:
                     raise Exception(f"Invalid response from Massive API for {ticker}: {data}")
-
+        except asyncio.TimeoutError:
+            self.logger.warning(f"Timeout fetching free float for {ticker}, using default value 0")
+            free_float = 0
         except aiohttp.ClientError as e:
             self.logger.error(f"HTTP error fetching free float for {ticker}: {e}")
             raise

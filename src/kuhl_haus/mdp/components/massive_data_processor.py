@@ -1,14 +1,18 @@
 import asyncio
 import json
 import logging
+from typing import Any, Optional
 
 import aio_pika
 import redis.asyncio as aioredis
 from aio_pika.abc import AbstractIncomingMessage
 
-from kuhl_haus.mdp.analyzers.massive_data_analyzer import MassiveDataAnalyzer
+from massive.rest import RESTClient
+
+from kuhl_haus.mdp.analyzers.analyzer import Analyzer, AnalyzerOptions
 from kuhl_haus.mdp.helpers.web_socket_message_serde import WebSocketMessageSerde
 from kuhl_haus.mdp.data.market_data_analyzer_result import MarketDataAnalyzerResult
+from kuhl_haus.mdp.components.market_data_cache import MarketDataCache
 
 
 class MassiveDataProcessor:
@@ -26,12 +30,15 @@ class MassiveDataProcessor:
         rabbitmq_url: str,
         queue_name: str,
         redis_url: str,
+        massive_api_key: str,
+        analyzer_class: Any,
         prefetch_count: int = 100,  # Higher for async throughput
         max_concurrent_tasks: int = 500,  # Concurrent processing limit
     ):
         self.rabbitmq_url = rabbitmq_url
         self.queue_name = queue_name
         self.redis_url = redis_url
+        self.massive_api_key = massive_api_key
         self.prefetch_count = prefetch_count
         self.max_concurrent_tasks = max_concurrent_tasks
 
@@ -39,9 +46,12 @@ class MassiveDataProcessor:
         self.rmq_connection = None
         self.rmq_channel = None
         self.redis_client = None
+        self.mdc: Optional[MarketDataCache] = None
 
         # Analyzer
-        self.analyzer = MassiveDataAnalyzer()
+        self.analyzer: Analyzer = None
+        self.analyzer_class = analyzer_class
+        self.analyzer_options = AnalyzerOptions(redis_url=redis_url, massive_api_key=massive_api_key)
 
         # Concurrency control
         self.semaphore = asyncio.Semaphore(max_concurrent_tasks)
@@ -112,9 +122,9 @@ class MassiveDataProcessor:
                     data = WebSocketMessageSerde.to_dict(web_socket_message)
 
                     # Delegate to analyzer
-                    analyzer_results = self.analyzer.analyze_data(data)
+                    analyzer_results = await self.analyzer.analyze_data(data)
+                    self.processed += 1
                     if analyzer_results:
-                        self.processed += 1
                         for analyzer_result in analyzer_results:
                             # Cache in Redis
                             await self._cache_result(analyzer_result)
@@ -189,6 +199,11 @@ class MassiveDataProcessor:
         else:
             self.logger.error("Failed to connect to RabbitMQ or Redis")
             raise RuntimeError("Failed to connect to RabbitMQ or Redis")
+
+        self.analyzer = self.analyzer_class(options=self.analyzer_options)
+        self.logger.info(f"{self.analyzer_class} rehydrating from cache")
+        await self.analyzer.rehydrate()
+        self.logger.info(f"{self.analyzer_class} rehydration complete")
 
         # Get queue
         queue = await self.rmq_channel.get_queue(self.queue_name)

@@ -90,8 +90,7 @@ def mock_data_dict():
 
 
 @pytest.mark.asyncio
-@patch("kuhl_haus.mdp.components.market_data_cache.TickerSnapshot")
-async def test_get_ticker_snapshot_with_cache_hit_expect_ticker_snapshot_returned(mock_snapshot, mock_data_dict):
+async def test_get_ticker_snapshot_with_cache_hit_expect_ticker_snapshot_returned(mock_data_dict):
     # Arrange
     mock_redis_client = AsyncMock()
     mock_rest_client = MagicMock()
@@ -99,14 +98,12 @@ async def test_get_ticker_snapshot_with_cache_hit_expect_ticker_snapshot_returne
     mock_cache_key = f"{MarketDataCacheKeys.TICKER_SNAPSHOTS.value}:TEST"
     mock_cached_value = mock_data_dict
     mock_redis_client.get.return_value = json.dumps(mock_cached_value)
-    mock_snapshot.return_value = TickerSnapshot(**mock_cached_value)
 
     # Act
     result = await sut.get_ticker_snapshot("TEST")
 
     # Assert
     mock_redis_client.get.assert_awaited_once_with(mock_cache_key)
-    mock_snapshot.assert_called_once_with(**mock_cached_value)
     assert isinstance(result, TickerSnapshot)
     assert result.ticker == "TEST"
 
@@ -451,7 +448,7 @@ async def test_get_free_float_caches_with_correct_ttl():
 
 
 @pytest.mark.asyncio
-async def test_get_free_float_with_empty_results_expect_exception():
+async def test_get_free_float_with_empty_results_expect_zero_returned():
     # Arrange
     mock_redis_client = AsyncMock()
     mock_rest_client = MagicMock()
@@ -485,10 +482,11 @@ async def test_get_free_float_with_empty_results_expect_exception():
     sut.http_session = mock_session
 
     # Act & Assert
-    with pytest.raises(Exception, match="No free float data returned for TEST"):
-        await sut.get_free_float("TEST")
+    # with pytest.raises(Exception, match="No free float data returned for TEST"):
+    result = await sut.get_free_float("TEST")
 
-    mock_redis_client.setex.assert_not_awaited()
+    assert result == 0
+    mock_redis_client.setex.assert_awaited()
 
 
 @pytest.mark.asyncio

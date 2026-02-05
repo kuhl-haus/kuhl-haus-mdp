@@ -42,92 +42,93 @@ def get_massive_api_key():
 def ticker_snapshot_to_dict(snapshot: TickerSnapshot) -> Dict[str, Any]:
     """
     Convert a TickerSnapshot instance into a JSON-serializable dictionary.
+    Uses camelCase keys to match the API format for easy reconstruction with from_dict().
 
     Args:
         snapshot: TickerSnapshot instance to convert
 
     Returns:
-        Dictionary with keys in lower snake case
+        Dictionary with keys in camelCase (matching API format)
     """
     data = {
         "ticker": snapshot.ticker,
-        "todays_change": snapshot.todays_change,
-        "todays_change_perc": snapshot.todays_change_percent,
+        "todaysChange": snapshot.todays_change,
+        "todaysChangePerc": snapshot.todays_change_percent,
         "updated": snapshot.updated,
     }
 
     if snapshot.day is not None:
         data["day"] = {
-            "open": snapshot.day.open,
-            "high": snapshot.day.high,
-            "low": snapshot.day.low,
-            "close": snapshot.day.close,
-            "volume": snapshot.day.volume,
-            "vwap": snapshot.day.vwap,
-            "timestamp": snapshot.day.timestamp,
-            "transactions": snapshot.day.transactions,
+            "o": snapshot.day.open,
+            "h": snapshot.day.high,
+            "l": snapshot.day.low,
+            "c": snapshot.day.close,
+            "v": snapshot.day.volume,
+            "vw": snapshot.day.vwap,
+            "t": snapshot.day.timestamp,
+            "n": snapshot.day.transactions,
             "otc": snapshot.day.otc,
         }
 
     if snapshot.last_quote is not None:
-        data["last_quote"] = {
-            "ticker": snapshot.last_quote.ticker,
-            "trf_timestamp": snapshot.last_quote.trf_timestamp,
-            "sequence_number": snapshot.last_quote.sequence_number,
-            "sip_timestamp": snapshot.last_quote.sip_timestamp,
-            "participant_timestamp": snapshot.last_quote.participant_timestamp,
-            "ask_price": snapshot.last_quote.ask_price,
-            "ask_size": snapshot.last_quote.ask_size,
-            "ask_exchange": snapshot.last_quote.ask_exchange,
-            "conditions": snapshot.last_quote.conditions,
-            "indicators": snapshot.last_quote.indicators,
-            "bid_price": snapshot.last_quote.bid_price,
-            "bid_size": snapshot.last_quote.bid_size,
-            "bid_exchange": snapshot.last_quote.bid_exchange,
-            "tape": snapshot.last_quote.tape,
+        data["lastQuote"] = {
+            "T": snapshot.last_quote.ticker,
+            "f": snapshot.last_quote.trf_timestamp,
+            "q": snapshot.last_quote.sequence_number,
+            "t": snapshot.last_quote.sip_timestamp,
+            "y": snapshot.last_quote.participant_timestamp,
+            "P": snapshot.last_quote.ask_price,
+            "S": snapshot.last_quote.ask_size,
+            "X": snapshot.last_quote.ask_exchange,
+            "c": snapshot.last_quote.conditions,
+            "i": snapshot.last_quote.indicators,
+            "p": snapshot.last_quote.bid_price,
+            "s": snapshot.last_quote.bid_size,
+            "x": snapshot.last_quote.bid_exchange,
+            "z": snapshot.last_quote.tape,
         }
 
     if snapshot.last_trade is not None:
-        data["last_trade"] = {
-            "ticker": snapshot.last_trade.ticker,
-            "trf_timestamp": snapshot.last_trade.trf_timestamp,
-            "sequence_number": snapshot.last_trade.sequence_number,
-            "sip_timestamp": snapshot.last_trade.sip_timestamp,
-            "participant_timestamp": snapshot.last_trade.participant_timestamp,
-            "conditions": snapshot.last_trade.conditions,
-            "correction": snapshot.last_trade.correction,
-            "id": snapshot.last_trade.id,
-            "price": snapshot.last_trade.price,
-            "trf_id": snapshot.last_trade.trf_id,
-            "size": snapshot.last_trade.size,
-            "exchange": snapshot.last_trade.exchange,
-            "tape": snapshot.last_trade.tape,
+        data["lastTrade"] = {
+            "T": snapshot.last_trade.ticker,
+            "f": snapshot.last_trade.trf_timestamp,
+            "q": snapshot.last_trade.sequence_number,
+            "t": snapshot.last_trade.sip_timestamp,
+            "y": snapshot.last_trade.participant_timestamp,
+            "c": snapshot.last_trade.conditions,
+            "e": snapshot.last_trade.correction,
+            "i": snapshot.last_trade.id,
+            "p": snapshot.last_trade.price,
+            "r": snapshot.last_trade.trf_id,
+            "s": snapshot.last_trade.size,
+            "x": snapshot.last_trade.exchange,
+            "z": snapshot.last_trade.tape,
         }
 
     if snapshot.min is not None:
         data["min"] = {
-            "accumulated_volume": snapshot.min.accumulated_volume,
-            "open": snapshot.min.open,
-            "high": snapshot.min.high,
-            "low": snapshot.min.low,
-            "close": snapshot.min.close,
-            "volume": snapshot.min.volume,
-            "vwap": snapshot.min.vwap,
+            "av": snapshot.min.accumulated_volume,
+            "o": snapshot.min.open,
+            "h": snapshot.min.high,
+            "l": snapshot.min.low,
+            "c": snapshot.min.close,
+            "v": snapshot.min.volume,
+            "vw": snapshot.min.vwap,
             "otc": snapshot.min.otc,
-            "timestamp": snapshot.min.timestamp,
-            "transactions": snapshot.min.transactions,
+            "t": snapshot.min.timestamp,
+            "n": snapshot.min.transactions,
         }
 
     if snapshot.prev_day is not None:
-        data["prev_day"] = {
-            "open": snapshot.prev_day.open,
-            "high": snapshot.prev_day.high,
-            "low": snapshot.prev_day.low,
-            "close": snapshot.prev_day.close,
-            "volume": snapshot.prev_day.volume,
-            "vwap": snapshot.prev_day.vwap,
-            "timestamp": snapshot.prev_day.timestamp,
-            "transactions": snapshot.prev_day.transactions,
+        data["prevDay"] = {
+            "o": snapshot.prev_day.open,
+            "h": snapshot.prev_day.high,
+            "l": snapshot.prev_day.low,
+            "c": snapshot.prev_day.close,
+            "v": snapshot.prev_day.volume,
+            "vw": snapshot.prev_day.vwap,
+            "t": snapshot.prev_day.timestamp,
+            "n": snapshot.prev_day.transactions,
             "otc": snapshot.prev_day.otc,
         }
 
