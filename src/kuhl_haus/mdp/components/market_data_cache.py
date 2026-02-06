@@ -121,7 +121,6 @@ class MarketDataCache:
                 adjusted=True,
                 sort="desc"
             )
-            self.logger.info(f"average volume result: {result}")
 
             total_volume = 0
             max_periods = 30
@@ -135,8 +134,11 @@ class MarketDataCache:
             if periods_calculated == 0:
                 raise Exception(f"No volume data returned for {ticker}")
             avg_volume = total_volume / periods_calculated
-
-        self.logger.info(f"average volume {ticker}: {avg_volume}")
+        if avg_volume:
+            self.logger.info(f"average volume {ticker}: {avg_volume}")
+        else:
+            self.logger.error(f"Unable to get average volume for {ticker}")
+            raise f"Unable to get average volume for {ticker}"
         await self.write(
             data=avg_volume,
             cache_key=cache_key,

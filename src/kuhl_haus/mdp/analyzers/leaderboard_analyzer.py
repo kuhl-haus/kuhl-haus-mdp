@@ -108,7 +108,7 @@ class LeaderboardAnalyzer(Analyzer):
 
         # Store symbol metadata (hash)
         symbol_key = f"symbol:{symbol}:data"
-        pipe.hset(symbol_key, mapping={
+        mapping = {
             "symbol": symbol,
             "volume": volume,
             "free_float": free_float or 0,
@@ -132,10 +132,15 @@ class LeaderboardAnalyzer(Analyzer):
             "pct_change_since_open": pct_change_since_open,
             "start_timestamp": event.get("start_timestamp", 0),
             "end_timestamp": event.get("end_timestamp", 0),
-        })
+        }
+        pipe.hset(symbol_key, mapping=mapping)
         pipe.expire(symbol_key, MarketDataCacheTTL.LEADERBOARD_ANALYZER.value)
 
-        await pipe.execute()
+        try:
+            await pipe.execute()
+        except Exception as e:
+            self.logger.debug(f"mapping: {mapping}")
+            self.logger.error(f"Error updating leaderboards for {symbol}: {e}")
 
     async def _build_leaderboard_results(self, limit: int = 500) -> List[MarketDataAnalyzerResult]:
         """
