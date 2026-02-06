@@ -22,7 +22,7 @@ class MassiveDataProcessor:
     processed: int
     duplicated: int
     decoding_error: int
-    dropped: int
+    published: int
     error: int
 
     def __init__(
@@ -66,7 +66,7 @@ class MassiveDataProcessor:
         self.duplicated = 0
         self.error = 0
         self.decoding_error = 0
-        self.dropped = 0
+        self.published = 0
         self.mdq_connected = False
         self.mdc_connected = False
 
@@ -124,18 +124,13 @@ class MassiveDataProcessor:
                     # Delegate to analyzer
                     analyzer_results = await self.analyzer.analyze_data(data)
                     self.processed += 1
-                    if analyzer_results:
-                        for analyzer_result in analyzer_results:
-                            # Cache in Redis
-                            await self._cache_result(analyzer_result)
+                    self.logger.debug(f"Processed message {message.delivery_tag}")
 
-                        self.logger.debug(f"Processed message {message.delivery_tag}")
-                    else:
-                        # Empty result - drop message
-                        self.dropped += 1
-                        self.logger.debug(
-                            f"Analyzer returned empty for {message.delivery_tag}"
-                        )
+                    # The analyzer throttles downstream publication rates.
+                    # The analyzer will return None if it is not ready to publish.
+                    for analyzer_result in analyzer_results:
+                        self.published += 1
+                        await self._cache_result(analyzer_result)
             except aio_pika.exceptions.MessageProcessError as e:
                 self.logger.error(f"Message processing error: {e}")
                 self.duplicated += 1
