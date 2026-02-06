@@ -127,10 +127,11 @@ class MassiveDataProcessor:
                     self.logger.debug(f"Processed message {message.delivery_tag}")
 
                     # The analyzer throttles downstream publication rates.
-                    # The analyzer will return None if it is not ready to publish.
-                    for analyzer_result in analyzer_results:
-                        self.published += 1
-                        await self._cache_result(analyzer_result)
+                    # The analyzer will return None or an empty array if it is not ready to publish.
+                    if analyzer_results:
+                        for analyzer_result in analyzer_results:
+                            self.published += 1
+                            await self._cache_result(analyzer_result)
             except aio_pika.exceptions.MessageProcessError as e:
                 self.logger.error(f"Message processing error: {e}")
                 self.duplicated += 1
