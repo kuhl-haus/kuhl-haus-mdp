@@ -122,7 +122,7 @@ class LeaderboardAnalyzer(Analyzer):
             "low": event.get("low", 0),
             "aggregate_vwap": event.get("aggregate_vwap", 0),
             "average_size": event.get("average_size", 0),
-            "avg_volume": avg_volume,
+            "avg_volume": avg_volume or 0,
             "prev_day_close": prev_day_close,
             "prev_day_volume": prev_day_volume,
             "prev_day_vwap": prev_day_vwap,
@@ -139,7 +139,7 @@ class LeaderboardAnalyzer(Analyzer):
         try:
             await pipe.execute()
         except Exception as e:
-            self.logger.debug(f"mapping: {mapping}")
+            self.logger.error(f"mapping: {mapping}")
             self.logger.error(f"Error updating leaderboards for {symbol}: {e}")
 
     async def _build_leaderboard_results(self, limit: int = 500) -> List[MarketDataAnalyzerResult]:
