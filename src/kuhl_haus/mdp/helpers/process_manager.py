@@ -76,9 +76,9 @@ class ProcessManager:
                     status = {
                         "processed": getattr(worker_instance, 'processed', 0),
                         "errors": getattr(worker_instance, 'errors', getattr(worker_instance, 'error', 0)),
-                        "decoding_errors": getattr(worker_instance, 'decoding_errors', 0),
+                        "decoding_errors": getattr(worker_instance, 'decoding_error', 0),
                         "published": getattr(worker_instance, 'published', 0),
-                        "duplicated": getattr(worker_instance, 'duplicated', 0),
+                        "processing_errors": getattr(worker_instance, 'processing_error', 0),
                         "mdq_connected": getattr(worker_instance, 'mdq_connected', False),
                         "mdc_connected": getattr(worker_instance, 'mdc_connected', False),
                         "restarts": getattr(worker_instance, 'restarts', 0),

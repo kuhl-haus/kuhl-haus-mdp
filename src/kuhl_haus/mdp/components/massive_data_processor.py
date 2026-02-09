@@ -10,6 +10,7 @@ from aio_pika.abc import AbstractIncomingMessage
 from massive.rest import RESTClient
 
 from kuhl_haus.mdp.analyzers.analyzer import Analyzer, AnalyzerOptions
+from kuhl_haus.mdp.exceptions.data_analysis_exception import DataAnalysisException
 from kuhl_haus.mdp.helpers.web_socket_message_serde import WebSocketMessageSerde
 from kuhl_haus.mdp.data.market_data_analyzer_result import MarketDataAnalyzerResult
 from kuhl_haus.mdp.components.market_data_cache import MarketDataCache
@@ -20,7 +21,7 @@ class MassiveDataProcessor:
     mdq_connected: bool
     mdc_connected: bool
     processed: int
-    duplicated: int
+    processing_error: int
     decoding_error: int
     published: int
     error: int
@@ -63,7 +64,7 @@ class MassiveDataProcessor:
 
         # Metrics
         self.processed = 0
-        self.duplicated = 0
+        self.processing_error = 0
         self.error = 0
         self.decoding_error = 0
         self.published = 0
@@ -132,14 +133,14 @@ class MassiveDataProcessor:
                         for analyzer_result in analyzer_results:
                             self.published += 1
                             await self._cache_result(analyzer_result)
-            except aio_pika.exceptions.MessageProcessError as e:
-                self.logger.error(f"Message processing error: {e}")
-                self.duplicated += 1
+            except DataAnalysisException as e:
+                self.logger.error(f"Message processing error: {e}", exc_info=True)
+                self.processing_error += 1
             except json.JSONDecodeError as e:
                 self.logger.error(f"JSON decode error: {e}")
                 self.decoding_error += 1
             except Exception as e:
-                self.logger.error(f"Processing error: {e}", exc_info=True)
+                self.logger.error(f"Unhandled processing error: {e}", exc_info=True)
                 self.error += 1
 
     async def _callback(self, message: AbstractIncomingMessage):
