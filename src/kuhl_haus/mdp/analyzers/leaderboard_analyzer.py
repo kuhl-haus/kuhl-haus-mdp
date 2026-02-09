@@ -9,6 +9,7 @@ from kuhl_haus.mdp.data.market_data_analyzer_result import MarketDataAnalyzerRes
 from kuhl_haus.mdp.enum.market_data_cache_keys import MarketDataCacheKeys
 from kuhl_haus.mdp.enum.market_data_cache_ttl import MarketDataCacheTTL
 from kuhl_haus.mdp.enum.market_data_pubsub_keys import MarketDataPubSubKeys
+from kuhl_haus.mdp.exceptions.data_analysis_exception import DataAnalysisException
 
 
 class LeaderboardAnalyzer(Analyzer):
@@ -60,8 +61,7 @@ class LeaderboardAnalyzer(Analyzer):
             return None
 
         except Exception as e:
-            self.logger.exception(f"Error processing {data.get('symbol')}: {e}")
-            return None
+            raise DataAnalysisException(f"Error processing {data.get('symbol', 'unknown symbol')}", e)
 
     async def _update_leaderboards(self, event: dict):
         """Update Redis sorted sets and symbol metadata atomically."""

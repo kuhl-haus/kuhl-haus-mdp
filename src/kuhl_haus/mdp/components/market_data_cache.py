@@ -132,7 +132,8 @@ class MarketDataCache:
                 else:
                     break
             if periods_calculated == 0:
-                raise Exception(f"No volume data returned for {ticker}")
+                self.logger.error(f"No prior periods received for {ticker}. Returning 0 without caching.")
+                return 0
             avg_volume = total_volume / periods_calculated
         if avg_volume:
             self.logger.info(f"average volume {ticker}: {avg_volume}")
