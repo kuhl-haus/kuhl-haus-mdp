@@ -1,7 +1,7 @@
 import asyncio
+import logging
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
-from logging import Logger
 from typing import Awaitable, Callable, Optional, List, Union
 
 from massive import WebSocketClient
@@ -22,7 +22,6 @@ class MassiveDataListener:
 
     def __init__(
         self,
-        logger: Logger,
         message_handler: Union[
             Callable[[List[WebSocketMessage]], Awaitable],
             Callable[[Union[str, bytes]], Awaitable],
@@ -37,7 +36,7 @@ class MassiveDataListener:
         secure: bool = True,
         **kwargs,
     ):
-        self.logger = logger
+        self.logger = logging.getLogger(__name__)
         self.message_handler = message_handler
         self.api_key = api_key
         self.feed = feed

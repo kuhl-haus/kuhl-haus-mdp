@@ -1,3 +1,5 @@
+import logging
+
 from datetime import datetime
 from typing import List, Union
 
@@ -19,8 +21,8 @@ class MassiveDataQueues:
     channel: Union[Channel, AbstractChannel]
     connection_status: dict
 
-    def __init__(self, logger, rabbitmq_url, message_ttl: int):
-        self.logger = logger
+    def __init__(self, rabbitmq_url, message_ttl: int):
+        self.logger = logging.getLogger(__name__)
         self.rabbitmq_url = rabbitmq_url
         self.queues = [
             MassiveDataQueue.TRADES.value,

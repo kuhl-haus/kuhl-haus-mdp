@@ -23,6 +23,7 @@ dependencies = [
     "massive",
     "pydantic-settings",
     "python-dotenv",
+    "python-json-logger>=2.0.0",
     "redis",
     "tenacity",
     "uvicorn[standard]",
