@@ -14,6 +14,7 @@ from kuhl_haus.mdp.exceptions.data_analysis_exception import DataAnalysisExcepti
 from kuhl_haus.mdp.helpers.web_socket_message_serde import WebSocketMessageSerde
 from kuhl_haus.mdp.data.market_data_analyzer_result import MarketDataAnalyzerResult
 from kuhl_haus.mdp.components.market_data_cache import MarketDataCache
+from kuhl_haus.mdp.helpers.structured_logging import setup_logging
 
 
 class MassiveDataProcessor:
@@ -60,6 +61,9 @@ class MassiveDataProcessor:
 
         # State
         self.running = False
+
+        # Logging
+        setup_logging()
         self.logger = logging.getLogger(__name__)
 
         # Metrics
