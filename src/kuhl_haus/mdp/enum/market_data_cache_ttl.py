@@ -4,12 +4,18 @@ from kuhl_haus.mdp.enum.constants import (
     FIVE_MINUTES,
     ONE_DAY,
     ONE_HOUR,
+    ONE_MINUTE,
+    SIX_HOURS,
     THREE_DAYS,
     TWELVE_HOURS,
 )
 
 
 class MarketDataCacheTTL(Enum):
+    # Negative Cache TTLs
+    NEGATIVE_CACHE_THROTTLE = ONE_MINUTE
+    NEGATIVE_CACHE_SESSION = SIX_HOURS
+
     # Raw market data caches
     AGGREGATE = FIVE_MINUTES
     HALTS = ONE_DAY

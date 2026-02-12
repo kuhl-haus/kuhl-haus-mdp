@@ -7,14 +7,15 @@ import aio_pika
 import redis.asyncio as aioredis
 from aio_pika.abc import AbstractIncomingMessage
 
-from massive.rest import RESTClient
-
 from kuhl_haus.mdp.analyzers.analyzer import Analyzer, AnalyzerOptions
-from kuhl_haus.mdp.exceptions.data_analysis_exception import DataAnalysisException
-from kuhl_haus.mdp.helpers.web_socket_message_serde import WebSocketMessageSerde
-from kuhl_haus.mdp.data.market_data_analyzer_result import MarketDataAnalyzerResult
 from kuhl_haus.mdp.components.market_data_cache import MarketDataCache
+from kuhl_haus.mdp.data.market_data_analyzer_result import MarketDataAnalyzerResult
+from kuhl_haus.mdp.exceptions.data_analysis_exception import DataAnalysisException
+from kuhl_haus.mdp.helpers.observability import get_tracer, get_meter
 from kuhl_haus.mdp.helpers.structured_logging import setup_logging
+from kuhl_haus.mdp.helpers.web_socket_message_serde import WebSocketMessageSerde
+
+tracer = get_tracer(__name__)
 
 
 class MassiveDataProcessor:
@@ -67,14 +68,21 @@ class MassiveDataProcessor:
         self.logger = logging.getLogger(__name__)
 
         # Metrics
+        meter = get_meter(__name__)
+        self.processed_counter = meter.create_counter(name="mdp.processed", description="Number of processed messages", unit="1")
         self.processed = 0
+        self.processing_error_counter = meter.create_counter(name="mdp.processing_error", description="Number of messages with processing errors", unit="1")
         self.processing_error = 0
+        self.error_counter = meter.create_counter(name="mdp.error", description="Number of messages with other errors", unit="1")
         self.error = 0
+        self.decoding_error_counter = meter.create_counter(name="mdp.decoding_error", description="Number of messages with JSON decoding errors", unit="1")
         self.decoding_error = 0
+        self.published_counter = meter.create_counter(name="mdp.published", description="Number of messages published to Redis", unit="1")
         self.published = 0
         self.mdq_connected = False
         self.mdc_connected = False
 
+    @tracer.start_as_current_span("mdp.connect")
     async def connect(self, force: bool = False):
         """Establish async connections to RabbitMQ and Redis"""
 
@@ -117,6 +125,7 @@ class MassiveDataProcessor:
                 await self.rmq_connection.close()
                 raise
 
+    @tracer.start_as_current_span("mdp.process_message")
     async def _process_message(self, message: AbstractIncomingMessage):
         """Process single message with concurrency control"""
         async with self.semaphore:
@@ -128,6 +137,7 @@ class MassiveDataProcessor:
 
                     # Delegate to analyzer
                     analyzer_results = await self.analyzer.analyze_data(data)
+                    self.processed_counter.add(1)
                     self.processed += 1
                     self.logger.debug(f"Processed message {message.delivery_tag}")
 
@@ -135,18 +145,23 @@ class MassiveDataProcessor:
                     # The analyzer will return None or an empty array if it is not ready to publish.
                     if analyzer_results:
                         for analyzer_result in analyzer_results:
+                            self.published_counter.add(1)
                             self.published += 1
                             await self._cache_result(analyzer_result)
             except DataAnalysisException as e:
                 self.logger.error(f"Message processing error: {e}", exc_info=True)
+                self.processing_error_counter.add(1)
                 self.processing_error += 1
             except json.JSONDecodeError as e:
                 self.logger.error(f"JSON decode error: {e}")
+                self.decoding_error_counter.add(1)
                 self.decoding_error += 1
             except Exception as e:
                 self.logger.error(f"Unhandled processing error: {e}", exc_info=True)
+                self.error_counter.add(1)
                 self.error += 1
 
+    @tracer.start_as_current_span("mdp.callback")
     async def _callback(self, message: AbstractIncomingMessage):
         """
         Message callback - spawns processing task
@@ -157,6 +172,7 @@ class MassiveDataProcessor:
         self.processing_tasks.add(task)
         task.add_done_callback(self.processing_tasks.discard)
 
+    @tracer.start_as_current_span("mdp.cache_result")
     async def _cache_result(self, analyzer_result: MarketDataAnalyzerResult):
         """
         Async cache to Redis with pub/sub notification
@@ -181,6 +197,7 @@ class MassiveDataProcessor:
 
         self.logger.debug(f"Cached result for {analyzer_result.cache_key}")
 
+    @tracer.start_as_current_span("mdp.start")
     async def start(self):
         """Start async message consumption"""
         retry_count = 0
@@ -223,6 +240,7 @@ class MassiveDataProcessor:
         finally:
             await self.stop()
 
+    @tracer.start_as_current_span("mdp.stop")
     async def stop(self):
         """Graceful async shutdown"""
         self.logger.info("Stopping processor - waiting for pending tasks")

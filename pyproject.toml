@@ -21,6 +21,8 @@ dependencies = [
     "aio-pika",
     "fastapi",
     "massive",
+    "opentelemetry-api",
+    "opentelemetry-sdk",
     "pydantic-settings",
     "python-dotenv",
     "python-json-logger>=2.0.0",

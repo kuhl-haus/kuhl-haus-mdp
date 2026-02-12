@@ -6,6 +6,10 @@ from typing import Dict, Set
 import redis.asyncio as redis
 from fastapi import WebSocket
 
+from kuhl_haus.mdp.helpers.observability import get_tracer, get_meter
+
+tracer = get_tracer(__name__)
+
 
 class UnauthorizedException(Exception):
     pass
@@ -24,8 +28,26 @@ class WidgetDataService:
         self._pubsub_task: asyncio.Task = None
         self._pubsub_lock = asyncio.Lock()
 
+        # Metrics
+        meter = get_meter(__name__)
+        self.subscription_counter = meter.create_up_down_counter(
+            name="wds.subscriptions", description="Number of active subscriptions", unit="1"
+        )
+        self.cache_hit_counter = meter.create_counter(
+            name="wds.cache_hit", description="Number of times get_cache returns a result", unit="1"
+        )
+        self.cache_miss_counter = meter.create_counter(
+            name="wds.cache_miss", description="Number of times get_cache returns nothing", unit="1"
+        )
+        self.message_received_counter = meter.create_counter(
+            name="wds.messages_received", description="Number of messages received from Redis pub/sub", unit="1"
+        )
+        self.message_sent_counter = meter.create_counter(
+            name="wds.messages_sent", description="Number of messages sent to WebSocket clients", unit="1"
+        )
         self.mdc_connected = False
 
+    @tracer.start_as_current_span("wds.start")
     async def start(self):
         """This doesn't do anything anymore. Pub/sub task starts on first subscription."""
         self.logger.info("wds.starting")
@@ -33,6 +55,7 @@ class WidgetDataService:
         self.mdc_connected = True
         self.logger.info("wds.started")
 
+    @tracer.start_as_current_span("wds.stop")
     async def stop(self):
         """Cleanup Redis connections."""
         self.logger.info("wds.stopping")
@@ -46,11 +69,13 @@ class WidgetDataService:
 
         self.logger.info("wds.stopped")
 
+    @tracer.start_as_current_span("wds.subscribe_feed")
     async def subscribe(self, feed: str, websocket: WebSocket):
         """Subscribe WebSocket client to a Redis feed."""
         async with self._pubsub_lock:
             if feed not in self.subscriptions:
                 self.subscriptions[feed] = set()
+                self.subscription_counter.add(1)
                 if "*" in feed:
                     await self.pubsub_client.psubscribe(feed)
                 else:
@@ -64,12 +89,13 @@ class WidgetDataService:
             self.subscriptions[feed].add(websocket)
             self.logger.info(f"wds.client.subscribed feed:{feed}, clients:{len(self.subscriptions[feed])}")
 
+    @tracer.start_as_current_span("wds.unsubscribe_feed")
     async def unsubscribe(self, feed: str, websocket: WebSocket):
         """Unsubscribe WebSocket client from a Redis feed."""
         async with self._pubsub_lock:
             if feed in self.subscriptions:
                 self.subscriptions[feed].discard(websocket)
-
+                self.subscription_counter.add(-1)
                 if not self.subscriptions[feed]:
                     if "*" in feed:
                         await self.pubsub_client.punsubscribe(feed)
@@ -92,6 +118,7 @@ class WidgetDataService:
                 self._pubsub_task = None
                 self.logger.info("wds.pubsub.task_stopped")
 
+    @tracer.start_as_current_span("wds.disconnect")
     async def disconnect(self, websocket: WebSocket):
         """Disconnect WebSocket client from all feeds."""
         subs = []
@@ -103,16 +130,20 @@ class WidgetDataService:
         for sub in subs:
             await self.unsubscribe(sub, websocket)
 
+    @tracer.start_as_current_span("wds.get_cache")
     async def get_cache(self, cache_key: str) -> dict:
         """Fetch current value from Redis cache (for snapshot requests)."""
         self.logger.info(f"wds.cache.get cache_key:{cache_key}")
         value = await self.redis_client.get(cache_key)
         if value:
             self.logger.info(f"wds.cache.hit cache_key:{cache_key}")
+            self.cache_hit_counter.add(1)
             return json.loads(value)
         self.logger.info(f"wds.cache.miss cache_key:{cache_key}")
+        self.cache_miss_counter.add(1)
         return None
 
+    @tracer.start_as_current_span("wds._handle_pubsub")
     async def _handle_pubsub(self):
         """Background task to receive Redis pub/sub messages and fan out to WebSockets."""
         try:
@@ -143,6 +174,7 @@ class WidgetDataService:
                 # Process actual data messages
                 elif msg_type == "message":
                     message_count += 1
+                    self.message_received_counter.add(1)
                     feed = message["channel"]
                     data = message["data"]
 
@@ -157,6 +189,7 @@ class WidgetDataService:
                             try:
                                 await ws.send_text(data)
                                 sent_count += 1
+                                self.message_sent_counter.add(1)
                             except Exception as e:
                                 self.logger.error(f"wds.send.failed feed:{feed}, error:{repr(e)}")
                                 disconnected.append(ws)

@@ -538,6 +538,7 @@ async def test_get_free_float_with_client_error_expect_exception():
     mock_redis_client = AsyncMock()
     mock_rest_client = MagicMock()
     sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
+    mock_cache_key = f"{MarketDataCacheKeys.TICKER_FREE_FLOAT.value}:TEST"
 
     mock_redis_client.get.return_value = None
 
@@ -558,11 +559,16 @@ async def test_get_free_float_with_client_error_expect_exception():
     # Inject the mock session
     sut.http_session = mock_session
 
-    # Act & Assert
-    with pytest.raises(aiohttp.ClientError, match="Connection timeout"):
-        await sut.get_free_float("TEST")
+    # Act
+    result = await sut.get_free_float("TEST")
 
-    mock_redis_client.setex.assert_not_awaited()
+    # Assert
+    assert result == 0
+    mock_redis_client.setex.assert_awaited_once()
+    call_args = mock_redis_client.setex.await_args
+    assert call_args[0][0] == mock_cache_key
+    assert call_args[0][1] == MarketDataCacheTTL.NEGATIVE_CACHE_THROTTLE.value
+    assert call_args[0][2] == json.dumps(0)
 
 
 @pytest.mark.asyncio
@@ -867,8 +873,8 @@ async def test_delete_cache_with_redis_error_expect_error_logged(mock_logger):
 
 
 @pytest.mark.asyncio
-@patch("logging.Logger.info")
-async def test_delete_cache_with_successful_deletion_expect_info_logged(mock_logger):
+@patch("logging.Logger.debug")
+async def test_delete_cache_with_successful_deletion_expect_debug_logged(mock_logger):
     # Arrange
     mock_redis_client = AsyncMock()
     mock_rest_client = MagicMock()

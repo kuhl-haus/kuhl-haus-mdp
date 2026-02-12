@@ -1,9 +1,8 @@
 import asyncio
 import json
 import logging
-from typing import Any, Optional, Iterator, List
 from datetime import datetime, timezone, timedelta
-from zoneinfo import ZoneInfo
+from typing import Any, Optional, Iterator, List
 
 import aiohttp
 import redis.asyncio as aioredis
@@ -14,9 +13,12 @@ from massive.rest.models import (
     Agg,
 )
 
-from kuhl_haus.mdp.helpers.utils import ticker_snapshot_to_dict
 from kuhl_haus.mdp.enum.market_data_cache_keys import MarketDataCacheKeys
 from kuhl_haus.mdp.enum.market_data_cache_ttl import MarketDataCacheTTL
+from kuhl_haus.mdp.helpers.utils import ticker_snapshot_to_dict
+from kuhl_haus.mdp.helpers.observability import get_tracer, get_meter
+
+tracer = get_tracer(__name__)
 
 
 class MarketDataCache:
@@ -26,7 +28,17 @@ class MarketDataCache:
         self.massive_api_key = massive_api_key
         self.redis_client = redis_client
         self.http_session = None
+        meter = get_meter(__name__)
+        self.delete_counter = meter.create_counter(name="mdc.delete", description="Number of times delete is called", unit="1")
+        self.read_counter = meter.create_counter(name="mdc.read", description="Number of times read is called", unit="1")
+        self.write_counter = meter.create_counter(name="mdc.write", description="Number of times write is called", unit="1")
+        self.broadcast_counter = meter.create_counter(name="mdc.broadcast", description="Number of times broadcast is called", unit="1")
+        self.delete_ticker_snapshot_counter = meter.create_counter(name="mdc.delete_ticker_snapshot", description="Number of times a ticker snapshot is deleted", unit="1")
+        self.get_ticker_snapshot_counter = meter.create_counter(name="mdc.get_ticker_snapshot", description="Number of times a ticker snapshot is retrieved", unit="1")
+        self.get_avg_volume_counter = meter.create_counter(name="mdc.get_avg_volume", description="Number of times average volume is retrieved", unit="1")
+        self.get_free_float_counter = meter.create_counter(name="mdc.get_free_float", description="Number of times free float is retrieved", unit="1")
 
+    @tracer.start_as_current_span("mdc.delete")
     async def delete(self, cache_key: str):
         """
             Delete cache entry.
@@ -35,10 +47,11 @@ class MarketDataCache:
         """
         try:
             await self.redis_client.delete(cache_key)
-            self.logger.info(f"Deleted cache entry: {cache_key}")
+            self.logger.debug(f"Deleted cache entry: {cache_key}")
         except Exception as e:
             self.logger.error(f"Error deleting cache entry: {e}")
 
+    @tracer.start_as_current_span("mdc.read")
     async def read(self, cache_key: str) -> Optional[dict]:
         """Fetch current value from Redis cache (for snapshot requests)."""
         value = await self.redis_client.get(cache_key)
@@ -46,17 +59,20 @@ class MarketDataCache:
             return json.loads(value)
         return None
 
+    @tracer.start_as_current_span("mdc.write")
     async def write(self, data: Any, cache_key: str, cache_ttl: int = 0):
         if cache_ttl > 0:
             await self.redis_client.setex(cache_key, cache_ttl, json.dumps(data))
         else:
             await self.redis_client.set(cache_key, json.dumps(data))
-        self.logger.info(f"Cached data for {cache_key}")
+        self.logger.debug(f"Cached data for {cache_key}")
 
+    @tracer.start_as_current_span("mdc.broadcast")
     async def broadcast(self, data: Any, publish_key: str = None):
         await self.redis_client.publish(publish_key, json.dumps(data))
-        self.logger.info(f"Published data for {publish_key}")
+        self.logger.debug(f"Published data for {publish_key}")
 
+    @tracer.start_as_current_span("mdc.delete_ticker_snapshot")
     async def delete_ticker_snapshot(self, ticker: str):
         """
         Delete ticker snapshot from cache.
@@ -67,19 +83,20 @@ class MarketDataCache:
         cache_key = f"{MarketDataCacheKeys.TICKER_SNAPSHOTS.value}:{ticker}"
         await self.delete(cache_key=cache_key)
 
+    @tracer.start_as_current_span("mdc.get_ticker_snapshot")
     async def get_ticker_snapshot(self, ticker: str) -> TickerSnapshot:
-        self.logger.info(f"Getting snapshot for {ticker}")
+        self.logger.debug(f"Getting snapshot for {ticker}")
         cache_key = f"{MarketDataCacheKeys.TICKER_SNAPSHOTS.value}:{ticker}"
         result = await self.read(cache_key=cache_key)
         if result:
-            self.logger.info(f"Returning cached snapshot for {ticker}")
+            self.logger.debug(f"Returning cached snapshot for {ticker}")
             snapshot = TickerSnapshot.from_dict(result)
         else:
             snapshot: TickerSnapshot = self.rest_client.get_snapshot_ticker(
                 market_type="stocks",
                 ticker=ticker
             )
-            self.logger.info(f"Snapshot result: {snapshot}")
+            self.logger.debug(f"Snapshot result: {snapshot}")
             data = ticker_snapshot_to_dict(snapshot)
             await self.write(
                 data=data,
@@ -88,12 +105,15 @@ class MarketDataCache:
             )
         return snapshot
 
+    @tracer.start_as_current_span("mdc.get_avg_volume")
     async def get_avg_volume(self, ticker: str):
-        self.logger.info(f"Getting average volume for {ticker}")
+        self.logger.debug(f"Getting average volume for {ticker}")
         cache_key = f"{MarketDataCacheKeys.TICKER_AVG_VOLUME.value}:{ticker}"
+        cache_ttl = MarketDataCacheTTL.TICKER_AVG_VOLUME.value
+
         avg_volume = await self.read(cache_key=cache_key)
         if avg_volume:
-            self.logger.info(f"Returning cached value for {ticker}: {avg_volume}")
+            self.logger.debug(f"Returning cached value for {ticker}: {avg_volume}")
             return avg_volume
 
         # Experimental version - unreliable
@@ -132,27 +152,32 @@ class MarketDataCache:
                 else:
                     break
             if periods_calculated == 0:
-                self.logger.error(f"No prior periods received for {ticker}. Returning 0 without caching.")
-                return 0
-            avg_volume = total_volume / periods_calculated
+                self.logger.warning(f"No prior periods received for {ticker}.")
+                avg_volume = 0
+                cache_ttl = MarketDataCacheTTL.NEGATIVE_CACHE_SESSION.value
+            else:
+                avg_volume = total_volume / periods_calculated
         if avg_volume:
-            self.logger.info(f"average volume {ticker}: {avg_volume}")
+            self.logger.debug(f"average volume {ticker}: {avg_volume}")
         else:
             self.logger.error(f"Unable to get average volume for {ticker}")
             raise f"Unable to get average volume for {ticker}"
         await self.write(
             data=avg_volume,
             cache_key=cache_key,
-            cache_ttl=MarketDataCacheTTL.TICKER_AVG_VOLUME.value
+            cache_ttl=cache_ttl
         )
         return avg_volume
 
+    @tracer.start_as_current_span("mdc.get_free_float")
     async def get_free_float(self, ticker: str):
-        self.logger.info(f"Getting free float for {ticker}")
+        self.logger.debug(f"Getting free float for {ticker}")
         cache_key = f"{MarketDataCacheKeys.TICKER_FREE_FLOAT.value}:{ticker}"
+        cache_ttl = MarketDataCacheTTL.TICKER_FREE_FLOAT.value
+
         free_float = await self.read(cache_key=cache_key)
         if free_float:
-            self.logger.info(f"Returning cached value for {ticker}: {free_float}")
+            self.logger.debug(f"Returning cached value for {ticker}: {free_float}")
             return free_float
 
         # NOTE: This endpoint is experimental and the interface may change.
@@ -175,35 +200,39 @@ class MarketDataCache:
                     if len(results) > 0:
                         free_float = results[0].get("free_float")
                     else:
-                        # raise Exception(f"No free float data returned for {ticker}")
                         self.logger.warning(f"No free float data returned for {ticker}")
                         free_float = 0
+                        cache_ttl = MarketDataCacheTTL.NEGATIVE_CACHE_SESSION.value
                 else:
                     raise Exception(f"Invalid response from Massive API for {ticker}: {data}")
-        except asyncio.TimeoutError:
-            self.logger.warning(f"Timeout fetching free float for {ticker}, using default value 0")
+        except asyncio.TimeoutError as e:
+            self.logger.warning(f"Timeout fetching free float for {ticker}: {e}")
             free_float = 0
+            cache_ttl = MarketDataCacheTTL.NEGATIVE_CACHE_THROTTLE.value
         except aiohttp.ClientError as e:
-            self.logger.error(f"HTTP error fetching free float for {ticker}: {e}")
-            raise
+            self.logger.warning(f"HTTP error fetching free float for {ticker}: {e}")
+            free_float = 0
+            cache_ttl = MarketDataCacheTTL.NEGATIVE_CACHE_THROTTLE.value
         except Exception as e:
             self.logger.error(f"Error fetching free float for {ticker}: {e}")
             raise
 
-        self.logger.info(f"free float {ticker}: {free_float}")
+        self.logger.debug(f"free float {ticker}: {free_float}")
         await self.write(
             data=free_float,
             cache_key=cache_key,
-            cache_ttl=MarketDataCacheTTL.TICKER_FREE_FLOAT.value
+            cache_ttl=cache_ttl
         )
         return free_float
 
+    @tracer.start_as_current_span("mdc.get_http_session")
     async def get_http_session(self) -> aiohttp.ClientSession:
         """Get or create aiohttp session for async HTTP requests."""
         if self.http_session is None or self.http_session.closed:
             self.http_session = aiohttp.ClientSession()
         return self.http_session
 
+    @tracer.start_as_current_span("mdc.close")
     async def close(self):
         """Close aiohttp session."""
         if self.http_session and not self.http_session.closed:

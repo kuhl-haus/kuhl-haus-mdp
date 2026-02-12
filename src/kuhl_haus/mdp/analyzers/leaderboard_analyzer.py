@@ -10,6 +10,9 @@ from kuhl_haus.mdp.enum.market_data_cache_keys import MarketDataCacheKeys
 from kuhl_haus.mdp.enum.market_data_cache_ttl import MarketDataCacheTTL
 from kuhl_haus.mdp.enum.market_data_pubsub_keys import MarketDataPubSubKeys
 from kuhl_haus.mdp.exceptions.data_analysis_exception import DataAnalysisException
+from kuhl_haus.mdp.helpers.observability import get_tracer, get_meter
+
+tracer = get_tracer(__name__)
 
 
 class LeaderboardAnalyzer(Analyzer):
@@ -38,13 +41,25 @@ class LeaderboardAnalyzer(Analyzer):
             redis_client=self.redis_client,
             massive_api_key=options.massive_api_key
         )
+        meter = get_meter(__name__)
+        self.processed_counter = meter.create_counter(
+            name="lba.processed", description="Leaderboard Analyzer processed events", unit="1"
+        )
+        self.published_counter = meter.create_counter(
+            name="lba.published", description="Leaderboard Analyzer published results", unit="1"
+        )
+        self.errors_counter = meter.create_counter(
+            name="lba.errors", description="Leaderboard Analyzer errors", unit="1"
+        )
 
+    @tracer.start_as_current_span("lba.analyze_data")
     async def analyze_data(self, data: dict) -> Optional[List[MarketDataAnalyzerResult]]:
         """
         Process EquityAgg event and update Redis leaderboards.
         Returns MarketDataAnalyzerResults with leaderboard snapshots (throttled to ~1/sec).
         """
         try:
+            self.processed_counter.add(1)
             # Check and handle day/market boundaries
             await self._check_day_boundary()
             await self._check_market_open_reset()
@@ -56,13 +71,16 @@ class LeaderboardAnalyzer(Analyzer):
             should_publish = await self._check_publish_throttle()
             if should_publish:
                 results = await self._build_leaderboard_results()
+                self.published_counter.add(len(results))
                 return results
 
             return None
 
         except Exception as e:
+            self.errors_counter.add(1)
             raise DataAnalysisException(f"Error processing {data.get('symbol', 'unknown symbol')}", e)
 
+    @tracer.start_as_current_span("lba._update_leaderboards")
     async def _update_leaderboards(self, event: dict):
         """Update Redis sorted sets and symbol metadata atomically."""
         symbol = event.get("symbol")
@@ -142,6 +160,7 @@ class LeaderboardAnalyzer(Analyzer):
             self.logger.error(f"mapping: {mapping}")
             self.logger.error(f"Error updating leaderboards for {symbol}: {e}")
 
+    @tracer.start_as_current_span("lba._build_leaderboard_results")
     async def _build_leaderboard_results(self, limit: int = 500) -> List[MarketDataAnalyzerResult]:
         """
         Fetch top N from each leaderboard and return as MarketDataAnalyzerResults.
@@ -187,6 +206,7 @@ class LeaderboardAnalyzer(Analyzer):
 
         return results
 
+    @tracer.start_as_current_span("lba._fetch_leaderboards")
     async def _fetch_leaderboards(self, limit: int = 500) -> dict:
         """Fetch top N from each sorted set with hydrated symbol data."""
         pipe = self.redis_client.pipeline()
@@ -210,6 +230,7 @@ class LeaderboardAnalyzer(Analyzer):
             "top_gainers": top_gainers,
         }
 
+    @tracer.start_as_current_span("lba._hydrate_leaderboard")
     async def _hydrate_leaderboard(self, symbol_scores: List, score_field: str) -> List[dict]:
         """Fetch symbol data for leaderboard entries."""
         if not symbol_scores:
@@ -253,6 +274,7 @@ class LeaderboardAnalyzer(Analyzer):
         except (ValueError, AttributeError):
             return value
 
+    @tracer.start_as_current_span("lba._check_publish_throttle")
     async def _check_publish_throttle(self) -> bool:
         """
         Distributed throttle - only publish once per second across all instances.
@@ -270,6 +292,7 @@ class LeaderboardAnalyzer(Analyzer):
 
         return bool(was_set)
 
+    @tracer.start_as_current_span("lba._get_symbol_open_price")
     async def _get_symbol_open_price(self, symbol: str, event: dict) -> float:
         """Get or set symbol's opening price for the trading day."""
         open_key = f"symbol:{symbol}:open_price"
@@ -287,6 +310,7 @@ class LeaderboardAnalyzer(Analyzer):
 
         return open_price
 
+    @tracer.start_as_current_span("lba._check_day_boundary")
     async def _check_day_boundary(self):
         """Reset leaderboards at 4 AM ET (new trading day)."""
         et_now = datetime.now(timezone.utc).astimezone(ZoneInfo("America/New_York"))
@@ -317,6 +341,7 @@ class LeaderboardAnalyzer(Analyzer):
         if reset:
             self.logger.info(f"Day boundary reset at {current_day}")
 
+    @tracer.start_as_current_span("lba._check_market_open_reset")
     async def _check_market_open_reset(self):
         """Reset 'gainers' leaderboard and open prices at 9:30 AM ET."""
         et_now = datetime.now(timezone.utc).astimezone(ZoneInfo("America/New_York"))
