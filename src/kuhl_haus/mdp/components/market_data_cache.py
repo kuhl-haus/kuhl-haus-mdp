@@ -160,8 +160,9 @@ class MarketDataCache:
         if avg_volume:
             self.logger.debug(f"average volume {ticker}: {avg_volume}")
         else:
-            self.logger.error(f"Unable to get average volume for {ticker}")
-            raise f"Unable to get average volume for {ticker}"
+            self.logger.warning(f"Unable to get average volume for {ticker}")
+            avg_volume = 0
+            cache_ttl = MarketDataCacheTTL.NEGATIVE_CACHE_SESSION.value
         await self.write(
             data=avg_volume,
             cache_key=cache_key,
