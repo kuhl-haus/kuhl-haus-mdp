@@ -80,14 +80,14 @@ class WidgetDataService:
                     await self.pubsub_client.psubscribe(feed)
                 else:
                     await self.pubsub_client.subscribe(feed)
-                self.logger.info(f"wds.feed.subscribed feed:{feed}, total_feeds:{len(self.subscriptions)}")
+                self.logger.debug(f"wds.feed.subscribed feed:{feed}, total_feeds:{len(self.subscriptions)}")
 
             # First subscription: start pub/sub task
             if len(self.subscriptions.keys()) == 1 and self._pubsub_task is None:
                 self._pubsub_task = asyncio.create_task(self._handle_pubsub())
-                self.logger.info("wds.pubsub.task_started")
+                self.logger.debug("wds.pubsub.task_started")
             self.subscriptions[feed].add(websocket)
-            self.logger.info(f"wds.client.subscribed feed:{feed}, clients:{len(self.subscriptions[feed])}")
+            self.logger.debug(f"wds.client.subscribed feed:{feed}, clients:{len(self.subscriptions[feed])}")
 
     @tracer.start_as_current_span("wds.unsubscribe_feed")
     async def unsubscribe(self, feed: str, websocket: WebSocket):
@@ -102,9 +102,9 @@ class WidgetDataService:
                     else:
                         await self.pubsub_client.unsubscribe(feed)
                     del self.subscriptions[feed]
-                    self.logger.info(f"wds.feed.unsubscribed feed:{feed}, total_feeds:{len(self.subscriptions)}")
+                    self.logger.debug(f"wds.feed.unsubscribed feed:{feed}, total_feeds:{len(self.subscriptions)}")
                 else:
-                    self.logger.info(f"wds.client.unsubscribed feed:{feed}, clients:{len(self.subscriptions[feed])}")
+                    self.logger.debug(f"wds.client.unsubscribed feed:{feed}, clients:{len(self.subscriptions[feed])}")
 
             # Last subscription removed: stop pub/sub task
             if not self.subscriptions and self._pubsub_task:
@@ -116,7 +116,7 @@ class WidgetDataService:
                 except RuntimeError:
                     pass
                 self._pubsub_task = None
-                self.logger.info("wds.pubsub.task_stopped")
+                self.logger.debug("wds.pubsub.task_stopped")
 
     @tracer.start_as_current_span("wds.disconnect")
     async def disconnect(self, websocket: WebSocket):
@@ -125,7 +125,7 @@ class WidgetDataService:
         async with self._pubsub_lock:
             feeds = self.subscriptions.keys()
             for feed in feeds:
-                self.logger.info(f"wds.client.disconnecting feed:{feed}")
+                self.logger.debug(f"wds.client.disconnecting feed:{feed}")
                 subs.append(f"{feed}")
         for sub in subs:
             await self.unsubscribe(sub, websocket)
@@ -133,13 +133,13 @@ class WidgetDataService:
     @tracer.start_as_current_span("wds.get_cache")
     async def get_cache(self, cache_key: str) -> dict:
         """Fetch current value from Redis cache (for snapshot requests)."""
-        self.logger.info(f"wds.cache.get cache_key:{cache_key}")
+        self.logger.debug(f"wds.cache.get cache_key:{cache_key}")
         value = await self.redis_client.get(cache_key)
         if value:
-            self.logger.info(f"wds.cache.hit cache_key:{cache_key}")
+            self.logger.debug(f"wds.cache.hit cache_key:{cache_key}")
             self.cache_hit_counter.add(1)
             return json.loads(value)
-        self.logger.info(f"wds.cache.miss cache_key:{cache_key}")
+        self.logger.debug(f"wds.cache.miss cache_key:{cache_key}")
         self.cache_miss_counter.add(1)
         return None
 
@@ -166,10 +166,10 @@ class WidgetDataService:
 
                 # Log subscription lifecycle events
                 if msg_type == "subscribe":
-                    self.logger.info(f"wds.pubsub.subscribed channel:{message['channel']}, num_subs:{message['data']}")
+                    self.logger.debug(f"wds.pubsub.subscribed channel:{message['channel']}, num_subs:{message['data']}")
 
                 elif msg_type == "unsubscribe":
-                    self.logger.info(f"wds.pubsub.unsubscribed channel:{message['channel']}, num_subs:{message['data']}")
+                    self.logger.debug(f"wds.pubsub.unsubscribed channel:{message['channel']}, num_subs:{message['data']}")
 
                 # Process actual data messages
                 elif msg_type == "message":

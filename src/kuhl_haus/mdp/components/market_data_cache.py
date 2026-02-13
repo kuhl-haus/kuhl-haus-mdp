@@ -152,7 +152,7 @@ class MarketDataCache:
                 else:
                     break
             if periods_calculated == 0:
-                self.logger.warning(f"No prior periods received for {ticker}.")
+                self.logger.debug(f"No prior periods received for {ticker}.")
                 avg_volume = 0
                 cache_ttl = MarketDataCacheTTL.NEGATIVE_CACHE_SESSION.value
             else:
@@ -160,7 +160,7 @@ class MarketDataCache:
         if avg_volume:
             self.logger.debug(f"average volume {ticker}: {avg_volume}")
         else:
-            self.logger.warning(f"Unable to get average volume for {ticker}")
+            self.logger.debug(f"Unable to get average volume for {ticker}")
             avg_volume = 0
             cache_ttl = MarketDataCacheTTL.NEGATIVE_CACHE_SESSION.value
         await self.write(
@@ -201,17 +201,17 @@ class MarketDataCache:
                     if len(results) > 0:
                         free_float = results[0].get("free_float")
                     else:
-                        self.logger.warning(f"No free float data returned for {ticker}")
+                        self.logger.debug(f"No free float data returned for {ticker}")
                         free_float = 0
                         cache_ttl = MarketDataCacheTTL.NEGATIVE_CACHE_SESSION.value
                 else:
                     raise Exception(f"Invalid response from Massive API for {ticker}: {data}")
         except asyncio.TimeoutError as e:
-            self.logger.warning(f"Timeout fetching free float for {ticker}: {e}")
+            self.logger.debug(f"Timeout fetching free float for {ticker}: {e}")
             free_float = 0
             cache_ttl = MarketDataCacheTTL.NEGATIVE_CACHE_THROTTLE.value
         except aiohttp.ClientError as e:
-            self.logger.warning(f"HTTP error fetching free float for {ticker}: {e}")
+            self.logger.debug(f"HTTP error fetching free float for {ticker}: {e}")
             free_float = 0
             cache_ttl = MarketDataCacheTTL.NEGATIVE_CACHE_THROTTLE.value
         except Exception as e:

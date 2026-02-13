@@ -6,9 +6,7 @@ from typing import Awaitable, Callable, Optional, List, Union
 
 from massive import WebSocketClient
 from massive.websocket import Feed, Market, WebSocketMessage
-from kuhl_haus.mdp.helpers.observability import get_meter  # , get_tracer
-
-# tracer = get_tracer(__name__)
+from kuhl_haus.mdp.helpers.observability import get_meter
 
 
 class MassiveDataListener:
@@ -62,7 +60,6 @@ class MassiveDataListener:
             name="mdl.reconnection", description="Number of reconnection attempts", unit="1"
         )
 
-    # @tracer.start_as_current_span("mdl.start")
     async def start(self):
         """Start WebSocket client"""
         try:
@@ -84,7 +81,6 @@ class MassiveDataListener:
             self.logger.error(f"Error starting WebSocket client: {e}")
             await self.stop()
 
-    # @tracer.start_as_current_span("mdl.stop")
     async def stop(self):
         """Stop WebSocket client"""
         try:
@@ -103,7 +99,6 @@ class MassiveDataListener:
         self.ws_connection = None
         self.ws_coroutine = None
 
-    # @tracer.start_as_current_span("mdl.restart")
     async def restart(self):
         """Restart WebSocket client"""
         try:
@@ -117,7 +112,6 @@ class MassiveDataListener:
         except Exception as e:
             self.logger.error(f"Error restarting WebSocket client: {e}")
 
-    # @tracer.start_as_current_span("mdl.async_task")
     async def async_task(self):
         """Main task that runs the WebSocket client"""
         try:
