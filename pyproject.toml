@@ -23,6 +23,8 @@ dependencies = [
     "massive",
     "opentelemetry-api",
     "opentelemetry-sdk",
+    "opentelemetry-distro",
+    "opentelemetry-exporter-otlp",
     "pydantic-settings",
     "python-dotenv",
     "python-json-logger>=2.0.0",

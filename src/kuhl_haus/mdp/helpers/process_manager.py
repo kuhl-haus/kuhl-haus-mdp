@@ -1,7 +1,7 @@
 from multiprocessing import Process, Queue
 from queue import Empty, Full
 from multiprocessing.synchronize import Event as MPEvent
-from typing import Dict, Type, Any
+from typing import Dict, Type, Any, Optional
 import signal
 import asyncio
 import logging
@@ -20,13 +20,19 @@ class ProcessManager:
     def start_worker(self, name: str, worker_class: Type, **kwargs):
         """Start any worker class in a separate process"""
         import multiprocessing as mp  # Keep factory import local
+        from opentelemetry.context import get_current
+        from opentelemetry.propagate import inject
+
+        # Capture current trace context from parent process
+        trace_context = {}
+        inject(trace_context, get_current())
 
         shutdown_event = mp.Event()  # Factory call
         status_queue = mp.Queue(maxsize=1)
 
         process = Process(
             target=self._run_worker,
-            args=(worker_class, shutdown_event, status_queue),
+            args=(worker_class, shutdown_event, status_queue, trace_context),
             kwargs=kwargs,
             name=name,
             daemon=False
@@ -44,9 +50,22 @@ class ProcessManager:
         worker_class: Type[Any],
         shutdown_event: MPEvent,
         status_queue: Queue,
+        trace_context: Optional[Dict] = None,
         **kwargs: Any
     ) -> None:
         """Generic worker process entry point with async event loop management"""
+        # Set up OpenTelemetry instrumentation in this child process
+        _setup_otel_auto_instrumentation()
+
+        # Attach trace context from parent if provided
+        if trace_context:
+            try:
+                from opentelemetry.context import attach
+                from opentelemetry.propagate import extract
+                attach(extract(trace_context))
+                logger.debug("Attached trace context from parent process")
+            except Exception as e:
+                logger.warning(f"Failed to attach trace context: {e}")
 
         # Signal handlers for graceful shutdown
         def shutdown_handler(signum, frame):
@@ -226,3 +245,17 @@ class ProcessManager:
             logger.error(f"Error getting status for process name {name}: {e}", exc_info=True)
 
         return status
+
+
+def _setup_otel_auto_instrumentation():
+    """Set up OpenTelemetry using auto-instrumentation with env var config"""
+    try:
+        from opentelemetry.instrumentation.auto_instrumentation import sitecustomize
+
+        # This reads all OTEL_* environment variables and configures everything
+        sitecustomize.initialize()
+
+        logger.info("OpenTelemetry auto-instrumentation configured from environment variables")
+
+    except Exception as e:
+        logger.error(f"Failed to set up OTel auto-instrumentation: {e}")
