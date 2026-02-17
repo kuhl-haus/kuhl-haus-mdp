@@ -25,9 +25,9 @@ class LeaderboardAnalyzer(Analyzer):
     LEADERBOARD_TOP_VOLUME = MarketDataCacheKeys.LEADERBOARD_TOP_VOLUME.value
     LEADERBOARD_TOP_GAPPERS = MarketDataCacheKeys.LEADERBOARD_TOP_GAPPERS.value
     LEADERBOARD_TOP_GAINERS = MarketDataCacheKeys.LEADERBOARD_TOP_GAINERS.value
-    MARKET_DAY_KEY = MarketDataCacheKeys.MARKET_DAY_KEY.value
-    MARKET_OPEN_RESET_KEY = MarketDataCacheKeys.MARKET_OPEN_RESET_KEY.value
-    PUBLISH_THROTTLE_KEY = MarketDataCacheKeys.PUBLISH_THROTTLE_KEY.value
+    MARKET_DAY_KEY = MarketDataCacheKeys.LEADERBOARD_MARKET_DAY_KEY.value
+    MARKET_OPEN_RESET_KEY = MarketDataCacheKeys.LEADERBOARD_MARKET_OPEN_RESET_KEY.value
+    PUBLISH_THROTTLE_KEY = MarketDataCacheKeys.LEADERBOARD_PUBLISH_THROTTLE_KEY.value
 
     cache: MarketDataCache
 

@@ -7,9 +7,6 @@ class MarketDataCacheKeys(Enum):
     """
     Market Data Cache Keys are for Redis cache and Pub/Sub channels for internal use only.
     """
-    # MARKET EVENT KEYS
-    MARKET_DAY_KEY = "market:current_day_start"
-    MARKET_OPEN_RESET_KEY = "market:open_reset:{date}"
 
     # MARKET DATA FEEDS
     AGGREGATE = 'stocks:agg'
@@ -22,7 +19,9 @@ class MarketDataCacheKeys(Enum):
     LEADERBOARD_TOP_VOLUME = "leaderboard:top_volume"
     LEADERBOARD_TOP_GAPPERS = "leaderboard:top_gappers"
     LEADERBOARD_TOP_GAINERS = "leaderboard:top_gainers"
-    PUBLISH_THROTTLE_KEY = "leaderboard:last_publish"
+    LEADERBOARD_PUBLISH_THROTTLE_KEY = "leaderboard:last_publish"
+    LEADERBOARD_MARKET_DAY_KEY = "leaderboard:market:current_day_start"
+    LEADERBOARD_MARKET_OPEN_RESET_KEY = "leaderboard:market:open_reset:{date}"
 
     # MARKET DATA CACHE
     DAILY_AGGREGATES = 'mdc:aggregate:daily'
