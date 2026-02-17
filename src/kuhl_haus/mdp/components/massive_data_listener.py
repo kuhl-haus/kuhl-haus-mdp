@@ -6,7 +6,6 @@ from typing import Awaitable, Callable, Optional, List, Union
 
 from massive import WebSocketClient
 from massive.websocket import Feed, Market, WebSocketMessage
-from kuhl_haus.mdp.helpers.observability import get_meter
 
 
 class MassiveDataListener:
@@ -54,11 +53,6 @@ class MassiveDataListener:
             "market": market,
             "subscriptions": subscriptions,
         }
-        # Metrics
-        meter = get_meter(__name__)
-        self.reconnect_counter = meter.create_counter(
-            name="mdl.reconnection", description="Number of reconnection attempts", unit="1"
-        )
 
     async def start(self):
         """Start WebSocket client"""
@@ -135,7 +129,6 @@ class MassiveDataListener:
 
                 if is_weekday and is_trading_hours:
                     self.logger.info(f"Reconnecting at {et_now.strftime('%H:%M:%S %Z')}...")
-                    self.reconnect_counter.add(1)
                     await self.start()
                     pending_restart = False
                 else:
