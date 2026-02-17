@@ -37,6 +37,9 @@ class MarketDataCache:
         self.get_ticker_snapshot_counter = meter.create_counter(name="mdc.get_ticker_snapshot", description="Number of times a ticker snapshot is retrieved", unit="1")
         self.get_avg_volume_counter = meter.create_counter(name="mdc.get_avg_volume", description="Number of times average volume is retrieved", unit="1")
         self.get_free_float_counter = meter.create_counter(name="mdc.get_free_float", description="Number of times free float is retrieved", unit="1")
+        self.error_counter = meter.create_counter(name="mdc.error", description="Number of errors while processing market data cache requests", unit="1")
+        self.timeout_error_counter = meter.create_counter(name="mdc.timeout_error", description="Number of timeout errors while data from Massive API", unit="1")
+        self.http_error_counter = meter.create_counter(name="mdc.http_error", description="Number of HTTP errors while fetching data from Massive API", unit="1")
 
     @tracer.start_as_current_span("mdc.delete")
     async def delete(self, cache_key: str):
@@ -207,15 +210,18 @@ class MarketDataCache:
                 else:
                     raise Exception(f"Invalid response from Massive API for {ticker}: {data}")
         except asyncio.TimeoutError as e:
-            self.logger.debug(f"Timeout fetching free float for {ticker}: {e}")
+            self.logger.error(f"Timeout fetching free float for {ticker}: {e}", stack_info=True, exc_info=True)
             free_float = 0
             cache_ttl = MarketDataCacheTTL.NEGATIVE_CACHE_THROTTLE.value
+            self.timeout_error_counter.add(1)
         except aiohttp.ClientError as e:
-            self.logger.debug(f"HTTP error fetching free float for {ticker}: {e}")
+            self.logger.error(f"HTTP error fetching free float for {ticker}: {e}", stack_info=True, exc_info=True)
             free_float = 0
             cache_ttl = MarketDataCacheTTL.NEGATIVE_CACHE_THROTTLE.value
+            self.http_error_counter.add(1)
         except Exception as e:
-            self.logger.error(f"Error fetching free float for {ticker}: {e}")
+            self.logger.error(f"Error fetching free float for {ticker}: {e}", stack_info=True, exc_info=True)
+            self.error_counter.add(1)
             raise
 
         self.logger.debug(f"free float {ticker}: {free_float}")
