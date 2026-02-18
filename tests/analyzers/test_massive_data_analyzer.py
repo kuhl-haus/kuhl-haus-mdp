@@ -1,11 +1,18 @@
 from unittest.mock import MagicMock
 
 import pytest
+import pytest_asyncio
 from massive.websocket.models import EventType
 
+from kuhl_haus.mdp.analyzers.analyzer import AnalyzerOptions
 from kuhl_haus.mdp.enum.market_data_cache_ttl import MarketDataCacheTTL
 from src.kuhl_haus.mdp.analyzers.massive_data_analyzer import MassiveDataAnalyzer
 from src.kuhl_haus.mdp.enum.market_data_cache_keys import MarketDataCacheKeys
+
+
+@pytest.fixture
+def analyzer_options():
+    return AnalyzerOptions()
 
 
 @pytest.fixture
@@ -38,14 +45,15 @@ def valid_equity_quote_data(valid_symbol: str):
     return {"event_type": EventType.EquityQuote.value, "symbol": valid_symbol, "test": "data"}
 
 
-def test_analyze_data_with_valid_luld_event_expect_valid_result(valid_symbol, valid_luld_data):
+@pytest.mark.asyncio
+async def test_analyze_data_with_valid_luld_event_expect_valid_result(valid_symbol, valid_luld_data, analyzer_options):
     # Arrange
-    sut = MassiveDataAnalyzer()
+    sut = MassiveDataAnalyzer(analyzer_options)
     symbol = valid_symbol
     data = valid_luld_data
 
     # Act
-    result = sut.analyze_data(data)
+    result = await sut.analyze_data(data)
 
     # Assert
     assert len(result) == 1
@@ -55,144 +63,13 @@ def test_analyze_data_with_valid_luld_event_expect_valid_result(valid_symbol, va
     assert result[0].data == data
 
 
-def test_analyze_data_with_equity_agg_event_happy_path(valid_symbol, valid_equity_agg_data):
+@pytest.mark.asyncio
+async def test_analyze_data_with_equity_agg_event_happy_path(valid_symbol, valid_equity_agg_data, analyzer_options):
     # Arrange
-    sut = MassiveDataAnalyzer()
+    sut = MassiveDataAnalyzer(analyzer_options)
 
     # Act
-    result = sut.analyze_data(data=valid_equity_agg_data)
-
-    # Assert
-    assert len(result) == 1
-    # assert result[0].cache_key == f"{MarketDataCacheKeys.AGGREGATE.value}:{valid_symbol}"
-    # assert result[0].cache_ttl == MarketDataCacheTTL.AGGREGATE.value
-    assert result[0].publish_key == f"{MarketDataCacheKeys.AGGREGATE.value}:{valid_symbol}"
-    assert result[0].data == valid_equity_agg_data
-
-
-def test_analyze_data_with_equity_agg_min_event_happy_path(valid_symbol, valid_equity_agg_minute_data):
-    # Arrange
-    sut = MassiveDataAnalyzer()
-
-    # Act
-    result = sut.analyze_data(data=valid_equity_agg_minute_data)
-
-    # Assert
-    assert len(result) == 1
-    # assert result[0].cache_key == f"{MarketDataCacheKeys.AGGREGATE.value}:{valid_symbol}"
-    # assert result[0].cache_ttl == MarketDataCacheTTL.AGGREGATE.value
-    assert result[0].publish_key == f"{MarketDataCacheKeys.AGGREGATE.value}:{valid_symbol}"
-    assert result[0].data == valid_equity_agg_minute_data
-
-
-def test_analyze_data_with_equity_trade_event_happy_path(valid_symbol, valid_equity_trade_data):
-    # Arrange
-    sut = MassiveDataAnalyzer()
-
-    # Act
-    result = sut.analyze_data(data=valid_equity_trade_data)
-
-    # Assert
-    assert len(result) == 1
-    # assert result[0].cache_key == f"{MarketDataCacheKeys.TRADES.value}:{valid_symbol}"
-    # assert result[0].cache_ttl == MarketDataCacheTTL.TRADES.value
-    assert result[0].publish_key == f"{MarketDataCacheKeys.TRADES.value}:{valid_symbol}"
-    assert result[0].data == valid_equity_trade_data
-
-
-def test_analyze_data_equity_quote_event_happy_path(valid_symbol, valid_equity_quote_data):
-    # Arrange
-    sut = MassiveDataAnalyzer()
-
-    # Act
-    result = sut.analyze_data(data=valid_equity_quote_data)
-
-    # Assert
-    assert len(result) == 1
-    # assert result[0].cache_key == f"{MarketDataCacheKeys.QUOTES.value}:{valid_symbol}"
-    # assert result[0].cache_ttl == MarketDataCacheTTL.QUOTES.value
-    assert result[0].publish_key == f"{MarketDataCacheKeys.QUOTES.value}:{valid_symbol}"
-    assert result[0].data == valid_equity_quote_data
-
-
-def test_analyze_data_with_missing_event_type_expect_unknown_event():
-    # Arrange
-    sut = MassiveDataAnalyzer()
-    sut.handle_unknown_event = MagicMock(return_value=None)
-    data = {"symbol": "TEST", "data": "test"}
-
-    # Act
-    result = sut.analyze_data(data)
-
-    # Assert
-    sut.handle_unknown_event.assert_called_once_with(data)
-    assert result is None
-
-
-def test_analyze_data_with_missing_symbol_expect_unknown_event():
-    # Arrange
-    sut = MassiveDataAnalyzer()
-    sut.handle_unknown_event = MagicMock(return_value=None)
-    data = {"event_type": EventType.LimitUpLimitDown.value, "data": "test"}
-
-    # Act
-    result = sut.analyze_data(data)
-
-    # Assert
-    sut.handle_unknown_event.assert_called_once_with(data)
-    assert result is None
-
-
-def test_analyze_data_with_unsupported_event_expect_unknown_event():
-    # Arrange
-    sut = MassiveDataAnalyzer()
-    sut.handle_unknown_event = MagicMock(return_value=None)
-    data = {"event_type": "UnsupportedEvent", "symbol": "TEST", "test": "data"}
-
-    # Act
-    result = sut.analyze_data(data)
-
-    # Assert
-    sut.handle_unknown_event.assert_called_once_with(data)
-    assert result is None
-
-
-def test_handle_luld_event_happy_path(valid_symbol, valid_luld_data):
-    # Arrange
-    sut = MassiveDataAnalyzer()
-
-    # Act
-    result = sut.handle_luld_event(data=valid_luld_data, symbol=valid_symbol)
-
-    # Assert
-    assert len(result) == 1
-    assert result[0].cache_key == f"{MarketDataCacheKeys.HALTS.value}:{valid_symbol}"
-    assert result[0].cache_ttl == MarketDataCacheTTL.HALTS.value
-    assert result[0].publish_key == f"{MarketDataCacheKeys.HALTS.value}:{valid_symbol}"
-    assert result[0].data == valid_luld_data
-
-
-def test_handle_equity_agg_event_with_no_cache_happy_path(valid_symbol, valid_equity_agg_data):
-    # Arrange
-    sut = MassiveDataAnalyzer()
-
-    # Act
-    result = sut.handle_equity_agg_event(data=valid_equity_agg_data, symbol=valid_symbol)
-
-    # Assert
-    assert len(result) == 1
-    assert result[0].cache_key is None
-    assert result[0].cache_ttl == 0
-    assert result[0].publish_key == f"{MarketDataCacheKeys.AGGREGATE.value}:{valid_symbol}"
-    assert result[0].data == valid_equity_agg_data
-
-
-def test_handle_equity_agg_event_with_cache_happy_path(valid_symbol, valid_equity_agg_data):
-    # Arrange
-    sut = MassiveDataAnalyzer(cache_agg_event=True)
-
-    # Act
-    result = sut.handle_equity_agg_event(data=valid_equity_agg_data, symbol=valid_symbol)
+    result = await sut.analyze_data(data=valid_equity_agg_data)
 
     # Assert
     assert len(result) == 1
@@ -202,27 +79,29 @@ def test_handle_equity_agg_event_with_cache_happy_path(valid_symbol, valid_equit
     assert result[0].data == valid_equity_agg_data
 
 
-def test_handle_equity_trade_event_with_no_cache_happy_path(valid_symbol, valid_equity_trade_data):
+@pytest.mark.asyncio
+async def test_analyze_data_with_equity_agg_min_event_happy_path(valid_symbol, valid_equity_agg_minute_data, analyzer_options):
     # Arrange
-    sut = MassiveDataAnalyzer()
+    sut = MassiveDataAnalyzer(analyzer_options)
 
     # Act
-    result = sut.handle_equity_trade_event(data=valid_equity_trade_data, symbol=valid_symbol)
+    result = await sut.analyze_data(data=valid_equity_agg_minute_data)
 
     # Assert
     assert len(result) == 1
-    assert result[0].cache_key is None
-    assert result[0].cache_ttl == 0
-    assert result[0].publish_key == f"{MarketDataCacheKeys.TRADES.value}:{valid_symbol}"
-    assert result[0].data == valid_equity_trade_data
+    assert result[0].cache_key == f"{MarketDataCacheKeys.AGGREGATE.value}:{valid_symbol}"
+    assert result[0].cache_ttl == MarketDataCacheTTL.AGGREGATE.value
+    assert result[0].publish_key == f"{MarketDataCacheKeys.AGGREGATE.value}:{valid_symbol}"
+    assert result[0].data == valid_equity_agg_minute_data
 
 
-def test_handle_equity_trade_event_with_cache_happy_path(valid_symbol, valid_equity_trade_data):
+@pytest.mark.asyncio
+async def test_analyze_data_with_equity_trade_event_happy_path(valid_symbol, valid_equity_trade_data, analyzer_options):
     # Arrange
-    sut = MassiveDataAnalyzer(cache_trade_event=True)
+    sut = MassiveDataAnalyzer(analyzer_options)
 
     # Act
-    result = sut.handle_equity_trade_event(data=valid_equity_trade_data, symbol=valid_symbol)
+    result = await sut.analyze_data(data=valid_equity_trade_data)
 
     # Assert
     assert len(result) == 1
@@ -232,27 +111,13 @@ def test_handle_equity_trade_event_with_cache_happy_path(valid_symbol, valid_equ
     assert result[0].data == valid_equity_trade_data
 
 
-def test_handle_equity_quote_event_with_no_cache_happy_path(valid_symbol, valid_equity_quote_data):
+@pytest.mark.asyncio
+async def test_analyze_data_equity_quote_event_happy_path(valid_symbol, valid_equity_quote_data, analyzer_options):
     # Arrange
-    sut = MassiveDataAnalyzer()
+    sut = MassiveDataAnalyzer(analyzer_options)
 
     # Act
-    result = sut.handle_equity_quote_event(data=valid_equity_quote_data, symbol=valid_symbol)
-
-    # Assert
-    assert len(result) == 1
-    assert result[0].cache_key is None
-    assert result[0].cache_ttl == 0
-    assert result[0].publish_key == f"{MarketDataCacheKeys.QUOTES.value}:{valid_symbol}"
-    assert result[0].data == valid_equity_quote_data
-
-
-def test_handle_equity_quote_event_with_cache_happy_path(valid_symbol, valid_equity_quote_data):
-    # Arrange
-    sut = MassiveDataAnalyzer(cache_quote_event=True)
-
-    # Act
-    result = sut.handle_equity_quote_event(data=valid_equity_quote_data, symbol=valid_symbol)
+    result = await sut.analyze_data(data=valid_equity_quote_data)
 
     # Assert
     assert len(result) == 1
@@ -262,17 +127,46 @@ def test_handle_equity_quote_event_with_cache_happy_path(valid_symbol, valid_equ
     assert result[0].data == valid_equity_quote_data
 
 
-def test_handle_unknown_event_happy_path():
+@pytest.mark.asyncio
+async def test_analyze_data_with_missing_event_type_expect_unknown_event(analyzer_options):
     # Arrange
-    sut = MassiveDataAnalyzer()
-    data = {"unknown": "event"}
+    sut = MassiveDataAnalyzer(analyzer_options)
+    sut.handle_unknown_event = MagicMock(return_value=None)
+    data = {"symbol": "TEST", "data": "test"}
 
     # Act
-    result = sut.handle_unknown_event(data=data)
+    result = await sut.analyze_data(data)
 
     # Assert
-    assert len(result) == 1
-    assert result[0].cache_key.startswith(f"{MarketDataCacheKeys.UNKNOWN.value}:")
-    assert result[0].cache_ttl == MarketDataCacheTTL.UNKNOWN.value
-    assert result[0].publish_key == MarketDataCacheKeys.UNKNOWN.value
-    assert result[0].data == data
+    sut.handle_unknown_event.assert_called_once_with(data)
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_analyze_data_with_missing_symbol_expect_unknown_event(analyzer_options):
+    # Arrange
+    sut = MassiveDataAnalyzer(analyzer_options)
+    sut.handle_unknown_event = MagicMock(return_value=None)
+    data = {"event_type": EventType.LimitUpLimitDown.value, "data": "test"}
+
+    # Act
+    result = await sut.analyze_data(data)
+
+    # Assert
+    sut.handle_unknown_event.assert_called_once_with(data)
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_analyze_data_with_unsupported_event_expect_unknown_event(analyzer_options):
+    # Arrange
+    sut = MassiveDataAnalyzer(analyzer_options)
+    sut.handle_unknown_event = MagicMock(return_value=None)
+    data = {"event_type": "UnsupportedEvent", "symbol": "TEST", "test": "data"}
+
+    # Act
+    result = await sut.analyze_data(data)
+
+    # Assert
+    sut.handle_unknown_event.assert_called_once_with(data)
+    assert result is None
