@@ -49,9 +49,9 @@ class MassiveDataListener:
         self.kwargs = kwargs
         self.connection_status = {
             "connected": False,
-            "feed": feed,
-            "market": market,
-            "subscriptions": subscriptions,
+            "feed": self.feed,
+            "market": self.market,
+            "subscriptions": self.subscriptions,
         }
 
     async def start(self):
