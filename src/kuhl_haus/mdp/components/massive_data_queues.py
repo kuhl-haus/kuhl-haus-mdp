@@ -1,11 +1,13 @@
+
+import asyncio
 import logging
 
 from datetime import datetime
-from typing import List, Union
+from typing import List, Dict, Union
 
 from aio_pika import Connection, Channel, connect_robust, Message
 from aio_pika import DeliveryMode
-from aio_pika.abc import AbstractConnection, AbstractChannel
+from aio_pika.abc import AbstractConnection, AbstractChannel, AbstractExchange
 from massive.websocket.models import WebSocketMessage
 
 from kuhl_haus.mdp.enum.massive_data_queue import MassiveDataQueue
@@ -23,11 +25,13 @@ class MassiveDataQueues:
     rabbitmq_url: str
     queues: List[str]
     message_ttl: int
+    publisher_confirms: bool
     connection: Union[Connection, AbstractConnection]
-    channel: Union[Channel, AbstractChannel]
+    channels: Dict[str, Union[Channel, AbstractChannel]]
+    exchanges: Dict[str, AbstractExchange]
     connection_status: dict
 
-    def __init__(self, rabbitmq_url, message_ttl: int):
+    def __init__(self, rabbitmq_url, message_ttl: int, publisher_confirms: bool = True):
         self.logger = logging.getLogger(__name__)
         self.rabbitmq_url = rabbitmq_url
         self.queues = [
@@ -39,6 +43,9 @@ class MassiveDataQueues:
             MassiveDataQueue.UNKNOWN.value,
         ]
         self.message_ttl = message_ttl
+        self.publisher_confirms = publisher_confirms
+        self.channels = {}
+        self.exchanges = {}
         self.connection_status = {
             "connected": False,
             "last_message_time": None,
@@ -100,40 +107,84 @@ class MassiveDataQueues:
     # @tracer.start_as_current_span("mdq.connect")
     async def connect(self):
         self.connection = await connect_robust(self.rabbitmq_url)
-        self.channel = await self.connection.channel()
+
+        # Create a dedicated channel per queue for parallel I/O
+        for q in self.queues:
+            channel = await self.connection.channel(
+                publisher_confirms=self.publisher_confirms,
+            )
+            self.channels[q] = channel
+            self.exchanges[q] = channel.default_exchange
 
         try:
+            # Verify queues exist using the first available channel
+            first_channel = next(iter(self.channels.values()))
             for q in self.queues:
-                _ = await self.channel.declare_queue(q, passive=True)  # Don't create, just check
+                _ = await first_channel.declare_queue(q, passive=True)  # Don't create, just check
 
-            self.connection_status["connected"] = self.connection is not None and self.channel is not None
+            self.connection_status["connected"] = self.connection is not None
         except Exception as e:
             self.logger.error(f"Fatal error while processing request: {e}")
             raise
 
     # @tracer.start_as_current_span("mdq.handle_messages")
     async def handle_messages(self, msgs: List[WebSocketMessage]):
-        if not self.channel:
-            self.logger.error("RabbitMQ channel not initialized")
-            raise Exception("RabbitMQ channel not initialized")
+        if not self.channels:
+            self.logger.error("RabbitMQ channels not initialized")
+            raise Exception("RabbitMQ channels not initialized")
         if not self.connection:
             self.logger.error("RabbitMQ connection not initialized")
             raise Exception("RabbitMQ connection not initialized")
         try:
+            # Pre-build all messages and resolve queues before any I/O
+            publish_tasks = []
             for message in msgs:
                 # self.message_counter.add(1)
-                await self.fanout_to_queues(message)
+                self.connection_status["messages_received"] += 1
+                self.connection_status["last_message_time"] = datetime.now().isoformat()
+                serialized_message = WebSocketMessageSerde.serialize(message)
+                encoded_message = serialized_message.encode()
+                rabbit_message = Message(
+                    body=encoded_message,
+                    # Persistent mode forces RabbitMQ to fsync to disk, which adds significant latency
+                    # per message. Since we have short TTLs on the queues, the messages are ephemeral by nature.
+                    delivery_mode=DeliveryMode.NOT_PERSISTENT,  # message durability isn't critical
+                    content_type="application/json",
+                    timestamp=datetime.now(),
+                )
+                queue_name = QueueNameResolver.queue_name_for_web_socket_message(message)
+                publish_tasks.append((rabbit_message, queue_name))
+
+            # Publish all messages concurrently
+            await asyncio.gather(*(
+                self._publish_message(rabbit_message, queue_name)
+                for rabbit_message, queue_name in publish_tasks
+            ))
         except Exception as e:
             self.logger.error(f"Fatal error while processing messages: {e}")
             # self.error_counter.add(1)
             raise
 
+    # @tracer.start_as_current_span("mdq._publish_message")
+    async def _publish_message(self, rabbit_message: Message, queue_name: str):
+        """Publish a single pre-built message via the queue's dedicated channel."""
+        try:
+            exchange = self.exchanges[queue_name]
+            await exchange.publish(rabbit_message, routing_key=queue_name)
+            # self.counters[queue_name].add(1)
+            self.connection_status[queue_name] += 1
+        except Exception as e:
+            self.logger.error(f"Error publishing to RabbitMQ queue {queue_name}: {e}")
+
     # @tracer.start_as_current_span("mdq.shutdown")
     async def shutdown(self):
         self.connection_status["connected"] = False
-        self.logger.info("Closing RabbitMQ channel")
-        await self.channel.close()
-        self.logger.info("RabbitMQ channel closed")
+        for queue_name, channel in self.channels.items():
+            self.logger.info(f"Closing RabbitMQ channel for {queue_name}")
+            await channel.close()
+            self.logger.info(f"RabbitMQ channel for {queue_name} closed")
+        self.channels.clear()
+        self.exchanges.clear()
         self.logger.info("Closing RabbitMQ connection")
         await self.connection.close()
         self.logger.info("RabbitMQ connection closed")
@@ -141,44 +192,22 @@ class MassiveDataQueues:
     # @tracer.start_as_current_span("mdq.setup_queues")
     async def setup_queues(self):
         self.connection = await connect_robust(self.rabbitmq_url)
-        self.channel = await self.connection.channel()
 
-        # Declare queues with message TTL
+        # Create a dedicated channel per queue
         for queue in self.queues:
-            await self.channel.declare_queue(
+            channel = await self.connection.channel(
+                publisher_confirms=self.publisher_confirms,
+            )
+            self.channels[queue] = channel
+            self.exchanges[queue] = channel.default_exchange
+
+            # Declare queue with message TTL
+            await channel.declare_queue(
                 queue,
                 durable=True,
-                arguments={"x-message-ttl": self.message_ttl}  # Messages are deleted after they expire
+                arguments={"x-message-ttl": self.message_ttl}
             )
 
-            self.logger.info(f"{queue} queue created with {self.message_ttl}ms TTL")
-        self.connection_status["connected"] = self.connection is not None and self.channel is not None
+            self.logger.info(f"{queue} queue created with {self.message_ttl}ms TTL (channel dedicated)")
 
-    # @tracer.start_as_current_span("mdq.fanout_to_queues")
-    async def fanout_to_queues(self, message: WebSocketMessage):
-        try:
-            self.logger.debug(f"Received message: {message}")
-            self.connection_status["messages_received"] += 1
-            self.connection_status["last_message_time"] = datetime.now().isoformat()
-
-            serialized_message = WebSocketMessageSerde.serialize(message)
-            self.logger.debug(f"Serialized message: {serialized_message}")
-
-            encoded_message = serialized_message.encode()
-            rabbit_message = Message(
-                body=encoded_message,
-                delivery_mode=DeliveryMode.PERSISTENT,  # Survive broker restart
-                content_type="application/json",
-                timestamp=datetime.now(),
-            )
-
-            # Publish to event-specific queues
-            queue_name = QueueNameResolver.queue_name_for_web_socket_message(message)
-            self.logger.debug(f"Queue name: {queue_name}")
-
-            await self.channel.default_exchange.publish(rabbit_message, routing_key=queue_name)
-            # self.counters[queue_name].add(1)
-            self.connection_status[queue_name] += 1
-
-        except Exception as e:
-            self.logger.error(f"Error publishing to RabbitMQ: {e}")
+        self.connection_status["connected"] = self.connection is not None
