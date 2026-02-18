@@ -23,6 +23,14 @@ class MarketDataCacheKeys(Enum):
     LEADERBOARD_MARKET_DAY_KEY = "leaderboard:market:current_day_start"
     LEADERBOARD_MARKET_OPEN_RESET_KEY = "leaderboard:market:open_reset:{date}"
 
+    # TOP TRADES ANALYZER
+    TOP_TRADES_RECENT_PREFIX = "tta:{symbol}:recent"
+    TOP_TRADES_RECENT_SCAN = "tta:*:recent"
+    TOP_TRADES_STATS_PREFIX = "tta:{symbol}:stats"
+    TOP_TRADES_LAST_PUBLISH_KEY = "tta:last_publish"
+    TOP_TRADES_WIDGET_CACHE_KEY = "tta:{symbol}:widget"
+    TOP_TRADES_ALL_SYMBOLS_CACHE_KEY = "tta:all_symbols:widget"
+
     # MARKET DATA CACHE
     DAILY_AGGREGATES = 'mdc:aggregate:daily'
     TICKER_SNAPSHOTS = 'mdc:snapshots'
