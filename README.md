@@ -1,12 +1,3 @@
-<!-- These are examples of badges you might want to add to your README:
-   please update the URLs accordingly 
-
-[![ReadTheDocs](https://readthedocs.org/projects/kuhl-haus-mdp/badge/?version=latest)](https://kuhl-haus-mdp.readthedocs.io/en/stable/)
-[![Conda-Forge](https://img.shields.io/conda/vn/conda-forge/kuhl-haus-mdp.svg)](https://anaconda.org/conda-forge/kuhl-haus-mdp)
-[![Monthly Downloads](https://pepy.tech/badge/kuhl-haus-mdp/month)](https://pepy.tech/project/kuhl-haus-mdp)
--->
-
-
 [![License](https://img.shields.io/github/license/kuhl-haus/kuhl-haus-mdp)](https://github.com/kuhl-haus/kuhl-haus-mdp/blob/mainline/LICENSE.txt)
 [![PyPI](https://img.shields.io/pypi/v/kuhl-haus-mdp.svg)](https://pypi.org/project/kuhl-haus-mdp/)
 [![Downloads](https://static.pepy.tech/badge/kuhl-haus-mdp/month)](https://pepy.tech/project/kuhl-haus-mdp)
@@ -21,13 +12,34 @@
 
 Market data processing library.
 
+## Overview
 
+The Kuhl Haus Market Data Platform (MDP) is a distributed system for collecting, processing, and serving real-time market data. Built on Kubernetes and leveraging microservices architecture, MDP provides scalable infrastructure for financial data analysis and visualization.
 
-## TL;DR
-Non-business Massive (AKA Polygon.IO) accounts are limited to a single WebSocket connection per asset class and it has to be fast enough to handle messages in a non-blocking fashion or it'll get disconnected.  The market data processing pipeline consists of loosely-coupled market data processing components so that a single WebSocket connection can handle messages fast enough to maintain a reliable connection with the market data provider.
+### Architecture
 
-Per, https://massive.com/docs/websocket/quickstart#connecting-to-the-websocket:
-> *By default, one concurrent WebSocket connection per asset class is allowed. If you require multiple simultaneous connections for the same asset class, please [contact support](https://massive.com/contact).*
+The platform consists of four main packages:
+- **Market data processing library** ([`kuhl-haus-mdp`](https://github.com/kuhl-haus/kuhl-haus-mdp)) - Core library with shared data processing logic
+- **Backend Services** ([`kuhl-haus-mdp-servers`](https://github.com/kuhl-haus/kuhl-haus-mdp-servers)) - Market data listener, processor, and widget service
+- **Frontend Application** ([`kuhl-haus-mdp-app`](https://github.com/kuhl-haus/kuhl-haus-mdp-app)) - Web-based user interface and API
+- **Deployment Automation** ([`kuhl-haus-mdp-deployment`](https://github.com/kuhl-haus/kuhl-haus-mdp-deployment)) - Docker Compose, Ansible playbooks and Kubernetes manifests for environment provisioning
+
+### Key Features
+
+- Real-time market data ingestion and processing
+- Scalable microservices architecture
+- Automated deployment with Ansible and Kubernetes
+- Multi-environment support (development, staging, production)
+- OAuth integration for secure authentication
+- Redis-based caching layer for performance
+
+### Additional Resources
+
+📖 **Blog Series:**
+- [Part 1: Why I Built It](https://the.oldschool.engineer/what-i-built-after-quitting-amazon-spoiler-its-a-stock-scanner-28fc3b6d9be0)
+- [Part 2: How to Run It](https://the.oldschool.engineer/what-i-built-after-quitting-amazon-spoiler-its-a-stock-scanner-part-2-94e445914951)
+- [Part 3: How to Deploy It](https://the.oldschool.engineer/what-i-built-after-quitting-amazon-spoiler-its-a-stock-scanner-part-3-eab7d9bbf5f7)
+- [Part 4: Evolution from Prototype to Production](https://the.oldschool.engineer/what-i-built-after-quitting-amazon-spoiler-its-a-stock-scanner-part-4-408779a1f3f2)
 
 # Components Summary
 
