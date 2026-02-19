@@ -64,70 +64,78 @@ Non-business Massive (AKA Polygon.IO) accounts are limited to a single WebSocket
 
 ::
 
-    +---------------------------------------+             +--------------------------------------------------+
-    |           Web Client (SPA)            |             |               Widget Data Service                |
-    |         [Container: Vue.js]           |             |           [Container: Python FastAPI]            |
-    |                                       |<----------->|    WebSocket interface provides access to        |
-    | SPA interacts with SCP and displays   |             |   processed market data for client-side code     |
-    | market data in widgets received from  |             |                                                  |
-    | the WDS                               |             +------------------------^-------------------------+
-    +-----------^---------------------------+                                      |
-                |                                                                  |
-                |                                                                  |
-          +-----+-----+                                                            |
-          | User      |                                                            |
-          | [Person]  |                                                            |
-          +-----+-----+                                                            |
-                |                                                                  |
-                |                                                                  |
-                v                                                                  |
-      +---------------------------+                       +------------------------+-------------------------+
-      |  Service Control Plane    |                       |                 Market Data Cache                |
-      |   [Container: Py4web]     |                       |                [Container: Redis]                |
-      |                           |                       |                                                  |
-      | 1. AuthN/AuthZ            |                       |   The processed market data is stored in the     |
-      | 2. Static/dynamic content |                       |   Market Data Cache for consumption by the       |
-      | 3. Control plane          |                       |   Widget Data Service (WDS).                     |
-      | 4. API                    |                       +------------------------^-------------------------+
-      +---------------------------+                                                |
-                                                                                   |
-                                                                                   |
-                                                                   +---------------+----------------+
-                                                                   |      Market Data Processor     |
-                                                                   |  [Container: Python FastAPI]   |
-                                                                   |                                |
-                                                                   | The MDP is responsible for the |
-                                                 /-----------------+ "heavy lifting" which would    |
-                                                 |                 | otherwise constrain the message|
-                                                 |                 | handling speed of the MDL.     |
-                                                 |                 +---------------^----------------+
-                                                 |                                 |
-                                                 |                                 |
-                                                 |                 +---------------+----------------+
-                                                 |                 |       Market Data Queues       |
-                                                 |                 |     [Container: RabbitMQ]      |
-                                                 |                 |                                |
-                                                 |                 |   Decouples the MDL and MDP    |
-                                                 |                 +---------------^----------------+
-                                                 |                                 |
-                                                 |                                 |
-                                                 |                 +---------------+----------------+
-                                                 |                 |       Market Data Listener     |
-                                                 |                 |   [Container: Python FastAPI]  |
-                                                 |                 |                                |
-                                                 |                 | Receives streaming messages    |
-                                                 |                 | from the market data provider  |
-                                                 |                 | and distributes messages to    |
-                                                 |                 | event specific queues          |
-                                                 |                 +---------------^----------------+
-                                                 |                                 |
-                                                 |                                 |
-                                      +----------v------------+        +-----------+-----------+
-                                      |      Massive.com      |        |      Massive.com      |
-                                      |      [REST API]       |        |      [WebSocket]      |
-                                      |                       |        |                       |
-                                      | On-demand market data |        | Streaming market data |
-                                      +-----------------------+        +-----------------------+
+                      +---------------------------+
+                      |    Web Client (SPA)       |
+                      |   [Container: Vue.js]     |
+       +---------+    |                           |
+       |  User   |<-->| Displays market data from |
+       +---------+    | WDS, interacts with SCP   |
+                      +-------------+-------------+
+                                    |
+                                    v
+                      +---------------------------+
+                      | Service Control Plane     |
+                      |  [Container: Py4web]      |
+                      |                           |
+                      | 1. AuthN/AuthZ            |
+                      | 2. Static/dynamic content |
+                      | 3. Control plane          |
+                      | 4. API                    |
+                      +---------------------------+
+
+
+    Data Plane:
+    ───────────
+
+      +-----------------------------+
+      |  Widget Data Service        |<---- Client connections
+      | [Container: FastAPI]        |
+      |                             |
+      | WebSocket interface for     |
+      | processed market data       |
+      +-------------+---------------+
+                    |
+                    v
+      +-----------------------------+
+      |   Market Data Cache         |
+      |   [Container: Redis]        |
+      |                             |
+      | Stores processed data with  |
+      | TTL and pub/sub support     |
+      +-------------^---------------+
+                    |
+                    |
+      +-------------+---------------+
+      | Market Data Processor       |----------> Massive REST API
+      | [Container: FastAPI]        |            (snapshots, avg vol,
+      |                             |             free float, etc.)
+      | Analyzes and processes raw  |
+      | data via pluggable analyzers|
+      +-------------^---------------+
+                    |
+                    |
+      +-----------------------------+
+      |  Market Data Queues         |
+      |  [Container: RabbitMQ]      |
+      |                             |
+      | FIFO with 5s TTL, decouples |
+      | listener from processors    |
+      +-------------^---------------+
+                    |
+                    |
+      +-----------------------------+
+      | Market Data Listener        |
+      | [Container: FastAPI]        |
+      |                             |
+      | Routes WebSocket messages   |
+      | to event-specific queues    |
+      +-------------^---------------+
+                    |
+                    |
+                +---+----+
+                |Massive |
+                |WebSocket
+                +--------+
 
 
 
@@ -140,6 +148,14 @@ Market Data Listener (MDL)
 The MDL performs minimal processing on the messages. MDL inspects the message type for selecting the appropriate serialization method and destination queue. MDL implementations may vary as new MDS become available (for example, news).
 
 MDL runs as a container and scales independently of other components. The MDL should not be accessible outside the data plane local network.
+
+Code Libraries
+~~~~~~~~~~~~~~
+
+- **MassiveDataListener** (``components/massive_data_listener.py``) - WebSocket client wrapper for Massive.com with persistent connection management and market-aware reconnection logic
+- **MassiveDataQueues** (``components/massive_data_queues.py``) - Multi-channel RabbitMQ publisher routing messages by event type with concurrent batch publishing (100 msg/frame)
+- **WebSocketMessageSerde** (``helpers/web_socket_message_serde.py``) - Serialization/deserialization for Massive WebSocket messages to/from JSON
+- **QueueNameResolver** (``helpers/queue_name_resolver.py``) - Event type to queue name routing logic
 
 Market Data Queues (MDQ)
 -------------------------
@@ -155,6 +171,12 @@ Market Data Queues (MDQ)
 
 The MDQ should not be accessible outside the data plane local network.
 
+Code Libraries
+~~~~~~~~~~~~~~
+
+- **MassiveDataQueues** (``components/massive_data_queues.py``) - Queue setup, per-queue channel management, and message publishing with NOT_PERSISTENT delivery mode
+- **MassiveDataQueue** enum (``enum/massive_data_queue.py``) - Queue name constants for routing (AGGREGATE, TRADES, QUOTES, HALTS, UNKNOWN)
+
 Market Data Processors (MDP)
 -----------------------------
 
@@ -169,6 +191,21 @@ The MDP:
 
 MDPs runs as containers and scale independently of other components. The MDPs should not be accessible outside the data plane local network.
 
+Code Libraries
+~~~~~~~~~~~~~~
+
+- **MassiveDataProcessor** (``components/massive_data_processor.py``) - RabbitMQ consumer with semaphore-based concurrency control for high-throughput scenarios (1,000+ events/sec)
+- **MarketDataScanner** (``components/market_data_scanner.py``) - Redis pub/sub consumer with pluggable analyzer pattern for sequential message processing
+- **Analyzers** (``analyzers/``)
+
+  - **MassiveDataAnalyzer** (``massive_data_analyzer.py``) - Stateless event router dispatching by event type
+  - **LeaderboardAnalyzer** (``leaderboard_analyzer.py``) - Redis sorted set leaderboards (volume, gappers, gainers) with day/market boundary resets and distributed throttling
+  - **TopTradesAnalyzer** (``top_trades_analyzer.py``) - Redis List-based trade history with sliding window (last 1,000 trades/symbol) and aggregated statistics
+  - **TopStocksAnalyzer** (``top_stocks.py``) - In-memory leaderboard prototype (legacy, single-instance)
+
+- **MarketDataAnalyzerResult** (``data/market_data_analyzer_result.py``) - Result envelope for analyzer output with cache/publish metadata
+- **ProcessManager** (``helpers/process_manager.py``) - Multiprocess orchestration for async workers with OpenTelemetry context propagation
+
 Market Data Cache (MDC)
 ------------------------
 
@@ -180,6 +217,14 @@ Market Data Cache (MDC)
 
 The MDC should not be accessible outside the data plane local network.
 
+Code Libraries
+~~~~~~~~~~~~~~
+
+- **MarketDataCache** (``components/market_data_cache.py``) - Redis cache-aside layer for Massive.com API with TTL policies, negative caching, and specialized metric methods (snapshot, avg volume, free float)
+- **MarketDataCacheKeys** enum (``enum/market_data_cache_keys.py``) - Internal Redis cache key patterns and templates
+- **MarketDataCacheTTL** enum (``enum/market_data_cache_ttl.py``) - TTL values balancing freshness vs. API quotas vs. memory pressure (5s for trades, 24h for reference data)
+- **MarketDataPubSubKeys** enum (``enum/market_data_pubsub_keys.py``) - Redis pub/sub channel names for external consumption
+
 Widget Data Service (WDS)
 --------------------------
 
@@ -189,6 +234,12 @@ Widget Data Service (WDS)
 2. Is the network-layer boundary between clients and the data that is available on the data plane
 
 WDS runs as a container and scales independently of other components. WDS is the only data plane component that should be exposed to client networks.
+
+Code Libraries
+~~~~~~~~~~~~~~
+
+- **WidgetDataService** (``components/widget_data_service.py``) - WebSocket-to-Redis bridge with fan-out pattern, lazy task initialization, wildcard subscription support, and lock-protected subscription management
+- **MarketDataCache** (``components/market_data_cache.py``) - Snapshot retrieval for initial state before streaming
 
 Service Control Plane (SCP)
 ----------------------------
@@ -203,3 +254,10 @@ Service Control Plane (SCP)
 6. API for programmatic access to service controls and instrumentation.
 
 The SCP requires access to the data plane network for API access to data plane components.
+
+Code Libraries
+~~~~~~~~~~~~~~
+
+- **Observability** (``helpers/observability.py``) - OpenTelemetry tracer/meter factory for distributed tracing and metrics
+- **StructuredLogging** (``helpers/structured_logging.py``) - JSON logging for K8s/OpenObserve with dev mode support
+- **Utils** (``helpers/utils.py``) - API key resolution (MASSIVE_API_KEY → POLYGON_API_KEY → file) and TickerSnapshot serialization
