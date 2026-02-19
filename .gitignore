@@ -58,3 +58,4 @@ __pypackages__/
 
 /.run
 /Build-Images.ps1
+.output.txt

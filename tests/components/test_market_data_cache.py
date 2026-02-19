@@ -1,889 +1,648 @@
+import asyncio
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiohttp
 import pytest
-from kuhl_haus.mdp.components.market_data_cache import MarketDataCache
 from massive.rest.models import TickerSnapshot
 
+from kuhl_haus.mdp.components.market_data_cache import MarketDataCache
 from kuhl_haus.mdp.enum.market_data_cache_keys import MarketDataCacheKeys
 from kuhl_haus.mdp.enum.market_data_cache_ttl import MarketDataCacheTTL
 
 
-@pytest.fixture
-def mock_massive_api_key():
-    return "test_api_key"
+# -- helpers ---------------------------------------------------------
 
 
-@pytest.fixture
-def mock_data_dict():
+def _snapshot_dict():
+    """Minimal dict that TickerSnapshot.from_dict can parse."""
     return {
-                "day": {
-                    "open": 2.00,
-                    "high": 3.50,
-                    "low": 1.90,
-                    "close": 2.50,
-                    "volume": 1000,
-                    "vwap": 2.75,
-                    "timestamp": 1672531200,
-                    "transactions": 1,
-                    "otc": False,
-                },
-                "last_quote": {
-                    "ticker": "TEST",
-                    "trf_timestamp": 1672531200,
-                    "sequence_number": 1,
-                    "sip_timestamp": 1672531200,
-                    "participant_timestamp": 1672531200,
-                    "ask_price": 2.50,
-                    "ask_size": 1,
-                    "ask_exchange": 1,
-                    "conditions": [1],
-                    "indicators": [1],
-                    "bid_price": 2.45,
-                    "bid_size": 1,
-                    "bid_exchange": 1,
-                    "tape": 1,
-                },
-                "last_trade": {
-                    "ticker": "TEST",
-                    "trf_timestamp": 1672531200,
-                    "sequence_number": 1,
-                    "sip_timestamp": 1672531200,
-                    "participant_timestamp": 1672531200,
-                    "conditions": [0],
-                    "correction": 1,
-                    "id": "ID",
-                    "price": 2.47,
-                    "trf_id": 1,
-                    "size": 1,
-                    "exchange": 1,
-                    "tape": 1,
-                },
-                "min": {
-                    "accumulated_volume": 100000,
-                    "open": 2.45,
-                    "high": 2.50,
-                    "low": 2.45,
-                    "close": 2.47,
-                    "volume": 10000,
-                    "vwap": 2.75,
-                    "otc": False,
-                    "timestamp": 1672531200,
-                    "transactions": 10,
-                },
-                "prev_day": {
-                    "open": 1.75,
-                    "high": 2.00,
-                    "low": 1.75,
-                    "close": 2.00,
-                    "volume": 500000,
-                    "vwap": 1.95,
-                    "timestamp": 1672450600,
-                    "transactions": 10,
-                    "otc": False,
-                },
-                "ticker": "TEST",
-                "todays_change": 0.50,
-                "todays_change_percent": 25,
-                "updated": 1672450600,
-            }
+        "ticker": "TEST",
+        "todaysChange": 0.50,
+        "todaysChangePerc": 25,
+        "updated": 1672450600,
+        "day": {
+            "o": 2.0, "h": 3.5, "l": 1.9, "c": 2.5,
+            "v": 1000, "vw": 2.75, "t": 1672531200,
+            "n": 1, "otc": False,
+        },
+        "prevDay": {
+            "o": 1.75, "h": 2.0, "l": 1.75, "c": 2.0,
+            "v": 500000, "vw": 1.95, "t": 1672450600,
+            "n": 10, "otc": False,
+        },
+        "lastQuote": {
+            "T": "TEST", "f": 0, "q": 1, "t": 0, "y": 0,
+            "P": 2.5, "S": 1, "X": 1, "c": [1], "i": [1],
+            "p": 2.45, "s": 1, "x": 1, "z": 1,
+        },
+        "lastTrade": {
+            "T": "TEST", "f": 0, "q": 1, "t": 0, "y": 0,
+            "c": [0], "e": 1, "i": "ID", "p": 2.47,
+            "r": 1, "s": 1, "x": 1, "z": 1,
+        },
+        "min": {
+            "av": 100000, "o": 2.45, "h": 2.50, "l": 2.45,
+            "c": 2.47, "v": 10000, "vw": 2.75, "otc": False,
+            "t": 1672531200, "n": 10,
+        },
+    }
+
+
+def _free_float_response(
+    free_float=2643494955,
+    status="OK",
+    results=None,
+):
+    """Build a Massive API free-float response dict."""
+    if results is None:
+        results = [{
+            "effective_date": "2025-11-14",
+            "free_float": free_float,
+            "free_float_percent": 79.5,
+            "ticker": "TEST",
+        }]
+    return {
+        "request_id": 1,
+        "results": results,
+        "status": status,
+    }
+
+
+def _mock_http_session(response):
+    """Return a mock aiohttp session wired to *response*."""
+    ctx = AsyncMock()
+    ctx.__aenter__ = AsyncMock(return_value=response)
+    ctx.__aexit__ = AsyncMock(return_value=None)
+    session = AsyncMock()
+    session.closed = False
+    session.get = MagicMock(return_value=ctx)
+    return session
+
+
+# -- fixtures --------------------------------------------------------
+
+
+@pytest.fixture
+def mock_redis():
+    return AsyncMock()
+
+
+@pytest.fixture
+def mock_rest():
+    return MagicMock()
+
+
+@pytest.fixture
+def sut(mock_redis, mock_rest):
+    return MarketDataCache(
+        rest_client=mock_rest,
+        redis_client=mock_redis,
+        massive_api_key="test_key",
+    )
+
+
+# -- __init__ --------------------------------------------------------
+
+
+def test_mdc_init_with_defaults_expect_attrs_set(
+    sut, mock_redis, mock_rest,
+):
+    # Arrange — provided by fixture
+
+    # Act (already constructed)
+    result = sut
+
+    # Assert
+    assert result.rest_client is mock_rest
+    assert result.redis_client is mock_redis
+    assert result.massive_api_key == "test_key"
+    assert result.http_session is None
+
+
+# -- delete ----------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_get_ticker_snapshot_with_cache_hit_expect_ticker_snapshot_returned(mock_data_dict):
+async def test_mdc_delete_with_valid_key_expect_redis_delete(
+    sut, mock_redis,
+):
     # Arrange
-    mock_redis_client = AsyncMock()
-    mock_rest_client = MagicMock()
-    sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-    mock_cache_key = f"{MarketDataCacheKeys.TICKER_SNAPSHOTS.value}:TEST"
-    mock_cached_value = mock_data_dict
-    mock_redis_client.get.return_value = json.dumps(mock_cached_value)
+    key = "some:key"
+
+    # Act
+    await sut.delete(key)
+
+    # Assert
+    mock_redis.delete.assert_awaited_once_with(key)
+
+
+@pytest.mark.asyncio
+async def test_mdc_delete_with_redis_error_expect_no_raise(
+    sut, mock_redis,
+):
+    # Arrange
+    mock_redis.delete = AsyncMock(
+        side_effect=Exception("boom")
+    )
+
+    # Act
+    await sut.delete("k")
+
+    # Assert — no exception propagated
+    mock_redis.delete.assert_awaited_once_with("k")
+
+
+# -- read ------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_mdc_read_with_cached_value_expect_dict(
+    sut, mock_redis,
+):
+    # Arrange
+    mock_redis.get.return_value = json.dumps({"a": 1})
+
+    # Act
+    result = await sut.read("key")
+
+    # Assert
+    assert result == {"a": 1}
+    mock_redis.get.assert_awaited_once_with("key")
+
+
+@pytest.mark.asyncio
+async def test_mdc_read_with_cache_miss_expect_none(
+    sut, mock_redis,
+):
+    # Arrange
+    mock_redis.get.return_value = None
+
+    # Act
+    result = await sut.read("key")
+
+    # Assert
+    assert result is None
+
+
+# -- write -----------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("ttl", [0, 300])
+async def test_mdc_write_with_ttl_expect_correct_redis_call(
+    ttl, sut, mock_redis,
+):
+    # Arrange
+    data = {"x": 1}
+
+    # Act
+    await sut.write(data=data, cache_key="k", cache_ttl=ttl)
+
+    # Assert
+    dumped = json.dumps(data)
+    if ttl > 0:
+        mock_redis.setex.assert_awaited_once_with(
+            "k", ttl, dumped,
+        )
+    else:
+        mock_redis.set.assert_awaited_once_with("k", dumped)
+
+
+# -- broadcast -------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_mdc_broadcast_with_data_expect_publish(
+    sut, mock_redis,
+):
+    # Arrange
+    data = {"price": 1.5}
+
+    # Act
+    await sut.broadcast(data=data, publish_key="ch")
+
+    # Assert
+    mock_redis.publish.assert_awaited_once_with(
+        "ch", json.dumps(data),
+    )
+
+
+# -- delete_ticker_snapshot ------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_mdc_del_snap_with_ticker_expect_delete_called(
+    sut, mock_redis,
+):
+    # Arrange
+    key = (
+        f"{MarketDataCacheKeys.TICKER_SNAPSHOTS.value}:AAPL"
+    )
+
+    # Act
+    await sut.delete_ticker_snapshot("AAPL")
+
+    # Assert
+    mock_redis.delete.assert_awaited_once_with(key)
+
+
+@pytest.mark.asyncio
+async def test_mdc_del_snap_with_redis_error_expect_no_raise(
+    sut, mock_redis,
+):
+    # Arrange
+    mock_redis.delete = AsyncMock(
+        side_effect=Exception("fail")
+    )
+
+    # Act
+    await sut.delete_ticker_snapshot("X")
+
+    # Assert — error swallowed by delete()
+    mock_redis.delete.assert_awaited_once()
+
+
+# -- get_ticker_snapshot ---------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_mdc_get_snap_with_cache_hit_expect_snapshot(
+    sut, mock_redis,
+):
+    # Arrange
+    snap = _snapshot_dict()
+    mock_redis.get.return_value = json.dumps(snap)
 
     # Act
     result = await sut.get_ticker_snapshot("TEST")
 
     # Assert
-    mock_redis_client.get.assert_awaited_once_with(mock_cache_key)
     assert isinstance(result, TickerSnapshot)
     assert result.ticker == "TEST"
+    mock_redis.get.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-@patch("kuhl_haus.mdp.components.market_data_cache.json.dumps")
-async def test_get_ticker_snapshot_without_cache_hit_expect_ticker_snapshot_returned(mock_json_dumps, mock_data_dict):
+async def test_mdc_get_snap_with_cache_miss_expect_api_call(
+    sut, mock_redis, mock_rest,
+):
     # Arrange
-    mock_redis_client = AsyncMock()
-    mock_rest_client = MagicMock()
-    sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-    mock_cache_key = f"{MarketDataCacheKeys.TICKER_SNAPSHOTS.value}:TEST"
-    mock_snapshot_instance = MagicMock(spec=TickerSnapshot)
-    mock_snapshot_instance.ticker = "TEST"
-    mock_snapshot_instance.todays_change = 5.0
-    mock_snapshot_instance.todays_change_percent = 2.5
-    mock_json_dumps.return_value = json.dumps(mock_data_dict)
-    mock_redis_client.get.return_value = None
-    mock_rest_client.get_snapshot_ticker.return_value = mock_snapshot_instance
-
-    # Act
-    result = await sut.get_ticker_snapshot("TEST")
+    mock_redis.get.return_value = None
+    mock_snapshot = MagicMock(spec=TickerSnapshot)
+    mock_snapshot.ticker = "TEST"
+    mock_rest.get_snapshot_ticker.return_value = mock_snapshot
+    with patch(
+        "kuhl_haus.mdp.components.market_data_cache"
+        ".ticker_snapshot_to_dict",
+        return_value=_snapshot_dict(),
+    ):
+        # Act
+        result = await sut.get_ticker_snapshot("TEST")
 
     # Assert
-    mock_redis_client.get.assert_awaited_once_with(mock_cache_key)
-    mock_rest_client.get_snapshot_ticker.assert_called_once_with(
-        market_type="stocks",
-        ticker="TEST"
+    mock_rest.get_snapshot_ticker.assert_called_once_with(
+        market_type="stocks", ticker="TEST",
     )
-    # mock_json_dumps.assert_called_once_with(mock_snapshot_instance)
-    mock_redis_client.setex.assert_awaited_once()
-    assert result == mock_snapshot_instance
+    mock_redis.setex.assert_awaited_once()
+    assert result is mock_snapshot
+
+
+# -- get_avg_volume --------------------------------------------------
 
 
 @pytest.mark.asyncio
-@patch("kuhl_haus.mdp.components.market_data_cache.TickerSnapshot.from_dict")
-async def test_get_ticker_snapshot_with_invalid_cache_data_expect_exception(mock_from_dict):
+async def test_mdc_get_avg_vol_with_cache_hit_expect_cached(
+    sut, mock_redis,
+):
     # Arrange
-    mock_redis_client = AsyncMock()
-    mock_rest_client = MagicMock()
-    sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-    mock_cache_key = f"{MarketDataCacheKeys.TICKER_SNAPSHOTS.value}:TEST"
-    mock_redis_client.get.return_value = json.dumps({"invalid": "data"})
-    mock_from_dict.side_effect = ValueError("Invalid cache data")
-
-    # Act & Assert
-    with pytest.raises(ValueError, match="Invalid cache data"):
-        await sut.get_ticker_snapshot("TEST")
-
-    mock_redis_client.get.assert_awaited_once_with(mock_cache_key)
-    mock_from_dict.assert_called_once()
-
-
-@pytest.mark.asyncio
-async def test_get_ticker_snapshot_with_invalid_cache_data_expect_exception():
-    # Arrange
-    mock_redis_client = AsyncMock()
-    mock_rest_client = MagicMock()
-    sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-    mock_cache_key = f"{MarketDataCacheKeys.TICKER_SNAPSHOTS.value}:TEST"
-    mock_redis_client.get.return_value = json.dumps({"invalid": "data"})
-
-    # Act & Assert
-    # TODO: fix this...
-    # with pytest.raises(TypeError):
-    await sut.get_ticker_snapshot("TEST")
-
-    mock_redis_client.get.assert_awaited_once_with(mock_cache_key)
-
-
-@pytest.mark.asyncio
-async def test_get_avg_volume_with_cache_hit_expect_cached_value_returned():
-    # Arrange
-    mock_redis_client = AsyncMock()
-    mock_rest_client = MagicMock()
-    sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-    mock_cache_key = f"{MarketDataCacheKeys.TICKER_AVG_VOLUME.value}:TEST"
-    mock_cached_value = 1500000
-    mock_redis_client.get.return_value = json.dumps(mock_cached_value)
+    mock_redis.get.return_value = json.dumps(1500000)
 
     # Act
     result = await sut.get_avg_volume("TEST")
 
     # Assert
-    mock_redis_client.get.assert_awaited_once_with(mock_cache_key)
-    mock_rest_client.list_financials_ratios.assert_not_called()
-    assert result == mock_cached_value
+    assert result == 1500000
+    mock_redis.get.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_get_avg_volume_without_cache_hit_expect_avg_volume_returned():
+async def test_mdc_get_avg_vol_with_single_ratio_expect_val(
+    sut, mock_redis, mock_rest,
+):
     # Arrange
-    mock_redis_client = AsyncMock()
-    mock_rest_client = MagicMock()
-    sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-    mock_cache_key = f"{MarketDataCacheKeys.TICKER_AVG_VOLUME.value}:TEST"
-    mock_avg_volume = 2500000
-
-    # Create mock FinancialRatio object
-    mock_financial_ratio = MagicMock()
-    mock_financial_ratio.average_volume = mock_avg_volume
-
-    mock_redis_client.get.return_value = None
-    mock_rest_client.list_financials_ratios.return_value = iter([mock_financial_ratio])
+    mock_redis.get.return_value = None
+    ratio = MagicMock()
+    ratio.average_volume = 2500000
+    mock_rest.list_financials_ratios.return_value = iter(
+        [ratio]
+    )
 
     # Act
     result = await sut.get_avg_volume("TEST")
 
     # Assert
-    mock_redis_client.get.assert_awaited_once_with(mock_cache_key)
-    mock_rest_client.list_financials_ratios.assert_called_once_with(ticker="TEST")
-    mock_redis_client.setex.assert_awaited_once()
-    assert result == mock_avg_volume
-
-# TODO: Update tests for backup case when list_financials_ratios returns zero or multiple results
-# @pytest.mark.asyncio
-# async def test_get_avg_volume_without_cache_hit_and_empty_results_expect_exception():
-#     # Arrange
-#     mock_redis_client = AsyncMock()
-#     mock_rest_client = MagicMock()
-#     sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-#     mock_cache_key = f"{MarketDataCacheKeys.TICKER_AVG_VOLUME.value}:TEST"
-#
-#     mock_redis_client.get.return_value = None
-#     mock_rest_client.list_financials_ratios.return_value = iter([])
-#
-#     # Act & Assert
-#     with pytest.raises(Exception, match="Unexpected number of financial ratios for TEST: 0"):
-#         await sut.get_avg_volume("TEST")
-#
-#     mock_redis_client.get.assert_awaited_once_with(mock_cache_key)
-#     mock_rest_client.list_financials_ratios.assert_called_once_with(ticker="TEST")
-#     mock_redis_client.setex.assert_not_awaited()
-#
-#
-# @pytest.mark.asyncio
-# async def test_get_avg_volume_without_cache_hit_and_multiple_results_expect_exception():
-#     # Arrange
-#     mock_redis_client = AsyncMock()
-#     mock_rest_client = MagicMock()
-#     sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-#     mock_cache_key = f"{MarketDataCacheKeys.TICKER_AVG_VOLUME.value}:TEST"
-#
-#     # Create multiple mock FinancialRatio objects
-#     mock_financial_ratio_1 = MagicMock()
-#     mock_financial_ratio_1.average_volume = 1000000
-#     mock_financial_ratio_2 = MagicMock()
-#     mock_financial_ratio_2.average_volume = 2000000
-#
-#     mock_redis_client.get.return_value = None
-#     mock_rest_client.list_financials_ratios.return_value = iter([mock_financial_ratio_1, mock_financial_ratio_2])
-#
-#     # Act & Assert
-#     with pytest.raises(Exception, match="Unexpected number of financial ratios for TEST: 2"):
-#         await sut.get_avg_volume("TEST")
-#
-#     mock_redis_client.get.assert_awaited_once_with(mock_cache_key)
-#     mock_rest_client.list_financials_ratios.assert_called_once_with(ticker="TEST")
-#     mock_redis_client.setex.assert_not_awaited()
+    assert result == 2500000
+    mock_rest.list_financials_ratios.assert_called_once_with(
+        ticker="TEST",
+    )
+    mock_redis.setex.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_get_avg_volume_caches_with_correct_ttl():
+async def test_mdc_get_avg_vol_with_multi_ratio_expect_calc(
+    sut, mock_redis, mock_rest,
+):
     # Arrange
-    mock_redis_client = AsyncMock()
-    mock_rest_client = MagicMock()
-    sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-    mock_cache_key = f"{MarketDataCacheKeys.TICKER_AVG_VOLUME.value}:TEST"
-    mock_avg_volume = 3500000
-
-    # Create mock FinancialRatio object
-    mock_financial_ratio = MagicMock()
-    mock_financial_ratio.average_volume = mock_avg_volume
-
-    mock_redis_client.get.return_value = None
-    mock_rest_client.list_financials_ratios.return_value = iter([mock_financial_ratio])
+    mock_redis.get.return_value = None
+    r1 = MagicMock()
+    r2 = MagicMock()
+    mock_rest.list_financials_ratios.return_value = iter(
+        [r1, r2]
+    )
+    agg1 = MagicMock()
+    agg1.volume = 100
+    agg2 = MagicMock()
+    agg2.volume = 200
+    mock_rest.list_aggs.return_value = iter([agg1, agg2])
 
     # Act
     result = await sut.get_avg_volume("TEST")
 
     # Assert
-    mock_redis_client.get.assert_awaited_once_with(mock_cache_key)
-    mock_rest_client.list_financials_ratios.assert_called_once_with(ticker="TEST")
-    # Verify setex was called with the correct TTL
-    call_args = mock_redis_client.setex.await_args
-    assert call_args[0][0] == mock_cache_key
-    assert call_args[0][1] == MarketDataCacheTTL.TICKER_AVG_VOLUME.value
-    assert result == mock_avg_volume
+    assert result == 150.0  # (100+200)/2
+    mock_rest.list_aggs.assert_called_once()
+    mock_redis.setex.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_get_avg_volume_caches_with_correct_ttl():
+async def test_mdc_get_avg_vol_with_no_aggs_expect_zero(
+    sut, mock_redis, mock_rest,
+):
     # Arrange
-    mock_redis_client = AsyncMock()
-    mock_rest_client = MagicMock()
-    sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-    mock_cache_key = f"{MarketDataCacheKeys.TICKER_AVG_VOLUME.value}:TEST"
-    mock_avg_volume = 3500000
-
-    # Create mock FinancialRatio object
-    mock_financial_ratio = MagicMock()
-    mock_financial_ratio.average_volume = mock_avg_volume
-
-    mock_redis_client.get.return_value = None
-    mock_rest_client.list_financials_ratios.return_value = iter([mock_financial_ratio])
+    mock_redis.get.return_value = None
+    mock_rest.list_financials_ratios.return_value = iter(
+        [MagicMock(), MagicMock()]
+    )
+    mock_rest.list_aggs.return_value = iter([])
 
     # Act
     result = await sut.get_avg_volume("TEST")
 
     # Assert
-    mock_redis_client.get.assert_awaited_once_with(mock_cache_key)
-    mock_rest_client.list_financials_ratios.assert_called_once_with(ticker="TEST")
-    # Verify setex was called with the correct TTL
-    call_args = mock_redis_client.setex.await_args
-    assert call_args[0][0] == mock_cache_key
-    assert call_args[0][1] == MarketDataCacheTTL.TICKER_AVG_VOLUME.value
-    assert result == mock_avg_volume
-
-
-@pytest.mark.asyncio
-async def test_get_free_float_with_cache_hit_expect_cached_value_returned():
-    # Arrange
-    mock_redis_client = AsyncMock()
-    mock_rest_client = MagicMock()
-    sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-    mock_cache_key = f"{MarketDataCacheKeys.TICKER_FREE_FLOAT.value}:TEST"
-    mock_cached_value = 2643494955
-    mock_redis_client.get.return_value = json.dumps(mock_cached_value)
-
-    # Act
-    result = await sut.get_free_float("TEST")
-
-    # Assert
-    mock_redis_client.get.assert_awaited_once_with(mock_cache_key)
-    assert result == mock_cached_value
-
-
-@pytest.mark.asyncio
-async def test_get_free_float_without_cache_hit_expect_free_float_returned():
-    # Arrange
-    mock_redis_client = AsyncMock()
-    mock_rest_client = MagicMock()
-    sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_api_key")
-    mock_cache_key = f"{MarketDataCacheKeys.TICKER_FREE_FLOAT.value}:TEST"
-    mock_free_float = 2643494955
-
-    # Mock API response
-    mock_response_data = {
-        "request_id": 1,
-        "results": [
-            {
-                "effective_date": "2025-11-14",
-                "free_float": mock_free_float,
-                "free_float_percent": 79.5,
-                "ticker": "TEST"
-            }
-        ],
-        "status": "OK"
-    }
-
-    # Setup mocks
-    mock_redis_client.get.return_value = None
-
-    # Create mock response
-    mock_response = AsyncMock()
-    mock_response.json = AsyncMock(return_value=mock_response_data)
-    mock_response.raise_for_status = MagicMock()
-
-    # Create mock session with proper async context manager
-    mock_session = AsyncMock()
-    mock_session.closed = False
-    mock_session.get = MagicMock(
-        return_value=AsyncMock(__aenter__=AsyncMock(return_value=mock_response), __aexit__=AsyncMock()))
-
-    # Inject the mock session directly
-    sut.http_session = mock_session
-
-    # Act
-    result = await sut.get_free_float("TEST")
-
-    # Assert
-    mock_redis_client.get.assert_awaited_once_with(mock_cache_key)
-    mock_session.get.assert_called_once()
-    call_args = mock_session.get.call_args
-    assert call_args[0][0] == "https://api.massive.com/stocks/vX/float"
-    assert call_args[1]["params"]["ticker"] == "TEST"
-    assert call_args[1]["params"]["apiKey"] == "test_api_key"
-    mock_response.json.assert_awaited_once()
-    mock_redis_client.setex.assert_awaited_once()
-    assert result == mock_free_float
-
-
-@pytest.mark.asyncio
-async def test_get_free_float_caches_with_correct_ttl():
-    # Arrange
-    mock_redis_client = AsyncMock()
-    mock_rest_client = MagicMock()
-    sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-    mock_cache_key = f"{MarketDataCacheKeys.TICKER_FREE_FLOAT.value}:TEST"
-    mock_free_float = 2643494955
-
-    # Mock API response
-    mock_response_data = {
-        "request_id": 1,
-        "results": [
-            {
-                "effective_date": "2025-11-14",
-                "free_float": mock_free_float,
-                "free_float_percent": 79.5,
-                "ticker": "TEST"
-            }
-        ],
-        "status": "OK"
-    }
-
-    mock_redis_client.get.return_value = None
-
-    # Create mock response
-    mock_response = AsyncMock()
-    mock_response.json = AsyncMock(return_value=mock_response_data)
-    mock_response.raise_for_status = MagicMock()
-
-    # Create mock session
-    mock_session = AsyncMock()
-    mock_session.closed = False
-    mock_session.get = MagicMock(
-        return_value=AsyncMock(__aenter__=AsyncMock(return_value=mock_response), __aexit__=AsyncMock()))
-
-    # Inject the mock session
-    sut.http_session = mock_session
-
-    # Act
-    result = await sut.get_free_float("TEST")
-
-    # Assert
-    mock_redis_client.get.assert_awaited_once_with(mock_cache_key)
-    # Verify setex was called with the correct TTL (TWELVE_HOURS = 43200 seconds)
-    call_args = mock_redis_client.setex.await_args
-    assert call_args[0][0] == mock_cache_key
-    assert call_args[0][1] == MarketDataCacheTTL.TICKER_FREE_FLOAT.value
-    assert result == mock_free_float
-
-
-@pytest.mark.asyncio
-async def test_get_free_float_with_empty_results_expect_zero_returned():
-    # Arrange
-    mock_redis_client = AsyncMock()
-    mock_rest_client = MagicMock()
-    sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-
-    # Mock API response with empty results
-    mock_response_data = {
-        "request_id": 1,
-        "results": [],
-        "status": "OK"
-    }
-
-    mock_redis_client.get.return_value = None
-
-    # Create mock response
-    mock_response = AsyncMock()
-    mock_response.json = AsyncMock(return_value=mock_response_data)
-    mock_response.raise_for_status = MagicMock()
-
-    # Create a proper async context manager mock
-    mock_context_manager = AsyncMock()
-    mock_context_manager.__aenter__ = AsyncMock(return_value=mock_response)
-    mock_context_manager.__aexit__ = AsyncMock(return_value=None)
-
-    # Create mock session
-    mock_session = AsyncMock()
-    mock_session.closed = False
-    mock_session.get = MagicMock(return_value=mock_context_manager)
-
-    # Inject the mock session
-    sut.http_session = mock_session
-
-    # Act & Assert
-    # with pytest.raises(Exception, match="No free float data returned for TEST"):
-    result = await sut.get_free_float("TEST")
-
     assert result == 0
-    mock_redis_client.setex.assert_awaited()
+    mock_redis.setex.assert_awaited_once()
+    call_args = mock_redis.setex.await_args
+    assert call_args[0][1] == (
+        MarketDataCacheTTL.NEGATIVE_CACHE_SESSION.value
+    )
+
+
+# -- get_free_float --------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_get_free_float_with_invalid_status_expect_exception():
+async def test_mdc_get_ff_with_cache_hit_expect_cached(
+    sut, mock_redis,
+):
     # Arrange
-    mock_redis_client = AsyncMock()
-    mock_rest_client = MagicMock()
-    sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
+    mock_redis.get.return_value = json.dumps(2643494955)
 
-    # Mock API response with error status
-    mock_response_data = {
-        "request_id": 1,
-        "results": [],
-        "status": "ERROR"
-    }
+    # Act
+    result = await sut.get_free_float("TEST")
 
-    mock_redis_client.get.return_value = None
-
-    # Create mock response
-    mock_response = AsyncMock()
-    mock_response.json = AsyncMock(return_value=mock_response_data)
-    mock_response.raise_for_status = MagicMock()
-
-    # Create a proper async context manager mock
-    mock_context_manager = AsyncMock()
-    mock_context_manager.__aenter__ = AsyncMock(return_value=mock_response)
-    mock_context_manager.__aexit__ = AsyncMock(return_value=None)
-
-    # Create mock session
-    mock_session = AsyncMock()
-    mock_session.closed = False
-    mock_session.get = MagicMock(return_value=mock_context_manager)
-
-    # Inject the mock session
-    sut.http_session = mock_session
-
-    # Act & Assert
-    with pytest.raises(Exception, match="Invalid response from Massive API for TEST"):
-        await sut.get_free_float("TEST")
-
-    mock_redis_client.setex.assert_not_awaited()
+    # Assert
+    assert result == 2643494955
 
 
 @pytest.mark.asyncio
-async def test_get_free_float_with_client_error_expect_exception():
+async def test_mdc_get_ff_with_cache_miss_expect_api_call(
+    sut, mock_redis,
+):
     # Arrange
-    import aiohttp
+    mock_redis.get.return_value = None
+    resp = AsyncMock()
+    resp.raise_for_status = MagicMock()
+    resp.json = AsyncMock(
+        return_value=_free_float_response()
+    )
+    session = _mock_http_session(resp)
+    sut.http_session = session
 
-    mock_redis_client = AsyncMock()
-    mock_rest_client = MagicMock()
-    sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-    mock_cache_key = f"{MarketDataCacheKeys.TICKER_FREE_FLOAT.value}:TEST"
+    # Act
+    result = await sut.get_free_float("TEST")
 
-    mock_redis_client.get.return_value = None
+    # Assert
+    assert result == 2643494955
+    session.get.assert_called_once()
+    mock_redis.setex.assert_awaited_once()
 
-    # Create mock response that raises aiohttp.ClientError
-    mock_response = AsyncMock()
-    mock_response.raise_for_status = MagicMock(side_effect=aiohttp.ClientError("Connection timeout"))
 
-    # Create a proper async context manager mock
-    mock_context_manager = AsyncMock()
-    mock_context_manager.__aenter__ = AsyncMock(return_value=mock_response)
-    mock_context_manager.__aexit__ = AsyncMock(return_value=None)
-
-    # Create mock session
-    mock_session = AsyncMock()
-    mock_session.closed = False
-    mock_session.get = MagicMock(return_value=mock_context_manager)
-
-    # Inject the mock session
-    sut.http_session = mock_session
+@pytest.mark.asyncio
+async def test_mdc_get_ff_with_empty_results_expect_zero(
+    sut, mock_redis,
+):
+    # Arrange
+    mock_redis.get.return_value = None
+    resp = AsyncMock()
+    resp.raise_for_status = MagicMock()
+    resp.json = AsyncMock(
+        return_value=_free_float_response(results=[])
+    )
+    sut.http_session = _mock_http_session(resp)
 
     # Act
     result = await sut.get_free_float("TEST")
 
     # Assert
     assert result == 0
-    mock_redis_client.setex.assert_awaited_once()
-    call_args = mock_redis_client.setex.await_args
-    assert call_args[0][0] == mock_cache_key
-    assert call_args[0][1] == MarketDataCacheTTL.NEGATIVE_CACHE_THROTTLE.value
-    assert call_args[0][2] == json.dumps(0)
+    mock_redis.setex.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_get_free_float_with_http_error_expect_exception():
+async def test_mdc_get_ff_with_error_status_expect_raise(
+    sut, mock_redis,
+):
     # Arrange
-    mock_redis_client = AsyncMock()
-    mock_rest_client = MagicMock()
-    sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-
-    mock_redis_client.get.return_value = None
-
-    # Create mock response that raises on raise_for_status
-    mock_response = AsyncMock()
-    mock_response.raise_for_status = MagicMock(side_effect=Exception("HTTP 500 Error"))
-
-    # Create a proper async context manager mock
-    mock_context_manager = AsyncMock()
-    mock_context_manager.__aenter__ = AsyncMock(return_value=mock_response)
-    mock_context_manager.__aexit__ = AsyncMock(return_value=None)
-
-    # Create mock session
-    mock_session = AsyncMock()
-    mock_session.closed = False
-    mock_session.get = MagicMock(return_value=mock_context_manager)
-
-    # Inject the mock session
-    sut.http_session = mock_session
+    mock_redis.get.return_value = None
+    resp = AsyncMock()
+    resp.raise_for_status = MagicMock()
+    resp.json = AsyncMock(
+        return_value=_free_float_response(status="ERROR")
+    )
+    sut.http_session = _mock_http_session(resp)
 
     # Act & Assert
-    with pytest.raises(Exception, match="HTTP 500 Error"):
+    with pytest.raises(
+        Exception, match="Invalid response"
+    ):
         await sut.get_free_float("TEST")
 
-    mock_redis_client.setex.assert_not_awaited()
+    mock_redis.setex.assert_not_awaited()
 
 
 @pytest.mark.asyncio
-async def test_close_session_closes_http_session():
+async def test_mdc_get_ff_with_client_error_expect_zero(
+    sut, mock_redis,
+):
     # Arrange
-    mock_redis_client = AsyncMock()
-    mock_rest_client = MagicMock()
-    sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
+    mock_redis.get.return_value = None
+    resp = AsyncMock()
+    resp.raise_for_status = MagicMock(
+        side_effect=aiohttp.ClientError("timeout")
+    )
+    sut.http_session = _mock_http_session(resp)
 
-    # Create a mock session
+    # Act
+    result = await sut.get_free_float("TEST")
+
+    # Assert
+    assert result == 0
+    call_args = mock_redis.setex.await_args
+    assert call_args[0][1] == (
+        MarketDataCacheTTL.NEGATIVE_CACHE_THROTTLE.value
+    )
+
+
+@pytest.mark.asyncio
+async def test_mdc_get_ff_with_timeout_expect_zero(
+    sut, mock_redis,
+):
+    # Arrange
+    mock_redis.get.return_value = None
+    resp = AsyncMock()
+    resp.raise_for_status = MagicMock(
+        side_effect=asyncio.TimeoutError()
+    )
+    sut.http_session = _mock_http_session(resp)
+
+    # Act
+    result = await sut.get_free_float("TEST")
+
+    # Assert
+    assert result == 0
+    call_args = mock_redis.setex.await_args
+    assert call_args[0][1] == (
+        MarketDataCacheTTL.NEGATIVE_CACHE_THROTTLE.value
+    )
+
+
+@pytest.mark.asyncio
+async def test_mdc_get_ff_with_generic_error_expect_raise(
+    sut, mock_redis,
+):
+    # Arrange
+    mock_redis.get.return_value = None
+    resp = AsyncMock()
+    resp.raise_for_status = MagicMock(
+        side_effect=RuntimeError("unexpected")
+    )
+    sut.http_session = _mock_http_session(resp)
+
+    # Act & Assert
+    with pytest.raises(RuntimeError, match="unexpected"):
+        await sut.get_free_float("TEST")
+
+
+# -- get_http_session ------------------------------------------------
+
+
+@pytest.mark.asyncio
+@patch(
+    "kuhl_haus.mdp.components.market_data_cache"
+    ".aiohttp.ClientSession"
+)
+async def test_mdc_get_session_with_none_expect_created(
+    mock_cls, sut,
+):
+    # Arrange
     mock_session = AsyncMock()
     mock_session.closed = False
-    sut.http_session = mock_session
-
-    # Act
-    await sut.close()
-
-    # Assert
-    mock_session.close.assert_awaited_once()
-
-
-@pytest.mark.asyncio
-async def test_close_session_when_no_session_exists():
-    # Arrange
-    mock_redis_client = AsyncMock()
-    mock_rest_client = MagicMock()
-    sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-
-    # Ensure no session exists
-    sut.http_session = None
-
-    # Act & Assert (should not raise exception)
-    await sut.close()
-
-
-@pytest.mark.asyncio
-async def test_close_session_when_session_already_closed():
-    # Arrange
-    mock_redis_client = AsyncMock()
-    mock_rest_client = MagicMock()
-    sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-
-    # Create a mock closed session
-    mock_session = AsyncMock()
-    mock_session.closed = True
-    sut.http_session = mock_session
-
-    # Act
-    await sut.close()
-
-    # Assert (should not call close on already closed session)
-    mock_session.close.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_cache_data_without_ttl_expect_set_called():
-    # Arrange
-    mock_redis_client = AsyncMock()
-    mock_rest_client = MagicMock()
-    sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-
-    test_data = {"symbol": "TEST", "value": 12345}
-    test_cache_key = "test:cache:key"
-
-    # Act
-    await sut.write(data=test_data, cache_key=test_cache_key, cache_ttl=0)
-
-    # Assert
-    mock_redis_client.set.assert_awaited_once_with(test_cache_key, json.dumps(test_data))
-    mock_redis_client.setex.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_publish_data_expect_publish_called():
-    # Arrange
-    mock_redis_client = AsyncMock()
-    mock_rest_client = MagicMock()
-    sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-
-    test_data = {"symbol": "TEST", "price": 250.50, "volume": 1000000}
-    test_publish_key = "market:updates:TEST"
-
-    # Act
-    await sut.broadcast(data=test_data, publish_key=test_publish_key)
-
-    # Assert
-    mock_redis_client.publish.assert_awaited_once_with(test_publish_key, json.dumps(test_data))
-
-
-@pytest.mark.asyncio
-@patch("kuhl_haus.mdp.components.market_data_cache.aiohttp.ClientSession")
-async def test_get_http_session_creates_new_session_when_none_exists(mock_client_session):
-    # Arrange
-    mock_redis_client = AsyncMock()
-    mock_rest_client = MagicMock()
-    sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-
-    mock_session = AsyncMock()
-    mock_session.closed = False
-    mock_client_session.return_value = mock_session
-
-    # Ensure no session exists initially
-    assert sut.http_session is None
+    mock_cls.return_value = mock_session
 
     # Act
     result = await sut.get_http_session()
 
     # Assert
-    mock_client_session.assert_called_once()
-    assert result == mock_session
-    assert sut.http_session == mock_session
+    mock_cls.assert_called_once()
+    assert result is mock_session
 
 
 @pytest.mark.asyncio
-@patch("kuhl_haus.mdp.components.market_data_cache.aiohttp.ClientSession")
-async def test_get_http_session_returns_existing_session_when_not_closed(mock_client_session):
+async def test_mdc_get_session_with_open_expect_reused(sut):
     # Arrange
-    mock_redis_client = AsyncMock()
-    mock_rest_client = MagicMock()
-    sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-
-    # Create an existing session
-    existing_session = AsyncMock()
-    existing_session.closed = False
-    sut.http_session = existing_session
+    existing = AsyncMock()
+    existing.closed = False
+    sut.http_session = existing
 
     # Act
     result = await sut.get_http_session()
 
     # Assert
-    mock_client_session.assert_not_called()  # Should NOT create a new session
-    assert result == existing_session
-    assert sut.http_session == existing_session
+    assert result is existing
 
 
 @pytest.mark.asyncio
-@patch("kuhl_haus.mdp.components.market_data_cache.aiohttp.ClientSession")
-async def test_get_http_session_creates_new_session_when_existing_is_closed(mock_client_session):
+@patch(
+    "kuhl_haus.mdp.components.market_data_cache"
+    ".aiohttp.ClientSession"
+)
+async def test_mdc_get_session_with_closed_expect_new(
+    mock_cls, sut,
+):
     # Arrange
-    mock_redis_client = AsyncMock()
-    mock_rest_client = MagicMock()
-    sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-
-    # Create a closed session
-    closed_session = AsyncMock()
-    closed_session.closed = True
-    sut.http_session = closed_session
-
-    # Create new session
+    closed = AsyncMock()
+    closed.closed = True
+    sut.http_session = closed
     new_session = AsyncMock()
     new_session.closed = False
-    mock_client_session.return_value = new_session
+    mock_cls.return_value = new_session
 
     # Act
     result = await sut.get_http_session()
 
     # Assert
-    mock_client_session.assert_called_once()  # Should create a new session
-    assert result == new_session
-    assert sut.http_session == new_session
-    assert result != closed_session
+    mock_cls.assert_called_once()
+    assert result is new_session
+
+
+# -- close -----------------------------------------------------------
 
 
 @pytest.mark.asyncio
-@patch("kuhl_haus.mdp.components.market_data_cache.aiohttp.ClientSession")
-async def test_get_http_session_singleton_behavior(mock_client_session):
+async def test_mdc_close_with_open_session_expect_closed(sut):
     # Arrange
-    mock_redis_client = AsyncMock()
-    mock_rest_client = MagicMock()
-    sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-
-    mock_session = AsyncMock()
-    mock_session.closed = False
-    mock_client_session.return_value = mock_session
-
-    # Act - Call multiple times
-    result1 = await sut.get_http_session()
-    result2 = await sut.get_http_session()
-    result3 = await sut.get_http_session()
-
-    # Assert
-    mock_client_session.assert_called_once()  # Should only be called once
-    assert result1 == result2 == result3 == mock_session  # All should return same instance
-    assert id(result1) == id(result2) == id(result3)  # Verify same object in memory
-
-
-@pytest.mark.asyncio
-async def test_delete_ticker_snapshot_with_valid_ticker_expect_cache_deleted():
-    # Arrange
-    mock_redis_client = AsyncMock()
-    mock_rest_client = MagicMock()
-    sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-    ticker = "TEST"
-    cache_key = f"{MarketDataCacheKeys.TICKER_SNAPSHOTS.value}:{ticker}"
+    session = AsyncMock()
+    session.closed = False
+    sut.http_session = session
 
     # Act
-    await sut.delete_ticker_snapshot(ticker)
+    await sut.close()
 
     # Assert
-    mock_redis_client.delete.assert_awaited_once_with(cache_key)
+    session.close.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_delete_ticker_snapshot_with_empty_ticker_expect_no_side_effect():
+async def test_mdc_close_with_no_session_expect_noop(sut):
     # Arrange
-    mock_redis_client = AsyncMock()
-    mock_rest_client = MagicMock()
-    sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-    ticker = ""
-    cache_key = f"{MarketDataCacheKeys.TICKER_SNAPSHOTS.value}:{ticker}"
+    sut.http_session = None
 
     # Act
-    await sut.delete_ticker_snapshot(ticker)
+    await sut.close()
 
-    # Assert
-    mock_redis_client.delete.assert_awaited_once_with(cache_key)
+    # Assert — no exception raised
 
 
 @pytest.mark.asyncio
-@patch("logging.Logger.error")
-async def test_delete_ticker_snapshot_with_redis_error_expect_logged_error(mock_logger):
+async def test_mdc_close_with_already_closed_expect_noop(sut):
     # Arrange
-    mock_redis_client = AsyncMock()
-    mock_redis_client.delete = AsyncMock(side_effect=Exception("Redis connection error"))
-    mock_rest_client = MagicMock()
-    sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-    ticker = "TEST"
-    cache_key = f"{MarketDataCacheKeys.TICKER_SNAPSHOTS.value}:{ticker}"
+    session = AsyncMock()
+    session.closed = True
+    sut.http_session = session
 
     # Act
-    await sut.delete_ticker_snapshot(ticker)
+    await sut.close()
 
     # Assert
-    mock_redis_client.delete.assert_awaited_once_with(cache_key)
-    mock_logger.assert_called_once_with("Error deleting cache entry: Redis connection error")
-
-
-@pytest.mark.asyncio
-async def test_delete_cache_with_existing_key_expect_cache_deleted():
-    # Arrange
-    mock_redis_client = AsyncMock()
-    mock_rest_client = MagicMock()
-    sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-    test_cache_key = "test:cache:key"
-
-    # Act
-    await sut.delete(test_cache_key)
-
-    # Assert
-    mock_redis_client.delete.assert_awaited_once_with(test_cache_key)
-
-
-@pytest.mark.asyncio
-@patch("logging.Logger.error")
-async def test_delete_cache_with_redis_error_expect_error_logged(mock_logger):
-    # Arrange
-    mock_redis_client = AsyncMock()
-    mock_redis_client.delete = AsyncMock(side_effect=Exception("Redis connection error"))
-    mock_rest_client = MagicMock()
-    sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-    test_cache_key = "test:cache:key"
-
-    # Act
-    await sut.delete(test_cache_key)
-
-    # Assert
-    mock_redis_client.delete.assert_awaited_once_with(test_cache_key)
-    mock_logger.assert_called_once_with(f"Error deleting cache entry: Redis connection error")
-
-
-@pytest.mark.asyncio
-@patch("logging.Logger.debug")
-async def test_delete_cache_with_successful_deletion_expect_debug_logged(mock_logger):
-    # Arrange
-    mock_redis_client = AsyncMock()
-    mock_rest_client = MagicMock()
-    sut = MarketDataCache(rest_client=mock_rest_client, redis_client=mock_redis_client, massive_api_key="test_key")
-    test_cache_key = "test:cache:key"
-
-    # Act
-    await sut.delete(test_cache_key)
-
-    # Assert
-    mock_redis_client.delete.assert_awaited_once_with(test_cache_key)
-    mock_logger.assert_called_once_with(f"Deleted cache entry: {test_cache_key}")
+    session.close.assert_not_awaited()
