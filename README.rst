@@ -255,8 +255,12 @@ Service Control Plane (SCP)
 
 The SCP requires access to the data plane network for API access to data plane components.
 
-Code Libraries
-~~~~~~~~~~~~~~
+The SCP code is in the `kuhl-haus/kuhl-haus-mdp-app <https://github.com/kuhl-haus/kuhl-haus-mdp-app>`_ repo.
+
+
+
+Miscellaneous Code Libraries
+-----------------------------
 
 - **Observability** (``helpers/observability.py``) - OpenTelemetry tracer/meter factory for distributed tracing and metrics
 - **StructuredLogging** (``helpers/structured_logging.py``) - JSON logging for K8s/OpenObserve with dev mode support
