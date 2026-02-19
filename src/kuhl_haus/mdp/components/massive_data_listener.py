@@ -1,11 +1,12 @@
 import asyncio
 import logging
-from datetime import datetime, timezone
-from zoneinfo import ZoneInfo
 from typing import Awaitable, Callable, Optional, List, Union
 
-from massive import WebSocketClient
+from massive import RESTClient, WebSocketClient
+from massive.rest.models import MarketStatus
 from massive.websocket import Feed, Market, WebSocketMessage
+
+from kuhl_haus.mdp.enum.market_status_value import MarketStatusValue
 
 
 class MassiveDataListener:
@@ -37,6 +38,7 @@ class MassiveDataListener:
         **kwargs,
     ):
         self.logger = logging.getLogger(__name__)
+        self.rest_client = RESTClient(api_key=api_key)
         self.message_handler = message_handler
         self.api_key = api_key
         self.feed = feed
@@ -50,7 +52,9 @@ class MassiveDataListener:
         self.connection_status = {
             "connected": False,
             "feed": self.feed,
+            "healthy": False,
             "market": self.market,
+            "reconnects": 0,
             "subscriptions": self.subscriptions,
         }
 
@@ -111,6 +115,7 @@ class MassiveDataListener:
         try:
             self.logger.info("Connecting to market data provider...")
             self.connection_status["connected"] = True
+            self.connection_status["healthy"] = True
             await asyncio.gather(
                 self.ws_connection.connect(self.message_handler),
                 return_exceptions=True
@@ -119,21 +124,33 @@ class MassiveDataListener:
             self.logger.info("Disconnected from market data provider...")
             pending_restart = True
             while pending_restart:
-                # Get current time in UTC, then convert to Eastern Time
-                utc_now = datetime.now(timezone.utc)
-                et_now = utc_now.astimezone(ZoneInfo("America/New_York"))
+                market_status: MarketStatus = (
+                    self.rest_client.get_market_status()
+                )
+                market_open: bool = (
+                    market_status.market is not None
+                    and market_status.market != MarketStatusValue.CLOSED.value
+                )
 
-                # Check if within trading hours: Mon-Fri, 04:00-19:59 ET
-                is_weekday = et_now.weekday() < 5
-                is_trading_hours = 4 <= et_now.hour < 20
-
-                if is_weekday and is_trading_hours:
-                    self.logger.info(f"Reconnecting at {et_now.strftime('%H:%M:%S %Z')}...")
+                if market_open:
+                    self.connection_status["healthy"] = False
+                    self.connection_status["reconnects"] += 1
+                    self.logger.info(
+                        f"Reconnection attempt "
+                        f"{self.connection_status['reconnects']}..."
+                    )
                     await self.start()
                     pending_restart = False
                 else:
-                    self.logger.info(f"Outside market hours ({et_now.strftime('%H:%M:%S %Z')}), sleeping 5 min...")
-                    await asyncio.sleep(300)
+                    self.logger.info(
+                        f"Market status is ({market_status.market}), "
+                        f"sleeping..."
+                    )
+                    await asyncio.sleep(60)
         except Exception as e:
-            self.logger.error(f"Fatal error in WebSocket client: {e}")
+            self.logger.error(
+                f"Unhandled exception thrown: {e}",
+                exc_info=True,
+                stack_info=True
+            )
             await self.stop()
