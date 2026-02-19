@@ -1,3 +1,8 @@
+"""Utility functions for Massive API integration and data conversion.
+
+Handles API key resolution from environment/file and TickerSnapshot serialization
+for caching and network transmission.
+"""
 import logging
 import os
 from typing import Dict, Any
@@ -8,6 +13,16 @@ logger = logging.getLogger(__name__)
 
 
 def get_massive_api_key():
+    """Resolve Massive API key from environment variables or Docker secret file.
+
+    Resolution order:
+    1. MASSIVE_API_KEY environment variable
+    2. POLYGON_API_KEY environment variable (legacy fallback)
+    3. /app/massive_api_key.txt (Docker secret mount)
+
+    Raises:
+        ValueError: When no API key found via any method.
+    """
     # MASSIVE_API_KEY environment variable takes precedence over POLYGON_API_KEY
     logger.debug("Getting Massive API key...")
     api_key = os.environ.get("MASSIVE_API_KEY")
@@ -36,16 +51,7 @@ def get_massive_api_key():
 
 
 def ticker_snapshot_to_dict(snapshot: TickerSnapshot) -> Dict[str, Any]:
-    """
-    Convert a TickerSnapshot instance into a JSON-serializable dictionary.
-    Uses camelCase keys to match the API format for easy reconstruction with from_dict().
-
-    Args:
-        snapshot: TickerSnapshot instance to convert
-
-    Returns:
-        Dictionary with keys in camelCase (matching API format)
-    """
+    """Convert TickerSnapshot to JSON-serializable dict with camelCase keys matching Massive API format."""
     data = {
         "ticker": snapshot.ticker,
         "todaysChange": snapshot.todays_change,

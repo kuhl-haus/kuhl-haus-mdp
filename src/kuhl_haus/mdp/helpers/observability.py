@@ -1,5 +1,9 @@
-# kuhl_haus/mdp/helpers/observability.py
+"""OpenTelemetry tracer and meter factory with version resolution.
 
+Provides centralized access to instrumented tracers and meters with automatic
+package version detection. Supports multi-package deployments where servers
+and libraries report distinct versions.
+"""
 from opentelemetry import trace
 from opentelemetry import metrics
 from importlib.metadata import version, PackageNotFoundError

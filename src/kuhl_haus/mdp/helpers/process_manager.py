@@ -1,3 +1,9 @@
+"""Multiprocess orchestration for async workers with lifecycle management.
+
+Spawns, monitors, and gracefully terminates worker processes in the real-time
+data pipeline. Handles asyncio event loop creation, signal propagation, and
+OpenTelemetry context propagation across process boundaries.
+"""
 from multiprocessing import Process, Queue
 from queue import Empty, Full
 from multiprocessing.synchronize import Event as MPEvent
@@ -10,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class ProcessManager:
-    """Manages worker processes for MDP components"""
+    """Spawn and manage async worker processes with graceful shutdown and status reporting."""
 
     def __init__(self):
         self.processes: Dict[str, Process] = {}
@@ -18,7 +24,10 @@ class ProcessManager:
         self.status_queues: Dict[str, Queue] = {}
 
     def start_worker(self, name: str, worker_class: Type, **kwargs):
-        """Start any worker class in a separate process"""
+        """Fork worker process with dedicated event loop and OpenTelemetry trace context.
+
+        Side effects: Creates Process, starts OS-level process, registers in internal tracking.
+        """
         import multiprocessing as mp  # Keep factory import local
         from opentelemetry.context import get_current
         from opentelemetry.propagate import inject
@@ -53,7 +62,12 @@ class ProcessManager:
         trace_context: Optional[Dict] = None,
         **kwargs: Any
     ) -> None:
-        """Generic worker process entry point with async event loop management"""
+        """Entry point for worker subprocess; sets up event loop, signals, and executes worker lifecycle.
+
+        Creates fresh asyncio event loop, installs signal handlers for SIGTERM/SIGINT,
+        propagates OpenTelemetry context from parent, and manages worker start/stop.
+        Monitors shutdown_event and periodically reports status to parent via queue.
+        """
         # Set up OpenTelemetry instrumentation in this child process
         _setup_otel_auto_instrumentation()
 
@@ -205,7 +219,7 @@ class ProcessManager:
                 loop.close()
 
     def stop_process(self, name: str, timeout: float = 10.0):
-        """Stop a specific worker process"""
+        """Signal graceful shutdown and wait; force-kill if worker doesn't terminate."""
         if name not in self.processes:
             return
 
@@ -222,12 +236,12 @@ class ProcessManager:
             process.join()
 
     def stop_all(self, timeout: float = 10.0):
-        """Stop all worker processes"""
+        """Gracefully stop all managed workers; force-kill any that exceed timeout."""
         for name in list(self.processes.keys()):
             self.stop_process(name, timeout)
 
     def get_status(self, name: str) -> dict:
-        """Get status from worker process (non-blocking)"""
+        """Retrieve latest worker metrics from status queue without blocking."""
         if name not in self.processes:
             return {"alive": False}
 
@@ -248,7 +262,7 @@ class ProcessManager:
 
 
 def _setup_otel_auto_instrumentation():
-    """Set up OpenTelemetry using auto-instrumentation with env var config"""
+    """Initialize OpenTelemetry instrumentation in child process using OTEL_* env vars."""
     try:
         from opentelemetry.instrumentation.auto_instrumentation import sitecustomize
 

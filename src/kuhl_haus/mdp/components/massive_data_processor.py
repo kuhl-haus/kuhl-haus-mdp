@@ -1,3 +1,10 @@
+"""RabbitMQ consumer that processes market data through pluggable analyzers.
+
+Pulls messages from a dedicated RabbitMQ queue, deserializes WebSocket messages,
+delegates analysis, and publishes results to Redis. Designed for high-throughput
+scenarios where multiple processors can scale horizontally, each consuming from
+the same queue with automatic load balancing.
+"""
 import asyncio
 import json
 import logging
@@ -19,6 +26,20 @@ tracer = get_tracer(__name__)
 
 
 class MassiveDataProcessor:
+    """Consume RabbitMQ market data queue with async concurrency control.
+
+    Connects to RabbitMQ and Redis, consumes messages from a single queue (e.g.,
+    'trades', 'quotes'), deserializes them, passes through an Analyzer subclass,
+    and writes results to Redis cache with pub/sub notifications. Prefetch and
+    semaphore-based concurrency prevent memory exhaustion during traffic spikes.
+
+    Rehydration from Redis cache occurs on startup to restore analyzer state after
+    restarts. Graceful shutdown waits for in-flight tasks to complete.
+
+    Concurrency: Uses asyncio.Semaphore (default 500) to cap concurrent message
+    processing; prefetch_count (default 100) controls how many messages RabbitMQ
+    delivers before waiting for ACKs.
+    """
     queue_name: str
     mdq_connected: bool
     mdc_connected: bool
@@ -84,7 +105,14 @@ class MassiveDataProcessor:
 
     @tracer.start_as_current_span("mdp.connect")
     async def connect(self, force: bool = False):
-        """Establish async connections to RabbitMQ and Redis"""
+        """Establish async connections to RabbitMQ and Redis.
+
+        Creates RabbitMQ channel with prefetch QoS, verifies target queue exists,
+        creates Redis connection pool, and tests connectivity via PING.
+
+        Args:
+            force: Reconnect even if already connected.
+        """
 
         if not self.mdq_connected or force:
             # RabbitMQ connection
@@ -127,7 +155,16 @@ class MassiveDataProcessor:
 
     @tracer.start_as_current_span("mdp.process_message")
     async def _process_message(self, message: AbstractIncomingMessage):
-        """Process single message with concurrency control"""
+        """Deserialize, analyze, and cache a single RabbitMQ message.
+
+        Acquires semaphore slot, decodes message body, deserializes WebSocket format,
+        delegates to analyzer.analyze_data, and writes results to Redis. ACKs message
+        on success; logs errors and ACKs on failure (no requeue to avoid poison messages).
+
+        Called concurrently (up to max_concurrent_tasks) from _callback.
+
+        Side effects: Writes to Redis (SET + PUBLISH per result); ACKs RabbitMQ message.
+        """
         async with self.semaphore:
             try:
                 async with message.process():
@@ -163,10 +200,12 @@ class MassiveDataProcessor:
 
     @tracer.start_as_current_span("mdp.callback")
     async def _callback(self, message: AbstractIncomingMessage):
-        """
-        Message callback - spawns processing task
+        """RabbitMQ callback that spawns async processing task.
 
-        Note: Tasks tracked for graceful shutdown
+        Creates a task for _process_message, adds it to processing_tasks set for
+        graceful shutdown tracking, and auto-discards it on completion.
+
+        Called by aio_pika for each message delivered by RabbitMQ.
         """
         task = asyncio.create_task(self._process_message(message))
         self.processing_tasks.add(task)
@@ -174,12 +213,16 @@ class MassiveDataProcessor:
 
     @tracer.start_as_current_span("mdp.cache_result")
     async def _cache_result(self, analyzer_result: MarketDataAnalyzerResult):
-        """
-        Async cache to Redis with pub/sub notification
+        """Write analyzer output to Redis and publish notification.
+
+        Uses a non-transactional pipeline to SET the cache key (with optional TTL)
+        and PUBLISH to the notification channel. Both operations execute atomically
+        from a network perspective (single pipeline).
 
         Args:
-            result: Processed data dict from analyzer
-            cache_entry_name: Cache key suffix (e.g., symbol)
+            analyzer_result: Contains cache_key, cache_ttl, publish_key, and data.
+
+        Side effects: Writes to Redis (SET + PUBLISH).
         """
         result_json = json.dumps(analyzer_result.data)
 
@@ -199,7 +242,15 @@ class MassiveDataProcessor:
 
     @tracer.start_as_current_span("mdp.start")
     async def start(self):
-        """Start async message consumption"""
+        """Connect, rehydrate analyzer state, and begin consuming RabbitMQ queue.
+
+        Retries connection up to 5 times with exponential backoff, instantiates
+        analyzer and rehydrates from cache, then starts consuming messages via
+        _callback. Blocks until self.running is set to False or CancelledError.
+
+        Side effects: Spawns background message processing tasks; writes to Redis
+        during analyzer rehydration.
+        """
         retry_count = 0
         while not self.mdc_connected or not self.mdq_connected:
             try:
@@ -242,7 +293,14 @@ class MassiveDataProcessor:
 
     @tracer.start_as_current_span("mdp.stop")
     async def stop(self):
-        """Graceful async shutdown"""
+        """Wait for in-flight tasks and close connections.
+
+        Sets running=False, waits for all processing_tasks to complete, then closes
+        RabbitMQ channel/connection and Redis client. Ensures no messages are lost
+        during shutdown.
+
+        Side effects: Closes network sockets; logs final metrics.
+        """
         self.logger.info("Stopping processor - waiting for pending tasks")
         self.running = False
 

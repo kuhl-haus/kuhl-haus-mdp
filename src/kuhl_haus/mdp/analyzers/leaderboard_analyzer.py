@@ -1,3 +1,9 @@
+"""Real-time leaderboard analyzer using Redis sorted sets.
+
+Processes EquityAgg events to maintain three leaderboards (volume, gappers,
+gainers) with automatic reset logic at market boundaries (4 AM ET, 9:30 AM ET).
+Designed for horizontal scaling—multiple instances coordinate via Redis atomics.
+"""
 import logging
 from datetime import datetime, timezone
 from typing import Optional, List
@@ -16,9 +22,15 @@ tracer = get_tracer(__name__)
 
 
 class LeaderboardAnalyzer(Analyzer):
-    """
-    Redis-backed leaderboard analyzer using Sorted Sets.
-    Stateless - multiple instances can run concurrently.
+    """Redis-backed leaderboard analyzer using Sorted Sets.
+
+    Maintains real-time rankings for top volume, gappers (% from prev close),
+    and gainers (% from open). Updates are batched via pipelines; publishing
+    is throttled to ~1/sec cluster-wide. Sorted sets are trimmed to top 500
+    to prevent unbounded growth.
+
+    Concurrency: Safe for multiple instances. Redis atomics prevent race
+    conditions on leaderboard updates and day/market boundary resets.
     """
 
     # Redis key constants
@@ -54,9 +66,13 @@ class LeaderboardAnalyzer(Analyzer):
 
     @tracer.start_as_current_span("lba.analyze_data")
     async def analyze_data(self, data: dict) -> Optional[List[MarketDataAnalyzerResult]]:
-        """
-        Process EquityAgg event and update Redis leaderboards.
-        Returns MarketDataAnalyzerResults with leaderboard snapshots (throttled to ~1/sec).
+        """Process EquityAgg event and update Redis leaderboards.
+
+        Updates sorted sets atomically, checks day/market boundaries, and
+        returns throttled leaderboard snapshots (~1/sec cluster-wide).
+
+        Side effects: Updates Redis sorted sets, hash keys for symbol metadata,
+        and may reset leaderboards at market boundaries (4 AM ET, 9:30 AM ET).
         """
         try:
             self.processed_counter.add(1)
@@ -82,7 +98,12 @@ class LeaderboardAnalyzer(Analyzer):
 
     @tracer.start_as_current_span("lba._update_leaderboards")
     async def _update_leaderboards(self, event: dict):
-        """Update Redis sorted sets and symbol metadata atomically."""
+        """Update Redis sorted sets and symbol metadata atomically.
+
+        Fetches external metadata (snapshot, avg volume, free float) via
+        MarketDataCache, calculates derived metrics (pct_change, relative_vol),
+        and batches updates in a single pipeline. Trims sorted sets to top 500.
+        """
         symbol = event.get("symbol")
         if not symbol:
             return
@@ -162,9 +183,10 @@ class LeaderboardAnalyzer(Analyzer):
 
     @tracer.start_as_current_span("lba._build_leaderboard_results")
     async def _build_leaderboard_results(self, limit: int = 500) -> List[MarketDataAnalyzerResult]:
-        """
-        Fetch top N from each leaderboard and return as MarketDataAnalyzerResults.
-        Each result contains one leaderboard type for widget consumption.
+        """Fetch top N from each leaderboard and return as MarketDataAnalyzerResults.
+
+        Hydrates symbol data from Redis hashes and returns separate results
+        for volume, gappers, and gainers leaderboards for widget consumption.
         """
         results = []
 
@@ -208,7 +230,11 @@ class LeaderboardAnalyzer(Analyzer):
 
     @tracer.start_as_current_span("lba._fetch_leaderboards")
     async def _fetch_leaderboards(self, limit: int = 500) -> dict:
-        """Fetch top N from each sorted set with hydrated symbol data."""
+        """Fetch top N from each sorted set with hydrated symbol data.
+
+        Uses ZREVRANGE to pull top symbols with scores, then hydrates each
+        leaderboard with full symbol metadata from Redis hashes.
+        """
         pipe = self.redis_client.pipeline()
 
         # Get top symbols with scores
@@ -232,7 +258,11 @@ class LeaderboardAnalyzer(Analyzer):
 
     @tracer.start_as_current_span("lba._hydrate_leaderboard")
     async def _hydrate_leaderboard(self, symbol_scores: List, score_field: str) -> List[dict]:
-        """Fetch symbol data for leaderboard entries."""
+        """Fetch symbol data for leaderboard entries.
+
+        Batch-fetches Redis hashes for all symbols and builds ranked list
+        with rank number, score, and full symbol metadata.
+        """
         if not symbol_scores:
             return []
 
@@ -265,7 +295,7 @@ class LeaderboardAnalyzer(Analyzer):
 
     @staticmethod
     def _convert_value(value: str):
-        """Convert Redis string values to appropriate Python types."""
+        """Convert Redis string values to int/float where applicable."""
         try:
             # Try float first (handles integers too)
             if '.' in value:
@@ -276,9 +306,10 @@ class LeaderboardAnalyzer(Analyzer):
 
     @tracer.start_as_current_span("lba._check_publish_throttle")
     async def _check_publish_throttle(self) -> bool:
-        """
-        Distributed throttle - only publish once per second across all instances.
-        Returns True if this instance should publish.
+        """Distributed throttle—only publish once per second across all instances.
+
+        Uses Redis SET NX with 1-second TTL to elect a single publisher per
+        second cluster-wide, preventing duplicate broadcasts.
         """
         now = datetime.now(timezone.utc).timestamp()
 
@@ -294,7 +325,11 @@ class LeaderboardAnalyzer(Analyzer):
 
     @tracer.start_as_current_span("lba._get_symbol_open_price")
     async def _get_symbol_open_price(self, symbol: str, event: dict) -> float:
-        """Get or set symbol's opening price for the trading day."""
+        """Get or set symbol's opening price for the trading day.
+
+        Caches open price in Redis with 24h TTL. Falls back to event's open
+        or close if not cached. Cleared at market open (9:30 AM ET) reset.
+        """
         open_key = f"symbol:{symbol}:open_price"
 
         # Check Redis cache
@@ -312,7 +347,11 @@ class LeaderboardAnalyzer(Analyzer):
 
     @tracer.start_as_current_span("lba._check_day_boundary")
     async def _check_day_boundary(self):
-        """Reset leaderboards at 4 AM ET (new trading day)."""
+        """Reset leaderboards at 4 AM ET (new trading day).
+
+        Uses Lua script for atomic check-and-reset. Only one instance across
+        the cluster performs the reset; others see stored day key unchanged.
+        """
         et_now = datetime.now(timezone.utc).astimezone(ZoneInfo("America/New_York"))
         current_day = et_now.replace(hour=4, minute=0, second=0, microsecond=0)
         current_day_ts = str(int(current_day.timestamp()))
@@ -343,7 +382,12 @@ class LeaderboardAnalyzer(Analyzer):
 
     @tracer.start_as_current_span("lba._check_market_open_reset")
     async def _check_market_open_reset(self):
-        """Reset 'gainers' leaderboard and open prices at 9:30 AM ET."""
+        """Reset 'gainers' leaderboard and open prices at 9:30 AM ET.
+
+        Only triggers during the 9:30–9:31 AM ET window. Uses SET NX to
+        ensure single execution per day across all instances. Scans and
+        deletes all symbol open price keys to establish fresh intraday baseline.
+        """
         et_now = datetime.now(timezone.utc).astimezone(ZoneInfo("America/New_York"))
 
         # Only trigger during 9:30 AM hour

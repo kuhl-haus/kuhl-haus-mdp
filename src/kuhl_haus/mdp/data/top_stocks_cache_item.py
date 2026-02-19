@@ -1,3 +1,9 @@
+"""In-memory cache for intraday stock leaderboards computed from Massive.com WebSocket streams.
+
+Maintains running aggregates and ranked maps for top volume, gappers, and gainers.
+Updated continuously as aggregate minute bars arrive from ws_stocks_am channel.
+Designed for high-frequency reads by WebSocket consumers (widget clients).
+"""
 from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Dict, Optional
@@ -9,6 +15,15 @@ from typing import Dict, Optional
 
 @dataclass()
 class TopStocksCacheItem:
+    """Snapshot container for intraday stock rankings and per-symbol aggregate data.
+
+    Holds denormalized symbol data alongside three sorted ranking maps (volume, gappers,
+    gainers). The ranking maps store only the metric value; full symbol details are
+    retrieved from symbol_data_cache on demand. Self-healing: removes stale entries if
+    cache inconsistency is detected during query methods.
+
+    Data sourced from Massive.com ws_stocks_am WebSocket aggregates.
+    """
     day_start_time: Optional[float] = 0.0
 
     # Cached details for each ticker
@@ -24,6 +39,7 @@ class TopStocksCacheItem:
     top_gainers_map: Optional[Dict[str, float]] = field(default_factory=lambda: defaultdict(dict))
 
     def to_dict(self):
+        """Serialize cache snapshot to dict for persistence or wire transmission."""
         ret = {
             # Cache start time
             "day_start_time": self.day_start_time,
@@ -37,6 +53,14 @@ class TopStocksCacheItem:
         return ret
 
     def top_volume(self, limit):
+        """Return top N stocks by cumulative volume with full aggregate data.
+
+        Queries top_volume_map for ranked tickers, then hydrates each with denormalized
+        symbol data from symbol_data_cache. Self-healing: if a ticker is missing from
+        cache (orphaned map entry), it is silently removed from top_volume_map.
+
+        Called by WebSocket consumers; expect 10-50 calls/sec during market hours.
+        """
         ret = []
         for ticker, volume in sorted(self.top_volume_map.items(), key=lambda x: x[1], reverse=True)[
             :limit
@@ -72,6 +96,14 @@ class TopStocksCacheItem:
         return ret
 
     def top_gappers(self, limit):
+        """Return top N stocks by pre-market gap percentage with full aggregate data.
+
+        Filters for positive gaps only (pct_change > 0). Stops iteration early once
+        non-positive gap is encountered (ranking is descending). Self-healing: removes
+        orphaned map entries on KeyError.
+
+        Called by WebSocket consumers; expect 10-50 calls/sec during market hours.
+        """
         ret = []
         for ticker, pct_change in sorted(self.top_gappers_map.items(), key=lambda x: x[1], reverse=True)[
             :limit
@@ -109,6 +141,14 @@ class TopStocksCacheItem:
         return ret
 
     def top_gainers(self, limit):
+        """Return top N stocks by intraday gain percentage with full aggregate data.
+
+        Filters for positive gains only (pct_change_since_open > 0). Stops iteration
+        early once non-positive gain is encountered. Self-healing: removes orphaned
+        map entries on KeyError.
+
+        Called by WebSocket consumers; expect 10-50 calls/sec during market hours.
+        """
         ret = []
         for ticker, pct_change in sorted(self.top_gainers_map.items(), key=lambda x: x[1], reverse=True)[
             :limit

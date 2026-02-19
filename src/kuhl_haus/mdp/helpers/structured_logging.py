@@ -1,5 +1,8 @@
-"""
-Opinionated structured logging configuration for kuhl-haus-mdp.
+"""Structured JSON logging for Kubernetes/OpenObserve with human-readable dev mode.
+
+Configures python-json-logger for production deployments (stdout → K8s → OpenObserve)
+or human-readable formatting for local development. Call setup_logging() once at
+application entry point; all subsequent getLogger() calls inherit configuration.
 
 Usage:
     # In server entry point (ONCE at startup):
@@ -25,8 +28,9 @@ def setup_logging(
     json_format: bool = True,
     include_trace_fields: bool = True
 ) -> None:
-    """
-    Configure structured logging for the entire application.
+    """Configure root logger for JSON or human-readable output; call once at application entry point.
+
+    Side effects: Modifies global logging.root configuration via dictConfig.
 
     Call ONCE at application entry point. All subsequent getLogger() calls
     inherit this configuration automatically.
@@ -150,8 +154,7 @@ def setup_logging(
 
 
 def get_logger(name: Optional[str] = None) -> logging.Logger:
-    """
-    Get a logger instance.
+    """Return logger instance; prefer direct logging.getLogger(__name__) in production code.
 
     Convenience wrapper around logging.getLogger(__name__).
     Prefer using logging.getLogger(__name__) directly in modules.
@@ -175,8 +178,7 @@ def log_exception(
     exc_info: bool = True,
     **extra_fields
 ) -> None:
-    """
-    Log an exception with structured fields.
+    """Log exception with traceback and optional structured fields for debugging.
 
     Args:
         logger: Logger instance.
@@ -204,12 +206,7 @@ _logging_configured = False
 
 
 def ensure_logging_configured():
-    """
-    Ensure logging is configured. Call automatically if needed.
-
-    This is a safety mechanism for library code that may be used
-    without explicit setup_logging() call.
-    """
+    """Auto-configure logging if setup_logging() was never called; safety net for library usage."""
     global _logging_configured
     if not _logging_configured:
         # Check if root logger has handlers

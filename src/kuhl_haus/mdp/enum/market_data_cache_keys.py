@@ -1,11 +1,22 @@
+"""Redis cache key patterns for internal market data storage.
+
+Defines all cache key templates used within MDP for storing raw WebSocket data,
+computed analytics, and rate-limiting state. Keys support pattern matching for
+bulk operations (e.g., TOP_TRADES_RECENT_SCAN for multi-symbol cleanup).
+These are internal keys; pub/sub channel names are in MarketDataPubSubKeys.
+"""
 from enum import Enum
 
 from kuhl_haus.mdp.enum.market_data_scanner_names import MarketDataScannerNames
 
 
 class MarketDataCacheKeys(Enum):
-    """
-    Market Data Cache Keys are for Redis cache and Pub/Sub channels for internal use only.
+    """Redis key patterns for caching raw data, analytics, and rate-limit state.
+
+    Internal cache keys for MDP components. Includes both concrete keys and
+    string templates with placeholders (e.g., {symbol}, {date}) for dynamic
+    instantiation. Pattern-based keys ending in '*' enable SCAN operations for
+    bulk cleanup and inspection. Separate from pub/sub channel names.
     """
 
     # MARKET DATA FEEDS

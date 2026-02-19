@@ -1,3 +1,10 @@
+"""Redis pub/sub consumer that analyzes market data and publishes derived results.
+
+Subscribes to raw market data channels in Redis, delegates analysis to pluggable
+Analyzer implementations, and publishes aggregated results back to Redis for
+real-time WebSocket delivery. Designed for single-analyzer workflows where
+incoming data maps to one output stream (e.g., leaderboard calculations).
+"""
 import asyncio
 import json
 import logging
@@ -14,6 +21,19 @@ from kuhl_haus.mdp.components.market_data_cache import MarketDataCache
 
 
 class MarketDataScanner:
+    """Process Redis pub/sub market data through pluggable analyzers.
+
+    Listens to Redis channels for raw market data (trades, quotes, halts), passes
+    messages through an Analyzer subclass, then caches results and publishes them
+    back to Redis. Unlike MassiveDataProcessor (RabbitMQ-based), this component
+    works entirely within Redis for simpler deployments or single-analyzer use cases.
+
+    Pattern/wildcard subscriptions are supported; rehydration from cache happens
+    on startup to recover analyzer state after restarts.
+
+    Threading: Single pub/sub task runs in asyncio event loop; message processing
+    is sequential but does not block new messages (pub/sub buffer holds them).
+    """
     mdc_connected: bool
     processed: int
     decoding_error: int
@@ -50,7 +70,15 @@ class MarketDataScanner:
         self.errors = 0
 
     async def start(self):
-        """Initialize Redis connections. Pub/sub task starts on first subscription."""
+        """Initialize Redis connections and begin consuming subscribed channels.
+
+        Establishes async Redis client, creates pub/sub client, instantiates the
+        analyzer, rehydrates analyzer state from cache, subscribes to configured
+        channels, and spawns the pub/sub message handler task.
+
+        Side effects: Spawns background asyncio task; writes to Redis during
+        analyzer rehydration.
+        """
         self.logger.info("mds.starting")
         await self.connect()
         self.pubsub_client = self.redis_client.pubsub()
@@ -69,7 +97,13 @@ class MarketDataScanner:
         self.logger.info("mds.started")
 
     async def stop(self):
-        """Cleanup Redis connections."""
+        """Shutdown pub/sub task and close Redis connections.
+
+        Cancels background task, unsubscribes from all channels, closes pub/sub
+        client, and releases Redis connection pool.
+
+        Side effects: Writes unsubscribe commands to Redis; closes network sockets.
+        """
         self.logger.info("mds.stopping")
 
         if self._pubsub_task:
@@ -101,7 +135,11 @@ class MarketDataScanner:
         self.logger.info("mds.stopped")
 
     async def connect(self, force: bool = False):
-        """Establish async connections to Redis"""
+        """Establish async Redis connection and instantiate MarketDataCache.
+
+        Args:
+            force: Reconnect even if already connected.
+        """
         if not self.mdc_connected or force:
             # Redis connection pool
             try:
@@ -127,7 +165,10 @@ class MarketDataScanner:
                 raise
 
     async def restart(self):
-        """Restart Market Data Scanner"""
+        """Cycle scanner: stop, wait 1s, start.
+
+        Increments restart counter for observability.
+        """
         try:
             await self.stop()
             await asyncio.sleep(1)
@@ -137,7 +178,15 @@ class MarketDataScanner:
             self.logger.error(f"Error restarting Market Data Scanner: {e}")
 
     async def _handle_pubsub(self):
-        """Background task to receive Redis pub/sub messages and fan out to WebSockets."""
+        """Background task that polls Redis pub/sub and delegates messages to analyzer.
+
+        Runs indefinitely until cancelled. Handles subscription lifecycle events,
+        processes data messages via _process_message, and auto-restarts on connection
+        errors. Uses exponential backoff (max 60s) when no messages arrive.
+
+        Side effects: Calls analyzer.analyze_data (may mutate analyzer state); writes
+        results to Redis cache.
+        """
         try:
             self.logger.info("mds.pubsub.starting")
             message_count = 0
@@ -198,7 +247,17 @@ class MarketDataScanner:
             raise
 
     async def _process_message(self, data: dict):
-        """Process single message with concurrency control"""
+        """Delegate message to analyzer and cache results.
+
+        Passes raw dict to analyzer.analyze_data (async), iterates over returned
+        MarketDataAnalyzerResult objects, and caches each via cache_result. Tracks
+        metrics for processed, empty, decode, and processing errors.
+
+        Args:
+            data: Deserialized JSON payload from Redis pub/sub channel.
+
+        Side effects: Writes to Redis (SET + PUBLISH per result).
+        """
         try:
             # Delegate to analyzer (async)
             self.logger.debug(f"Processing message - data_len:{len(data)}")
@@ -221,18 +280,23 @@ class MarketDataScanner:
             self.errors += 1
 
     async def get_cache(self, cache_key: str) -> Optional[dict]:
-        """Fetch current value from Redis cache (for snapshot requests)."""
+        """Retrieve cached analyzer result by key."""
         value = await self.redis_client.get(cache_key)
         if value:
             return json.loads(value)
         return None
 
     async def cache_result(self, analyzer_result: MarketDataAnalyzerResult):
-        """
-        Async cache to Redis with pub/sub notification
+        """Write analyzer output to Redis and publish notification.
+
+        Uses a non-transactional pipeline to SET the cache key (with optional TTL)
+        and PUBLISH to the notification channel. Both operations execute atomically
+        from a network perspective (single pipeline).
 
         Args:
-            analyzer_result: MarketDataAnalyzerResult
+            analyzer_result: Contains cache_key, cache_ttl, publish_key, and data.
+
+        Side effects: Writes to Redis (SET + PUBLISH).
         """
         result_json = json.dumps(analyzer_result.data)
 

@@ -1,16 +1,22 @@
+"""Result envelope for market data analyzer output with caching and publishing metadata.
+
+Carries analyzed data from analyzer components to downstream consumers (cache, Redis pub/sub).
+Supports optional Redis caching with TTL and optional publication to specific channels.
+"""
 from dataclasses import dataclass
 from typing import Any, Optional
 
 
 @dataclass()
 class MarketDataAnalyzerResult:
-    """
-    Represents the result of analysis performed by a Market Data Analyzer.
+    """Container for analyzed market data with cache and publish routing metadata.
 
-    This class encapsulates the output of market data analysis, including the
-    analysis data, cache-related metadata, and an optional publish key for further
-    processing or distribution. It serves as a structured container to simplify
-    handling and transferring analysis results.
+    Returned by all analyzer implementations (MassiveDataAnalyzer, LeaderboardAnalyzer,
+    TopTradesAnalyzer). The data field contains the analysis result (leaderboard dict,
+    trade list, etc.). Cache fields control Redis persistence; publish_key routes to
+    specific Redis pub/sub channels for real-time distribution to WebSocket consumers.
+
+    Intentionally minimal: no validation or transformation logic. Pure data transfer.
 
     :ivar data: The analyzed market data or result content.
     :type data: Any

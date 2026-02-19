@@ -1,3 +1,9 @@
+"""Time duration constants in seconds for cache TTL and rate limiting.
+
+Provides standardized duration values used throughout the market data pipeline
+for Redis cache expiration and throttle intervals. All values are in seconds
+to match Redis TTL expectations.
+"""
 # Minutes in seconds
 ONE_MINUTE = 60
 FIVE_MINUTES = 300

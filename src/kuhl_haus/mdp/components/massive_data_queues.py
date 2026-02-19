@@ -1,4 +1,9 @@
+"""RabbitMQ publisher for Massive.com WebSocket messages with multi-channel concurrency.
 
+Routes incoming WebSocket messages from Massive.com to dedicated RabbitMQ queues
+by message type (trades, quotes, aggregates, halts, news). Uses per-queue dedicated
+channels for parallel publishing to maximize throughput and minimize latency.
+"""
 import asyncio
 import logging
 
@@ -21,6 +26,20 @@ tracer = get_tracer(__name__)
 
 
 class MassiveDataQueues:
+    """Publish Massive.com WebSocket messages to RabbitMQ with per-queue channels.
+
+    Creates a dedicated RabbitMQ channel for each message type (trades, quotes, etc.)
+    to enable concurrent publishing without channel contention. Messages are routed
+    by type, serialized, and published with configurable TTL and delivery mode.
+
+    Uses NOT_PERSISTENT delivery mode to prioritize throughput over durability,
+    relying on queue TTL to expire unprocessed messages rather than fsync on every
+    publish. Designed for real-time pipelines where fresh data is more valuable than
+    stale data.
+
+    Concurrency: All publications within a batch (handle_messages) run concurrently
+    via asyncio.gather, each using its own channel for true parallelism.
+    """
     rabbitmq_url: str
     queues: List[str]
     message_ttl: int
@@ -129,6 +148,14 @@ class MassiveDataQueues:
 
     @tracer.start_as_current_span("mdq.connect")
     async def connect(self):
+        """Establish RabbitMQ connection and create per-queue channels.
+
+        Opens a robust connection (auto-reconnect on failure), creates a dedicated
+        channel for each queue with publisher confirms enabled, and verifies all
+        target queues exist (passive declaration).
+
+        Side effects: Opens network socket; creates RabbitMQ channels.
+        """
         self.connection = await connect_robust(self.rabbitmq_url)
 
         # Create a dedicated channel per queue for parallel I/O
@@ -154,6 +181,20 @@ class MassiveDataQueues:
 
     @tracer.start_as_current_span("mdq.handle_messages")
     async def handle_messages(self, msgs: List[WebSocketMessage]):
+        """Route and publish batch of WebSocket messages to RabbitMQ.
+
+        Serializes all messages upfront, resolves target queue per message type,
+        then publishes concurrently via asyncio.gather. Each message uses its
+        queue's dedicated channel for true parallel I/O.
+
+        Called by MassiveDataListener's message handler; typically handles 1-100
+        messages per WebSocket frame during peak market activity.
+
+        Args:
+            msgs: List of WebSocketMessage objects from Massive SDK.
+
+        Side effects: Publishes to RabbitMQ; increments metrics counters.
+        """
         if not self.channels:
             self.logger.error("RabbitMQ channels not initialized")
             raise Exception("RabbitMQ channels not initialized")
@@ -203,7 +244,14 @@ class MassiveDataQueues:
         rabbit_message: Message,
         queue_name: str
     ):
-        """Publish a single message via the queue's dedicated channel."""
+        """Publish message to RabbitMQ using queue-specific channel.
+
+        Retrieves the exchange for the target queue and publishes with routing_key
+        equal to queue name (default exchange behavior). Logs errors but does not
+        raise to avoid failing the entire batch.
+
+        Side effects: Publishes to RabbitMQ; increments counter.
+        """
         try:
             exchange = self.exchanges[queue_name]
             await exchange.publish(rabbit_message, routing_key=queue_name)
@@ -216,6 +264,13 @@ class MassiveDataQueues:
 
     @tracer.start_as_current_span("mdq.shutdown")
     async def shutdown(self):
+        """Close all channels and RabbitMQ connection.
+
+        Iterates over channels dict, closing each in sequence, then closes the
+        connection. Clears internal state.
+
+        Side effects: Closes network sockets.
+        """
         self.connection_status["connected"] = False
         for queue_name, channel in self.channels.items():
             self.logger.info(f"Closing RabbitMQ channel for {queue_name}")
@@ -229,6 +284,14 @@ class MassiveDataQueues:
 
     @tracer.start_as_current_span("mdq.setup_queues")
     async def setup_queues(self):
+        """Create RabbitMQ queues with TTL and durability settings.
+
+        Called during deployment/setup to provision queues. Opens connection, creates
+        per-queue channels, and declares each queue with x-message-ttl argument.
+        Should be idempotent (queue settings must match if queue already exists).
+
+        Side effects: Creates durable RabbitMQ queues with configured TTL.
+        """
         self.connection = await connect_robust(self.rabbitmq_url)
 
         # Create a dedicated channel per queue

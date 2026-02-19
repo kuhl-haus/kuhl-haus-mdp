@@ -1,3 +1,10 @@
+"""In-memory leaderboard analyzer (legacy prototype pattern).
+
+Maintains top volume/gainers/gappers in a single TopStocksCacheItem instance.
+Rehydrates state from Redis on startup. Single-instance design—does not
+coordinate across replicas. Retained for historical context; production
+deployments prefer LeaderboardAnalyzer (Redis-native, stateless).
+"""
 import logging
 import time
 from datetime import datetime, timezone
@@ -19,6 +26,15 @@ from kuhl_haus.mdp.enum.market_data_pubsub_keys import MarketDataPubSubKeys
 
 
 class TopStocksAnalyzer(Analyzer):
+    """In-memory leaderboard analyzer (single-instance).
+
+    Maintains TopStocksCacheItem in process memory with day/market boundary
+    resets. Fetches external metadata (snapshot, avg volume, free float) on
+    first symbol encounter, then caches in memory. Publishes once per second.
+
+    Not suitable for horizontal scaling—state lives in memory. Use
+    LeaderboardAnalyzer for multi-instance deployments.
+    """
 
     def __init__(self, options: AnalyzerOptions):
         super().__init__(options)
@@ -36,6 +52,11 @@ class TopStocksAnalyzer(Analyzer):
         self.pre_market_reset = False
 
     async def rehydrate(self):
+        """Restore in-memory state from Redis on startup.
+
+        Clears cache if outside trading hours (Mon-Fri, 04:00-19:59 ET).
+        Avoids stale data carryover from previous session.
+        """
         # Get current time in UTC, then convert to Eastern Time
         utc_now = datetime.now(timezone.utc)
         et_now = utc_now.astimezone(ZoneInfo("America/New_York"))
@@ -56,6 +77,15 @@ class TopStocksAnalyzer(Analyzer):
         self.logger.info("Rehydrated TopStocksCacheItem")
 
     async def analyze_data(self, data: dict) -> Optional[List[MarketDataAnalyzerResult]]:
+        """Process EquityAgg events and maintain in-memory leaderboards.
+
+        Checks day/market boundaries (4 AM ET, 9:30 AM ET) and resets state.
+        Fetches external metadata on first symbol encounter. Publishes once
+        per second (local throttle, not distributed).
+
+        Side effects: Updates in-memory cache_item, fetches REST API data for
+        new symbols, writes results to Redis on publish.
+        """
         utc_now = datetime.now(timezone.utc)
         et_now = utc_now.astimezone(ZoneInfo("America/New_York"))
         current_day = et_now.replace(hour=4, minute=0, second=0, microsecond=0).timestamp()
@@ -122,6 +152,12 @@ class TopStocksAnalyzer(Analyzer):
         return result
 
     async def handle_equity_agg(self, event: EquityAgg):
+        """Update in-memory leaderboards for EquityAgg event.
+
+        Fetches snapshot, avg volume, and free float on first symbol encounter
+        (with retries). Calculates derived metrics and updates three in-memory
+        maps (volume, gappers, gainers) plus symbol data cache.
+        """
         # Get data from symbol data cache or Rest API
         if event.symbol in self.cache_item.symbol_data_cache:
             cached_data = self.cache_item.symbol_data_cache[event.symbol]

@@ -1,3 +1,9 @@
+"""Redis cache TTL values in seconds for market data artifacts.
+
+Defines expiration times for all cached data types in the real-time pipeline.
+TTLs are tuned based on data volatility, API rate limits, and frontend refresh
+requirements. Shorter TTLs for high-frequency data, longer for reference data.
+"""
 from enum import Enum
 from kuhl_haus.mdp.enum.constants import (
     EIGHT_HOURS,
@@ -12,6 +18,13 @@ from kuhl_haus.mdp.enum.constants import (
 
 
 class MarketDataCacheTTL(Enum):
+    """Time-to-live durations for Redis cache entries across all data types.
+
+    TTL selection balances freshness requirements against API quotas and memory
+    pressure. High-velocity trade data expires quickly; reference data like
+    float shares persists for hours. Negative cache prevents retry storms on
+    API failures.
+    """
     # Negative Cache TTLs
     NEGATIVE_CACHE_THROTTLE = ONE_MINUTE
     NEGATIVE_CACHE_SESSION = SIX_HOURS

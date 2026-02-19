@@ -1,3 +1,10 @@
+"""WebSocket-to-Redis bridge for real-time market data delivery to clients.
+
+Manages client WebSocket subscriptions to Redis pub/sub channels, handles fan-out
+from Redis messages to connected clients, and provides snapshot API for cached data.
+Designed for scenarios where multiple browser/dashboard clients subscribe to the
+same market data feeds with minimal latency.
+"""
 import asyncio
 import json
 import logging
@@ -12,11 +19,24 @@ tracer = get_tracer(__name__)
 
 
 class UnauthorizedException(Exception):
+    """Raised when client attempts unauthorized operation."""
     pass
 
 
 class WidgetDataService:
-    """WebSocket interface for client subscriptions to Redis market data."""
+    """Fan out Redis pub/sub messages to WebSocket clients.
+
+    Maintains a registry of WebSocket connections per Redis channel, subscribes
+    to channels on-demand as clients join, and fans out incoming pub/sub messages
+    to all subscribers. The background pub/sub task starts lazily on first
+    subscription and stops when the last client disconnects.
+
+    Pattern/wildcard subscriptions are supported. Clients can fetch snapshots from
+    Redis cache via get_cache for initial state before streaming updates.
+
+    Concurrency: Single background task (_handle_pubsub) polls Redis and sends to
+    all WebSockets in the event loop. Lock protects subscription dict mutations.
+    """
 
     def __init__(self, redis_client: redis.Redis, pubsub_client: redis.client.PubSub):
         self.redis_client: redis.Redis = redis_client
@@ -49,7 +69,11 @@ class WidgetDataService:
 
     @tracer.start_as_current_span("wds.start")
     async def start(self):
-        """This doesn't do anything anymore. Pub/sub task starts on first subscription."""
+        """Verify Redis connectivity.
+
+        Pub/sub task starts lazily on first client subscription; this method simply
+        PINGs Redis to confirm the connection is healthy.
+        """
         self.logger.info("wds.starting")
         await self.redis_client.ping()
         self.mdc_connected = True
@@ -57,7 +81,10 @@ class WidgetDataService:
 
     @tracer.start_as_current_span("wds.stop")
     async def stop(self):
-        """Cleanup Redis connections."""
+        """Cancel pub/sub task if running.
+
+        Does not close Redis client (caller owns that lifecycle).
+        """
         self.logger.info("wds.stopping")
 
         if self._pubsub_task:
@@ -71,7 +98,18 @@ class WidgetDataService:
 
     @tracer.start_as_current_span("wds.subscribe_feed")
     async def subscribe(self, feed: str, websocket: WebSocket):
-        """Subscribe WebSocket client to a Redis feed."""
+        """Add WebSocket client to Redis channel subscription.
+
+        Creates Redis subscription if this is the first client for the channel.
+        Starts background pub/sub task if this is the first subscription overall.
+        Supports wildcard patterns (e.g., "leaderboard:*").
+
+        Args:
+            feed: Redis channel name or pattern.
+            websocket: FastAPI WebSocket connection.
+
+        Side effects: Subscribes to Redis channel; spawns background task on first use.
+        """
         async with self._pubsub_lock:
             if feed not in self.subscriptions:
                 self.subscriptions[feed] = set()
@@ -91,7 +129,17 @@ class WidgetDataService:
 
     @tracer.start_as_current_span("wds.unsubscribe_feed")
     async def unsubscribe(self, feed: str, websocket: WebSocket):
-        """Unsubscribe WebSocket client from a Redis feed."""
+        """Remove WebSocket client from Redis channel subscription.
+
+        Unsubscribes from Redis if this was the last client for the channel. Stops
+        background pub/sub task if this was the last subscription overall.
+
+        Args:
+            feed: Redis channel name or pattern.
+            websocket: FastAPI WebSocket connection.
+
+        Side effects: Unsubscribes from Redis channel; cancels background task if idle.
+        """
         async with self._pubsub_lock:
             if feed in self.subscriptions:
                 self.subscriptions[feed].discard(websocket)
@@ -120,7 +168,11 @@ class WidgetDataService:
 
     @tracer.start_as_current_span("wds.disconnect")
     async def disconnect(self, websocket: WebSocket):
-        """Disconnect WebSocket client from all feeds."""
+        """Unsubscribe client from all channels.
+
+        Iterates over all feeds the WebSocket is subscribed to and calls unsubscribe
+        for each. Called when WebSocket connection closes or client disconnects.
+        """
         subs = []
         async with self._pubsub_lock:
             feeds = self.subscriptions.keys()
@@ -132,7 +184,11 @@ class WidgetDataService:
 
     @tracer.start_as_current_span("wds.get_cache")
     async def get_cache(self, cache_key: str) -> dict:
-        """Fetch current value from Redis cache (for snapshot requests)."""
+        """Retrieve cached market data for initial client snapshot.
+
+        Clients typically call this before subscribing to a feed to get current state,
+        then receive incremental updates via WebSocket. Returns None if key not found.
+        """
         self.logger.debug(f"wds.cache.get cache_key:{cache_key}")
         value = await self.redis_client.get(cache_key)
         if value:
@@ -145,7 +201,16 @@ class WidgetDataService:
 
     @tracer.start_as_current_span("wds._handle_pubsub")
     async def _handle_pubsub(self):
-        """Background task to receive Redis pub/sub messages and fan out to WebSockets."""
+        """Background task that polls Redis pub/sub and fans out to WebSocket clients.
+
+        Runs indefinitely until cancelled. Fetches messages from pub/sub client,
+        handles subscription lifecycle events, and sends data messages to all
+        WebSockets subscribed to the source channel. Auto-disconnects clients that
+        fail to receive messages (closed connections).
+
+        Side effects: Calls WebSocket.send_text (network I/O); calls unsubscribe for
+        dead connections.
+        """
         try:
             self.logger.info("wds.pubsub.starting")
             message_count = 0

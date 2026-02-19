@@ -1,3 +1,10 @@
+"""Real-time trade analyzer using Redis Lists.
+
+Stores recent trades per symbol in Redis Lists (sliding window), then
+aggregates stats (volume, trade count, max size) on publish. Publishes
+every 5 seconds cluster-wide via distributed throttle. Stateless design
+suitable for horizontal scaling.
+"""
 import json
 import logging
 from datetime import datetime, timezone
@@ -14,9 +21,15 @@ tracer = get_tracer(__name__)
 
 
 class TopTradesAnalyzer(Analyzer):
-    """
-    Redis-backed trade analyzer using Lists for time-series data.
-    Stateless - multiple instances can run concurrently.
+    """Redis-backed trade analyzer using Lists for time-series data.
+
+    Maintains per-symbol trade history in Redis Lists (last 1,000 trades).
+    On publish, scans for active symbols and computes aggregated stats from
+    Lists without maintaining in-memory state. Throttles publishing to every
+    5 seconds cluster-wide.
+
+    Concurrency: Safe for multiple instances. Atomic LPUSH + LTRIM ensures
+    clean sliding windows without coordination.
     """
 
     # Redis key constants
@@ -60,9 +73,13 @@ class TopTradesAnalyzer(Analyzer):
 
     @tracer.start_as_current_span("tta.analyze_data")
     async def analyze_data(self, data: dict) -> Optional[List[MarketDataAnalyzerResult]]:
-        """
-        Process Trade event and update Redis trade history.
-        Returns MarketDataAnalyzerResults with trade statistics (throttled to every 5 seconds).
+        """Process Trade event and update Redis trade history.
+
+        Stores trade in Redis List, then checks distributed throttle. If
+        elected to publish, scans for all active symbols and aggregates stats.
+
+        Side effects: Writes to Redis List, may publish aggregated results
+        every 5 seconds (one instance elected cluster-wide).
         """
         try:
             # Store trade in Redis
@@ -84,9 +101,10 @@ class TopTradesAnalyzer(Analyzer):
 
     @tracer.start_as_current_span("tta._store_trade")
     async def _store_trade(self, trade: dict):
-        """
-        Store trade in Redis List with sliding window management.
-        Uses pipeline for atomic operations.
+        """Store trade in Redis List with sliding window management.
+
+        Atomic LPUSH + LTRIM keeps last 1,000 trades per symbol. Resets TTL
+        on each write to auto-expire stale symbol keys.
         """
         symbol = trade.get("symbol")
         if not symbol:
@@ -119,9 +137,11 @@ class TopTradesAnalyzer(Analyzer):
 
     @tracer.start_as_current_span("tta._build_trade_results")
     async def _build_trade_results(self) -> List[MarketDataAnalyzerResult]:
-        """
-        Calculate trade statistics for all active symbols and return as results.
-        Scans Redis for all trade lists and computes aggregates.
+        """Calculate trade statistics for all active symbols.
+
+        Scans Redis for all trade List keys, fetches each List, computes
+        aggregated stats (volume, count, max size, time span), and returns
+        results for all symbols plus per-symbol results for top 100 by volume.
         """
         results = []
 
@@ -177,7 +197,11 @@ class TopTradesAnalyzer(Analyzer):
 
     @tracer.start_as_current_span("tta._get_active_symbols")
     async def _get_active_symbols(self) -> List[str]:
-        """Scan Redis for all symbols with recent trades."""
+        """Scan Redis for all symbols with recent trades.
+
+        Uses SCAN with pattern matching to avoid blocking. Extracts symbol
+        from key pattern "tta:{symbol}:recent".
+        """
         symbols = set()
         cursor = "0"
 
@@ -202,9 +226,11 @@ class TopTradesAnalyzer(Analyzer):
 
     @tracer.start_as_current_span("tta._calculate_symbol_stats")
     async def _calculate_symbol_stats(self, symbol: str) -> Optional[dict]:
-        """
-        Calculate trade statistics for a symbol from Redis List.
-        Returns aggregated metrics without storing in-memory state.
+        """Calculate trade statistics for a symbol from Redis List.
+
+        Fetches entire List (last 1,000 trades), deserializes, and computes
+        total volume, trade count, avg/max size, and time span. No in-memory
+        state maintained—recalculated on every publish.
         """
         trade_key = self.TRADES_RECENT_PREFIX.format(symbol=symbol)
 
@@ -257,9 +283,10 @@ class TopTradesAnalyzer(Analyzer):
 
     @tracer.start_as_current_span("tta._check_publish_throttle")
     async def _check_publish_throttle(self) -> bool:
-        """
-        Distributed throttle - only publish every N seconds across all instances.
-        Returns True if this instance should publish.
+        """Distributed throttle—only publish every 5 seconds across all instances.
+
+        Uses Redis SET NX with configurable expiry to elect a single publisher
+        per interval cluster-wide.
         """
         now = datetime.now(timezone.utc).timestamp()
 

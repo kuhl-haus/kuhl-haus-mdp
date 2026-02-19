@@ -1,3 +1,10 @@
+"""Redis-backed cache for Massive.com API responses with TTL management.
+
+Wraps Massive.com REST API calls with transparent Redis caching to reduce API
+load and improve latency. Provides specialized methods for ticker snapshots,
+average volume, and free float data with per-metric TTL policies. Negative
+caching prevents repeated API failures from overwhelming the service.
+"""
 import asyncio
 import json
 import logging
@@ -22,6 +29,17 @@ tracer = get_tracer(__name__)
 
 
 class MarketDataCache:
+    """Async cache layer for Massive.com API with configurable TTLs.
+
+    Provides read, write, broadcast, delete primitives plus specialized methods
+    for retrieving ticker snapshots, average volume (30-day), and free float.
+    Cache-aside pattern: check Redis first, fetch from Massive API on miss, then
+    cache with appropriate TTL. Negative caching (short TTL) for missing/error
+    responses prevents API hammering.
+
+    Uses aiohttp for experimental Massive API endpoints (/vX/float) not yet
+    available in the official SDK.
+    """
     def __init__(self, rest_client: RESTClient, redis_client: aioredis.Redis, massive_api_key: str):
         self.logger = logging.getLogger(__name__)
         self.rest_client = rest_client
@@ -43,11 +61,7 @@ class MarketDataCache:
 
     @tracer.start_as_current_span("mdc.delete")
     async def delete(self, cache_key: str):
-        """
-            Delete cache entry.
-
-            :arg cache_key: Cache key to delete
-        """
+        """Remove key from Redis cache."""
         try:
             await self.redis_client.delete(cache_key)
             self.logger.debug(f"Deleted cache entry: {cache_key}")
@@ -56,7 +70,7 @@ class MarketDataCache:
 
     @tracer.start_as_current_span("mdc.read")
     async def read(self, cache_key: str) -> Optional[dict]:
-        """Fetch current value from Redis cache (for snapshot requests)."""
+        """Retrieve value from Redis, deserializing JSON."""
         value = await self.redis_client.get(cache_key)
         if value:
             return json.loads(value)
@@ -64,6 +78,15 @@ class MarketDataCache:
 
     @tracer.start_as_current_span("mdc.write")
     async def write(self, data: Any, cache_key: str, cache_ttl: int = 0):
+        """Write JSON-serialized data to Redis with optional TTL.
+
+        Args:
+            data: Python object serializable to JSON.
+            cache_key: Redis key.
+            cache_ttl: Expiration in seconds; 0 = no expiration.
+
+        Side effects: Writes to Redis.
+        """
         if cache_ttl > 0:
             await self.redis_client.setex(cache_key, cache_ttl, json.dumps(data))
         else:
@@ -72,22 +95,33 @@ class MarketDataCache:
 
     @tracer.start_as_current_span("mdc.broadcast")
     async def broadcast(self, data: Any, publish_key: str = None):
+        """Publish JSON-serialized data to Redis pub/sub channel.
+
+        Side effects: Publishes to Redis channel.
+        """
         await self.redis_client.publish(publish_key, json.dumps(data))
         self.logger.debug(f"Published data for {publish_key}")
 
     @tracer.start_as_current_span("mdc.delete_ticker_snapshot")
     async def delete_ticker_snapshot(self, ticker: str):
-        """
-        Delete ticker snapshot from cache.
+        """Invalidate cached snapshot for a ticker.
 
-        :param ticker: symbol of ticker to delete snapshot for
-        :return: None
+        Called when fresh snapshot data arrives via WebSocket, ensuring cache
+        coherence with real-time stream.
         """
         cache_key = f"{MarketDataCacheKeys.TICKER_SNAPSHOTS.value}:{ticker}"
         await self.delete(cache_key=cache_key)
 
     @tracer.start_as_current_span("mdc.get_ticker_snapshot")
     async def get_ticker_snapshot(self, ticker: str) -> TickerSnapshot:
+        """Fetch ticker snapshot from cache or Massive API.
+
+        Returns cached TickerSnapshot if available, otherwise fetches from
+        Massive.com REST API, caches, and returns. TTL set per TICKER_SNAPSHOTS
+        policy.
+
+        Side effects: Calls Massive API on cache miss; writes to Redis.
+        """
         self.logger.debug(f"Getting snapshot for {ticker}")
         cache_key = f"{MarketDataCacheKeys.TICKER_SNAPSHOTS.value}:{ticker}"
         result = await self.read(cache_key=cache_key)
@@ -110,6 +144,16 @@ class MarketDataCache:
 
     @tracer.start_as_current_span("mdc.get_avg_volume")
     async def get_avg_volume(self, ticker: str):
+        """Retrieve 30-day average volume from cache or Massive API.
+
+        Checks cache, falls back to Massive.com financial ratios or aggregates
+        endpoint. Computes average volume from last 30 trading days if ratio
+        data unavailable. Applies negative caching (short TTL) on failures.
+
+        Returns 0 if no data available.
+
+        Side effects: Calls Massive API on cache miss; writes to Redis.
+        """
         self.logger.debug(f"Getting average volume for {ticker}")
         cache_key = f"{MarketDataCacheKeys.TICKER_AVG_VOLUME.value}:{ticker}"
         cache_ttl = MarketDataCacheTTL.TICKER_AVG_VOLUME.value
@@ -175,6 +219,16 @@ class MarketDataCache:
 
     @tracer.start_as_current_span("mdc.get_free_float")
     async def get_free_float(self, ticker: str):
+        """Retrieve free float shares from cache or experimental Massive API.
+
+        Checks cache, falls back to direct HTTP call to Massive /vX/float endpoint
+        (not yet in official SDK). Applies negative caching on timeouts or HTTP
+        errors to avoid hammering the API during outages.
+
+        Returns 0 if unavailable or on error.
+
+        Side effects: HTTP GET to Massive API on cache miss; writes to Redis.
+        """
         self.logger.debug(f"Getting free float for {ticker}")
         cache_key = f"{MarketDataCacheKeys.TICKER_FREE_FLOAT.value}:{ticker}"
         cache_ttl = MarketDataCacheTTL.TICKER_FREE_FLOAT.value
@@ -234,13 +288,16 @@ class MarketDataCache:
 
     @tracer.start_as_current_span("mdc.get_http_session")
     async def get_http_session(self) -> aiohttp.ClientSession:
-        """Get or create aiohttp session for async HTTP requests."""
+        """Lazily instantiate aiohttp session for experimental API calls."""
         if self.http_session is None or self.http_session.closed:
             self.http_session = aiohttp.ClientSession()
         return self.http_session
 
     @tracer.start_as_current_span("mdc.close")
     async def close(self):
-        """Close aiohttp session."""
+        """Cleanup aiohttp session.
+
+        Called during shutdown; does not close Redis client (caller owns that).
+        """
         if self.http_session and not self.http_session.closed:
             await self.http_session.close()

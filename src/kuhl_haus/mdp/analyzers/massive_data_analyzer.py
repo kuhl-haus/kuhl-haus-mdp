@@ -1,3 +1,9 @@
+"""Stateless event router for raw Massive.com WebSocket messages.
+
+Dispatches incoming events (LULD, EquityAgg, Trade, Quote) to type-specific
+handlers that return cache/publish results. No state maintained—purely a
+pass-through with observability instrumentation.
+"""
 import logging
 from time import time
 from typing import List, Optional
@@ -13,6 +19,12 @@ tracer = get_tracer(__name__)
 
 
 class MassiveDataAnalyzer(Analyzer):
+    """Stateless event router for Massive.com WebSocket messages.
+
+    Maps event_type to handler functions that return cache/publish results.
+    No external I/O or state—purely routing logic with metrics. Designed
+    for simplicity; heavier analysis lives in specialized analyzers.
+    """
 
     def __init__(self, options: AnalyzerOptions):
         super().__init__(options)
@@ -36,14 +48,14 @@ class MassiveDataAnalyzer(Analyzer):
 
     @tracer.start_as_current_span("mda.analyze_data")
     async def analyze_data(self, data: dict) -> Optional[List[MarketDataAnalyzerResult]]:
-        """
-        Process raw market data message
+        """Process raw market data message.
+
+        Validates presence of event_type and symbol, then dispatches to
+        handler. Unknown or malformed events are routed to unknown handler
+        for debugging visibility.
 
         Args:
-            data: serialized message from Massive/Polygon.io
-
-        Returns:
-            Processed result dict or None if message should be discarded
+            data: Deserialized message from Massive/Polygon.io WebSocket.
         """
         if "event_type" not in data:
             self.logger.info("Message missing 'event_type'")
@@ -64,6 +76,7 @@ class MassiveDataAnalyzer(Analyzer):
 
     @tracer.start_as_current_span("mda.handle_luld_event")
     def handle_luld_event(self, data: dict, symbol: str) -> Optional[List[MarketDataAnalyzerResult]]:
+        """Handle Limit Up/Limit Down events (halts)."""
         self.luld_counter.add(1)
         return [MarketDataAnalyzerResult(
             data=data,
@@ -74,6 +87,7 @@ class MassiveDataAnalyzer(Analyzer):
 
     @tracer.start_as_current_span("mda.handle_equity_agg_event")
     def handle_equity_agg_event(self, data: dict, symbol: str) -> Optional[List[MarketDataAnalyzerResult]]:
+        """Handle EquityAgg and EquityAggMin events (aggregated bars)."""
         self.agg_counter.add(1)
         return [MarketDataAnalyzerResult(
             data=data,
@@ -84,6 +98,7 @@ class MassiveDataAnalyzer(Analyzer):
 
     @tracer.start_as_current_span("mda.handle_equity_trade_event")
     def handle_equity_trade_event(self, data: dict, symbol: str) -> Optional[List[MarketDataAnalyzerResult]]:
+        """Handle EquityTrade events (individual trades)."""
         self.trade_counter.add(1)
         return [MarketDataAnalyzerResult(
             data=data,
@@ -94,6 +109,7 @@ class MassiveDataAnalyzer(Analyzer):
 
     @tracer.start_as_current_span("mda.handle_equity_quote_event")
     def handle_equity_quote_event(self, data: dict, symbol: str) -> Optional[List[MarketDataAnalyzerResult]]:
+        """Handle EquityQuote events (bid/ask updates)."""
         self.quote_counter.add(1)
         return [MarketDataAnalyzerResult(
             data=data,
@@ -104,6 +120,7 @@ class MassiveDataAnalyzer(Analyzer):
 
     @tracer.start_as_current_span("mda.handle_unknown_event")
     def handle_unknown_event(self, data: dict) -> Optional[List[MarketDataAnalyzerResult]]:
+        """Handle unknown or malformed events for debugging visibility."""
         self.unknown_counter.add(1)
         timestamp = f"{time()}".replace('.','')
         cache_key = f"{MarketDataCacheKeys.UNKNOWN.value}:{timestamp}"

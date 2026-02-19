@@ -1,3 +1,9 @@
+"""Serialize and deserialize Massive WebSocket messages to/from JSON.
+
+Handles conversion between Massive SDK model objects (EquityTrade, EquityAgg,
+EquityQuote, LimitUpLimitDown) and JSON strings for Redis storage and network
+transmission. Called at high frequency (1,000+ messages/sec at peak).
+"""
 import json
 from argparse import ArgumentTypeError
 from typing import Union
@@ -13,8 +19,10 @@ from massive.websocket.models import (
 
 
 class WebSocketMessageSerde:
+    """Convert between Massive WebSocket message objects and JSON representations."""
     @staticmethod
     def serialize(message: WebSocketMessage) -> str:
+        """Convert any Massive WebSocket message to JSON string for storage/transmission."""
         if isinstance(message, EquityTrade):
             return WebSocketMessageSerde.serialize_equity_trade(message)
         elif isinstance(message, EquityAgg):
@@ -28,6 +36,7 @@ class WebSocketMessageSerde:
 
     @staticmethod
     def to_dict(message: WebSocketMessage) -> dict:
+        """Convert any Massive WebSocket message to dictionary for manipulation."""
         if isinstance(message, EquityTrade):
             return WebSocketMessageSerde.decode_equity_trade(message)
         elif isinstance(message, EquityAgg):
@@ -41,6 +50,11 @@ class WebSocketMessageSerde:
 
     @staticmethod
     def deserialize(serialized_message: str) -> Union[LimitUpLimitDown, EquityAgg, EquityTrade, EquityQuote]:
+        """Reconstruct Massive WebSocket message object from JSON string.
+
+        Raises:
+            ArgumentTypeError: When event_type is not recognized.
+        """
         message: dict = json.loads(serialized_message)
         event_type = message.get("event_type")
         if event_type == EventType.LimitUpLimitDown.value:

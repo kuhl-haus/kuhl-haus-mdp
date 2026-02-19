@@ -1,3 +1,10 @@
+"""WebSocket client wrapper for Massive.com market data streams.
+
+Manages a persistent WebSocket connection to Massive.com, handles reconnection
+logic with market status awareness, and delegates incoming messages to a user-
+provided handler. Designed to run as a long-lived background task that survives
+temporary connection failures and market closures.
+"""
 import asyncio
 import logging
 from typing import Awaitable, Callable, Optional, List, Union
@@ -10,6 +17,17 @@ from kuhl_haus.mdp.enum.market_status_value import MarketStatusValue
 
 
 class MassiveDataListener:
+    """Maintain Massive.com WebSocket connection with auto-reconnect logic.
+
+    Wraps the official Massive SDK WebSocketClient, providing lifecycle management
+    (start/stop/restart), connection health tracking, and market-aware reconnection.
+    When the WebSocket disconnects during market hours, automatically attempts to
+    reconnect. During market closures, polls market status every 60s and reconnects
+    when the market reopens.
+
+    Threading: Spawns async task for ws_connection.connect(); caller is responsible
+    for awaiting or managing the task lifecycle.
+    """
     connection_status: dict
     ws_connection: Union[WebSocketClient, None]
     ws_coroutine: Union[asyncio.Task, None]
@@ -59,7 +77,14 @@ class MassiveDataListener:
         }
 
     async def start(self):
-        """Start WebSocket client"""
+        """Instantiate WebSocketClient and spawn connection task.
+
+        Creates WebSocketClient with configured feed/market/subscriptions, schedules
+        async_task as a background task. Does not block; caller must await the task
+        or manage it separately.
+
+        Side effects: Spawns asyncio.Task; updates connection_status dict.
+        """
         try:
             self.logger.info("Instantiating WebSocket client...")
             self.ws_connection = WebSocketClient(
@@ -80,7 +105,14 @@ class MassiveDataListener:
             await self.stop()
 
     async def stop(self):
-        """Stop WebSocket client"""
+        """Shutdown WebSocket connection gracefully.
+
+        Cancels coroutine task, unsubscribes from all feeds, closes WebSocket, and
+        resets connection status. Waits 1s between steps to allow in-flight messages
+        to flush.
+
+        Side effects: Closes network socket; updates connection_status dict.
+        """
         try:
             self.logger.info("Shutting down WebSocket client...")
             self.ws_coroutine.cancel()
@@ -98,7 +130,7 @@ class MassiveDataListener:
         self.ws_coroutine = None
 
     async def restart(self):
-        """Restart WebSocket client"""
+        """Cycle connection: stop, wait 1s, start."""
         try:
             self.logger.info("Stopping WebSocket client...")
             await self.stop()
@@ -111,7 +143,16 @@ class MassiveDataListener:
             self.logger.error(f"Error restarting WebSocket client: {e}")
 
     async def async_task(self):
-        """Main task that runs the WebSocket client"""
+        """Connect to Massive WebSocket and handle disconnections.
+
+        Calls ws_connection.connect(message_handler) and awaits it. On disconnect,
+        checks market status via REST API: if market is open, reconnects immediately;
+        if closed, polls every 60s until market reopens. Increments reconnect counter
+        for observability.
+
+        Side effects: Network I/O (WebSocket + REST API); calls message_handler for
+        each incoming message.
+        """
         try:
             self.logger.info("Connecting to market data provider...")
             self.connection_status["connected"] = True
