@@ -73,7 +73,8 @@ jobs:
         run: |
           git add CHANGELOG.rst
           git commit -m "Update CHANGELOG.rst for ${{ steps.version.outputs.tag }}"
-          # Move the tag to include the changelog commit
-          git tag -f "${{ steps.version.outputs.tag }}"
           git push origin HEAD
-          git push origin "${{ steps.version.outputs.tag }}" --force
+          
+          # TODO: Figure out how to do this so that it triggers a release
+          # git tag -f "${{ steps.version.outputs.tag }}"
+          # git push origin "${{ steps.version.outputs.tag }}" --force
