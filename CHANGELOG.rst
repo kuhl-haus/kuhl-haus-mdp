@@ -1,9 +1,18 @@
 =========
 Changelog
 =========
+Version 0.2.22 (2026-02-20)
+===========================
+
+- `59fcb53 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/59fcb53>`_ Disable force-tagging in release workflow
+
+  Comment out the git tag -f and forced tag push in .github/workflows/release.yml so the workflow no longer moves or force-pushes the release tag. The job still commits and pushes the updated CHANGELOG, and a TODO was added to investigate a safe way to trigger a release without rewriting tags from CI.
+
+
 Version 0.2.21 (2026-02-20)
 ===========================
 
+- `4c39049 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/4c39049>`_ Update CHANGELOG.rst for v0.2.21
 - `e79c3be <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/e79c3be>`_ Move Architecture content to Code Organization
 
   Rename and relocate the 'Architecture' section to 'Code Organization' in README.md and README.rst. The platform package list was reformatted and moved under the new heading, preserving links and descriptions for the four main packages (mdp, servers, app, deployment).
