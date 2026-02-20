@@ -186,7 +186,8 @@ def log_exception(
         exc_info: Include exception traceback (default: True).
         **extra_fields: Additional fields to include in log.
 
-    Example:
+    Example::
+
         try:
             risky_operation()
         except Exception as e:

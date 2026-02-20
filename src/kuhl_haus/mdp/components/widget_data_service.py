@@ -102,7 +102,7 @@ class WidgetDataService:
 
         Creates Redis subscription if this is the first client for the channel.
         Starts background pub/sub task if this is the first subscription overall.
-        Supports wildcard patterns (e.g., "leaderboard:*").
+        Supports wildcard patterns (e.g., ``leaderboard:*``).
 
         Args:
             feed: Redis channel name or pattern.
