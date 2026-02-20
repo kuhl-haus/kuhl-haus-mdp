@@ -1,28 +1,3 @@
-.. todo:: THIS IS SUPPOSED TO BE AN EXAMPLE. MODIFY IT ACCORDING TO YOUR NEEDS!
-
-   The document assumes you are using a source repository service that promotes a
-   contribution model similar to `GitHub's fork and pull request workflow`_.
-   While this is true for the majority of services (like GitHub, GitLab,
-   BitBucket), it might not be the case for private repositories (e.g., when
-   using Gerrit).
-
-   Also notice that the code examples might refer to GitHub URLs or the text
-   might use GitHub specific terminology (e.g., *Pull Request* instead of *Merge
-   Request*).
-
-   Please make sure to check the document having these assumptions in mind
-   and update things accordingly.
-
-.. todo:: Provide the correct links/replacements at the bottom of the document.
-
-.. todo:: You might want to have a look on `PyScaffold's contributor's guide`_,
-
-   especially if your project is open source. The text should be very similar to
-   this template, but there are a few extra contents that you might decide to
-   also include, like mentioning labels of your issue tracker or automated
-   releases.
-
-
 ============
 Contributing
 ============
@@ -68,49 +43,35 @@ Documentation Improvements
 You can help improve ``kuhl-haus-mdp`` docs by making them more readable and coherent, or
 by adding missing information and correcting mistakes.
 
-``kuhl-haus-mdp`` documentation uses Sphinx_ as its main documentation compiler.
-This means that the docs are kept in the same repository as the project code, and
-that any documentation update is done in the same way was a code contribution.
+``kuhl-haus-mdp`` documentation uses Sphinx_ as its main documentation compiler
+with reStructuredText_ markup. The docs live in the ``docs`` directory alongside
+the project code, and any documentation update follows the same workflow as a
+code contribution.
 
-.. todo:: Don't forget to mention which markup language you are using.
+To build the documentation locally, use one of the provided scripts from the
+project root (there are also PyCharm run configurations for this).
 
-    e.g.,  reStructuredText_ or CommonMark_ with MyST_ extensions.
+On **Linux / macOS** (bash)::
 
-.. todo:: If your project is hosted on GitHub, you can also mention the following tip:
+    ./build-docs.sh
+    ./build-docs.sh --clean
 
-   .. tip::
-      Please notice that the `GitHub web interface`_ provides a quick way of
-      propose changes in ``kuhl-haus-mdp``'s files. While this mechanism can
-      be tricky for normal code contributions, it works perfectly fine for
-      contributing to the docs, and can be quite handy.
+On **Windows** (PowerShell)::
 
-      If you are interested in trying this method out, please navigate to
-      the ``docs`` folder in the source repository_, find which file you
-      would like to propose changes and click in the little pencil icon at the
-      top, to open `GitHub's code editor`_. Once you finish editing the file,
-      please write a message in the form at the bottom of the page describing
-      which changes have you made and what are the motivations behind them and
-      submit your proposal.
+    .\Build-Docs.ps1
+    .\Build-Docs.ps1 -Clean
 
-When working on documentation changes in your local machine, you can
-compile them using |tox|_::
-
-    tox -e docs
-
-and use Python's built-in web server for a preview in your web browser
-(``http://localhost:8000``)::
-
-    python3 -m http.server --directory 'docs/_build/html'
+Both scripts generate HTML output in ``docs/_build/html`` and open
+``index.html`` in the default browser. The ``--clean`` / ``-Clean`` flag wipes
+previous build output first.
 
 
 Code Contributions
 ==================
 
-.. todo:: Please include a reference or explanation about the internals of the project.
-
-   An architecture description, design principles or at least a summary of the
-   main concepts will make it easy for potential contributors to get started
-   quickly.
+Before diving in, please review the README_ for an overview of the system
+architecture, component descriptions, and data flow. The `API documentation`_
+(generated from docstrings) is also a helpful reference.
 
 Submit an issue
 ---------------
@@ -122,44 +83,26 @@ This often provides additional considerations and avoids unnecessary work.
 Create an environment
 ---------------------
 
-Before you start coding, we recommend creating an isolated `virtual
-environment`_ to avoid any problems with your installed Python packages.
-This can easily be done via either |virtualenv|_::
+This project uses PDM_ as its package and dependency manager and requires
+**Python 3.14** or later. After installing PDM, create a virtual environment
+and install all dependencies (including test/dev extras)::
 
-    virtualenv <PATH TO VENV>
-    source <PATH TO VENV>/bin/activate
-
-or Miniconda_::
-
-    conda create -n kuhl-haus-mdp python=3 six virtualenv pytest pytest-cov
-    conda activate kuhl-haus-mdp
+    pdm install -G testing
 
 Clone the repository
 --------------------
 
-#. Create an user account on |the repository service| if you do not already have one.
+#. Create a user account on GitHub_ if you do not already have one.
 #. Fork the project repository_: click on the *Fork* button near the top of the
-   page. This creates a copy of the code under your account on |the repository service|.
+   page. This creates a copy of the code under your account on GitHub.
 #. Clone this copy to your local disk::
 
     git clone git@github.com:YourLogin/kuhl-haus-mdp.git
     cd kuhl-haus-mdp
 
-#. You should run::
+#. Install the project in development mode with test dependencies::
 
-    pip install -U pip setuptools -e .
-
-   to be able to import the package under development in the Python REPL.
-
-   .. todo:: if you are not using pre-commit, please remove the following item:
-
-#. Install |pre-commit|_::
-
-    pip install pre-commit
-    pre-commit install
-
-   ``kuhl-haus-mdp`` comes with a lot of hooks configured to automatically help the
-   developer to check the code being written.
+    pdm install -G testing
 
 Implement your changes
 ----------------------
@@ -175,19 +118,12 @@ Implement your changes
 
 #. Add yourself to the list of contributors in ``AUTHORS.rst``.
 
-#. When you’re done editing, do::
+#. When you're done editing, do::
 
     git add <MODIFIED FILES>
     git commit
 
    to record your changes in git_.
-
-   .. todo:: if you are not using pre-commit, please remove the following item:
-
-   Please make sure to see the validation messages from |pre-commit|_ and fix
-   any eventual issues.
-   This should automatically use flake8_/black_ to check/fix the code style
-   in a way that is compatible with the project.
 
    .. important:: Don't forget to add unit tests and documentation in case your
       contribution adds an additional feature and is not just a bugfix.
@@ -199,31 +135,31 @@ Implement your changes
 
       to look for recurring communication patterns.
 
-#. Please check that your changes don't break any unit tests with::
+#. Run the unit tests with coverage to make sure nothing is broken::
 
-    tox
+    pdm run pytest --cov=kuhl_haus.mdp --cov-report=html tests -v
 
-   (after having installed |tox|_ with ``pip install tox`` or ``pipx``).
+   This produces an HTML coverage report in ``htmlcov/``. There is also a
+   PyCharm run configuration called **pdm pytest w/coverage** that does the
+   same thing.
 
-   You can also use |tox|_ to run several other pre-configured tasks in the
-   repository. Try ``tox -av`` to see a list of the available checks.
+#. Run flake8_ to check code style::
+
+    flake8 src/kuhl_haus/mdp --count --select=E9,F63,F7,F82 --show-source --statistics
+    flake8 src/kuhl_haus/mdp --count --exit-zero --ignore=C901,W503 --max-complexity=10 --max-line-length=127 --statistics
+
+   There is also a PyCharm run configuration called **flake8** that runs both
+   passes.
 
 Submit your contribution
 ------------------------
 
-#. If everything works fine, push your local branch to |the repository service| with::
+#. If everything works fine, push your local branch to GitHub with::
 
     git push -u origin my-feature
 
-#. Go to the web page of your fork and click |contribute button|
+#. Go to the web page of your fork and click "Create pull request"
    to send your changes for review.
-
-   .. todo:: if you are using GitHub, you can uncomment the following paragraph
-
-      Find more detailed information in `creating a PR`_. You might also want to open
-      the PR as a draft first and mark it as ready for review after the feedbacks
-      from the continuous integration (CI) system or any required fixes.
-
 
 Troubleshooting
 ---------------
@@ -239,36 +175,9 @@ package:
    ``.eggs``, as well as the ``*.egg-info`` folders in the ``src`` folder or
    potentially in the root of your project.
 
-#. Sometimes |tox|_ misses out when new dependencies are added, especially to
-   ``setup.cfg`` and ``docs/requirements.txt``. If you find any problems with
-   missing dependencies when running a command with |tox|_, try to recreate the
-   ``tox`` environment using the ``-r`` flag. For example, instead of::
-
-    tox -e docs
-
-   Try running::
-
-    tox -r -e docs
-
-#. Make sure to have a reliable |tox|_ installation that uses the correct
-   Python version (e.g., 3.7+). When in doubt you can run::
-
-    tox --version
-    # OR
-    which tox
-
-   If you have trouble and are seeing weird errors upon running |tox|_, you can
-   also try to create a dedicated `virtual environment`_ with a |tox|_ binary
-   freshly installed. For example::
-
-    virtualenv .venv
-    source .venv/bin/activate
-    .venv/bin/pip install tox
-    .venv/bin/tox -e all
-
 #. `Pytest can drop you`_ in an interactive session in the case an error occurs.
    In order to do that you need to pass a ``--pdb`` option (for example by
-   running ``tox -- -k <NAME OF THE FALLING TEST> --pdb``).
+   running ``pdm run pytest -k <NAME OF THE FAILING TEST> --pdb``).
    You can also setup breakpoints manually instead of using the ``--pdb`` option.
 
 
@@ -278,28 +187,16 @@ Maintainer tasks
 Releases
 --------
 
-.. todo:: This section assumes you are using PyPI to publicly release your package.
-
-   If instead you are using a different/private package index, please update
-   the instructions accordingly.
-
 If you are part of the group of maintainers and have correct user permissions
 on PyPI_, the following steps can be used to release a new version for
 ``kuhl-haus-mdp``:
 
 #. Make sure all unit tests are successful.
-#. Tag the current commit on the main branch with a release tag, e.g., ``v1.2.3``.
+#. Run the `release-workflow`_ to generate release notes.
+#. After reviewing the release notes, tag the commit on the mainline branch with a corresponding release tag, e.g., ``v1.2.3``.
 #. Push the new tag to the upstream repository_, e.g., ``git push upstream v1.2.3``
-#. Clean up the ``dist`` and ``build`` folders with ``tox -e clean``
-   (or ``rm -rf dist build``)
-   to avoid confusion with old builds and Sphinx docs.
-#. Run ``tox -e build`` and check that the files in ``dist`` have
-   the correct version (no ``.dirty`` or git_ hash) according to the git_ tag.
-   Also check the sizes of the distributions, if they are too big (e.g., >
-   500KB), unwanted clutter may have been accidentally included.
-#. Run ``tox -e publish -- --repository pypi`` and check that everything was
-   uploaded to PyPI_ correctly.
-
+#. The `publish-to-pypi`_ GitHub Actions workflow will build and upload the
+   package automatically.
 
 
 .. [#contrib1] Even though, these resources focus on open source projects and
@@ -308,46 +205,26 @@ on PyPI_, the following steps can be used to release a new version for
    of environments, including private companies and proprietary code bases.
 
 
-.. <-- start -->
-.. todo:: Please review and change the following definitions:
-
-.. |the repository service| replace:: GitHub
-.. |contribute button| replace:: "Create pull request"
-
 .. _repository: https://github.com/kuhl-haus/kuhl-haus-mdp
 .. _issue tracker: https://github.com/kuhl-haus/kuhl-haus-mdp/issues
-.. <-- end -->
+.. _publish-to-pypi: https://github.com/kuhl-haus/kuhl-haus-mdp/actions/workflows/publish-to-pypi.yml
+.. _release-workflow: https://github.com/kuhl-haus/kuhl-haus-mdp/blob/mainline/.github/workflows/release.yml
 
+.. _API documentation: https://kuhl-haus-mdp.readthedocs.io/en/latest/
+.. _README: https://github.com/kuhl-haus/kuhl-haus-mdp/blob/mainline/README.rst
 
-.. |virtualenv| replace:: ``virtualenv``
-.. |pre-commit| replace:: ``pre-commit``
-.. |tox| replace:: ``tox``
-
-
-.. _black: https://pypi.org/project/black/
-.. _CommonMark: https://commonmark.org/
 .. _contribution-guide.org: https://www.contribution-guide.org/
 .. _creating a PR: https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request
 .. _descriptive commit message: https://chris.beams.io/posts/git-commit
 .. _docstrings: https://www.sphinx-doc.org/en/master/usage/extensions/napoleon.html
-.. _first-contributions tutorial: https://github.com/firstcontributions/first-contributions
 .. _flake8: https://flake8.pycqa.org/en/stable/
 .. _git: https://git-scm.com
-.. _GitHub's fork and pull request workflow: https://guides.github.com/activities/forking/
+.. _GitHub: https://github.com
 .. _guide created by FreeCodeCamp: https://github.com/FreeCodeCamp/how-to-contribute-to-open-source
-.. _Miniconda: https://docs.conda.io/en/latest/miniconda.html
-.. _MyST: https://myst-parser.readthedocs.io/en/latest/syntax/syntax.html
 .. _other kinds of contributions: https://opensource.guide/how-to-contribute
-.. _pre-commit: https://pre-commit.com/
-.. _PyPI: https://pypi.org/
-.. _PyScaffold's contributor's guide: https://pyscaffold.org/en/stable/contributing.html
+.. _PDM: https://pdm-project.org/
 .. _Pytest can drop you: https://docs.pytest.org/en/stable/how-to/failures.html#using-python-library-pdb-with-pytest
 .. _Python Software Foundation's Code of Conduct: https://www.python.org/psf/conduct/
+.. _PyPI: https://pypi.org/
 .. _reStructuredText: https://www.sphinx-doc.org/en/master/usage/restructuredtext/
 .. _Sphinx: https://www.sphinx-doc.org/en/master/
-.. _tox: https://tox.wiki/en/stable/
-.. _virtual environment: https://realpython.com/python-virtual-environments-a-primer/
-.. _virtualenv: https://virtualenv.pypa.io/en/stable/
-
-.. _GitHub web interface: https://docs.github.com/en/repositories/working-with-files/managing-files/editing-files
-.. _GitHub's code editor: https://docs.github.com/en/repositories/working-with-files/managing-files/editing-files

@@ -50,7 +50,7 @@ Key Features
 - Redis-based caching layer for performance
 
 Code Organization
-------------
+-----------------
 
 The platform consists of four main packages:
 

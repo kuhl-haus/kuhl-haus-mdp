@@ -1,9 +1,6 @@
 kuhl\_haus.mdp.components package
 =================================
 
-Module contents
----------------
-
 .. automodule:: kuhl_haus.mdp.components
    :members:
    :show-inheritance:
@@ -29,7 +26,7 @@ kuhl\_haus.mdp.components.market\_data\_scanner module
    :undoc-members:
 
 kuhl\_haus.mdp.components.massive\_data\_listener module
----------------------------------------------------
+--------------------------------------------------------
 
 .. automodule:: kuhl_haus.mdp.components.massive_data_listener
    :members:
@@ -37,7 +34,7 @@ kuhl\_haus.mdp.components.massive\_data\_listener module
    :undoc-members:
 
 kuhl\_haus.mdp.components.massive\_data\_processor module
-----------------------------------------------------
+---------------------------------------------------------
 
 .. automodule:: kuhl_haus.mdp.components.massive_data_processor
    :members:
@@ -45,7 +42,7 @@ kuhl\_haus.mdp.components.massive\_data\_processor module
    :undoc-members:
 
 kuhl\_haus.mdp.components.massive\_data\_queues module
--------------------------------------------------
+------------------------------------------------------
 
 .. automodule:: kuhl_haus.mdp.components.massive_data_queues
    :members:

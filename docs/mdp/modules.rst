@@ -2,6 +2,6 @@ kuhl_haus
 =========
 
 .. toctree::
-   :maxdepth: 5
+   :maxdepth: 4
 
    kuhl_haus

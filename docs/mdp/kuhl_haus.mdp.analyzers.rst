@@ -1,9 +1,6 @@
 kuhl\_haus.mdp.analyzers package
 ================================
 
-Module contents
----------------
-
 .. automodule:: kuhl_haus.mdp.analyzers
    :members:
    :show-inheritance:
@@ -20,6 +17,14 @@ kuhl\_haus.mdp.analyzers.analyzer module
    :show-inheritance:
    :undoc-members:
 
+kuhl\_haus.mdp.analyzers.leaderboard\_analyzer module
+-----------------------------------------------------
+
+.. automodule:: kuhl_haus.mdp.analyzers.leaderboard_analyzer
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
 kuhl\_haus.mdp.analyzers.massive\_data\_analyzer module
 -------------------------------------------------------
 
@@ -32,6 +37,14 @@ kuhl\_haus.mdp.analyzers.top\_stocks module
 -------------------------------------------
 
 .. automodule:: kuhl_haus.mdp.analyzers.top_stocks
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+kuhl\_haus.mdp.analyzers.top\_trades\_analyzer module
+-----------------------------------------------------
+
+.. automodule:: kuhl_haus.mdp.analyzers.top_trades_analyzer
    :members:
    :show-inheritance:
    :undoc-members:

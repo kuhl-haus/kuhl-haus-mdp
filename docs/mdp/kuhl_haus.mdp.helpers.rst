@@ -1,9 +1,6 @@
 kuhl\_haus.mdp.helpers package
 ==============================
 
-Module contents
----------------
-
 .. automodule:: kuhl_haus.mdp.helpers
    :members:
    :show-inheritance:
@@ -11,6 +8,14 @@ Module contents
 
 Submodules
 ----------
+
+kuhl\_haus.mdp.helpers.observability module
+-------------------------------------------
+
+.. automodule:: kuhl_haus.mdp.helpers.observability
+   :members:
+   :show-inheritance:
+   :undoc-members:
 
 kuhl\_haus.mdp.helpers.process\_manager module
 ----------------------------------------------
@@ -28,6 +33,14 @@ kuhl\_haus.mdp.helpers.queue\_name\_resolver module
    :show-inheritance:
    :undoc-members:
 
+kuhl\_haus.mdp.helpers.structured\_logging module
+-------------------------------------------------
+
+.. automodule:: kuhl_haus.mdp.helpers.structured_logging
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
 kuhl\_haus.mdp.helpers.utils module
 -----------------------------------
 
@@ -36,9 +49,8 @@ kuhl\_haus.mdp.helpers.utils module
    :show-inheritance:
    :undoc-members:
 
-
 kuhl\_haus.mdp.helpers.web\_socket\_message\_serde module
--------------------------------------------------------
+---------------------------------------------------------
 
 .. automodule:: kuhl_haus.mdp.helpers.web_socket_message_serde
    :members:
