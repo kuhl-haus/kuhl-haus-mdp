@@ -1,6 +1,14 @@
 kuhl\_haus.mdp.components package
 =================================
 
+Module contents
+---------------
+
+.. automodule:: kuhl_haus.mdp.components
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
 Submodules
 ----------
 
@@ -48,14 +56,6 @@ kuhl\_haus.mdp.components.widget\_data\_service module
 ------------------------------------------------------
 
 .. automodule:: kuhl_haus.mdp.components.widget_data_service
-   :members:
-   :show-inheritance:
-   :undoc-members:
-
-Module contents
----------------
-
-.. automodule:: kuhl_haus.mdp.components
    :members:
    :show-inheritance:
    :undoc-members:

@@ -1,6 +1,15 @@
 kuhl\_haus.mdp.integ package
 ============================
 
+Module contents
+---------------
+
+.. automodule:: kuhl_haus.mdp.data
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+
 Submodules
 ----------
 
@@ -21,10 +30,3 @@ kuhl\_haus.mdp.data.top\_stocks\_cache\_item module
    :show-inheritance:
    :undoc-members:
 
-Module contents
----------------
-
-.. automodule:: kuhl_haus.mdp.data
-   :members:
-   :show-inheritance:
-   :undoc-members:

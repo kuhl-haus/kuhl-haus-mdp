@@ -1,6 +1,14 @@
 kuhl\_haus.mdp.helpers package
 ==============================
 
+Module contents
+---------------
+
+.. automodule:: kuhl_haus.mdp.helpers
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
 Submodules
 ----------
 
@@ -33,14 +41,6 @@ kuhl\_haus.mdp.helpers.web\_socket\_message\_serde module
 -------------------------------------------------------
 
 .. automodule:: kuhl_haus.mdp.helpers.web_socket_message_serde
-   :members:
-   :show-inheritance:
-   :undoc-members:
-
-Module contents
----------------
-
-.. automodule:: kuhl_haus.mdp.helpers
    :members:
    :show-inheritance:
    :undoc-members:

@@ -1,6 +1,15 @@
 kuhl\_haus.mdp.enum package
 =============================
 
+Module contents
+---------------
+
+.. automodule:: kuhl_haus.mdp.enum
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+
 Submodules
 ----------
 
@@ -41,15 +50,6 @@ kuhl\_haus.mdp.enum.massive\_data\_queue module
 -------------------------------------------------
 
 .. automodule:: kuhl_haus.mdp.enum.massive_data_queue
-   :members:
-   :show-inheritance:
-   :undoc-members:
-
-
-Module contents
----------------
-
-.. automodule:: kuhl_haus.mdp.enum
    :members:
    :show-inheritance:
    :undoc-members:

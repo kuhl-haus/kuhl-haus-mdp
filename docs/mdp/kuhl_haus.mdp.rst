@@ -1,6 +1,14 @@
 kuhl\_haus.mdp package
 ======================
 
+Module contents
+---------------
+
+.. automodule:: kuhl_haus.mdp
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
 Subpackages
 -----------
 
@@ -12,11 +20,3 @@ Subpackages
    kuhl_haus.mdp.data
    kuhl_haus.mdp.enum
    kuhl_haus.mdp.helpers
-
-Module contents
----------------
-
-.. automodule:: kuhl_haus.mdp
-   :members:
-   :show-inheritance:
-   :undoc-members:
