@@ -39,16 +39,6 @@ Overview
 
 The Kuhl Haus Market Data Platform (MDP) is a distributed system for collecting, processing, and serving real-time market data. Built on Kubernetes and leveraging microservices architecture, MDP provides scalable infrastructure for financial data analysis and visualization.
 
-Architecture
-------------
-
-The platform consists of four main packages:
-
-- **Market data processing library** (`kuhl-haus-mdp <https://github.com/kuhl-haus/kuhl-haus-mdp>`_) - Core library with shared data processing logic
-- **Backend Services** (`kuhl-haus-mdp-servers <https://github.com/kuhl-haus/kuhl-haus-mdp-servers>`_) - Market data listener, processor, and widget service
-- **Frontend Application** (`kuhl-haus-mdp-app <https://github.com/kuhl-haus/kuhl-haus-mdp-app>`_) - Web-based user interface and API
-- **Deployment Automation** (`kuhl-haus-mdp-deployment <https://github.com/kuhl-haus/kuhl-haus-mdp-deployment>`_) - Docker Compose, Ansible playbooks and Kubernetes manifests for environment provisioning
-
 Key Features
 ------------
 
@@ -58,6 +48,16 @@ Key Features
 - Multi-environment support (development, staging, production)
 - OAuth integration for secure authentication
 - Redis-based caching layer for performance
+
+Code Organization
+------------
+
+The platform consists of four main packages:
+
+- **Market data processing library** (`kuhl-haus-mdp <https://github.com/kuhl-haus/kuhl-haus-mdp>`_) - Core library with shared data processing logic
+- **Backend Services** (`kuhl-haus-mdp-servers <https://github.com/kuhl-haus/kuhl-haus-mdp-servers>`_) - Market data listener, processor, and widget service
+- **Frontend Application** (`kuhl-haus-mdp-app <https://github.com/kuhl-haus/kuhl-haus-mdp-app>`_) - Web-based user interface and API
+- **Deployment Automation** (`kuhl-haus-mdp-deployment <https://github.com/kuhl-haus/kuhl-haus-mdp-deployment>`_) - Docker Compose, Ansible playbooks and Kubernetes manifests for environment provisioning
 
 Additional Resources
 --------------------
