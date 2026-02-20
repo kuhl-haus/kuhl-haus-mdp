@@ -1,6 +1,54 @@
-﻿=========
+=========
 Changelog
 =========
+Version 0.2.21 (2026-02-20)
+===========================
+
+- `e79c3be <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/e79c3be>`_ Move Architecture content to Code Organization
+
+  Rename and relocate the 'Architecture' section to 'Code Organization' in README.md and README.rst. The platform package list was reformatted and moved under the new heading, preserving links and descriptions for the four main packages (mdp, servers, app, deployment).
+
+- `5253b2e <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/5253b2e>`_ Rename Overview to Architecture in docs
+
+  Update docs/index.rst to change the toctree entry label from "Overview" to "Architecture" (points to readme). This adjusts the sidebar/contents heading to better reflect the documentation content.
+
+- `869903c <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/869903c>`_ Move context diagram to Components Summary
+
+  Relocate the Market Data Processing context diagram into the Components Summary section in both README.md and README.rst, and remove the duplicate instance later in the file. This places the diagram next to the high-level component list for clearer documentation and eliminates redundant images.
+
+- `2ce1b5c <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/2ce1b5c>`_ Add release workflow and changelog generator
+
+  Add a new GitHub Actions 'Release' workflow to compute the next semver tag (manual bump: patch/minor/major), create/force the tag, run a changelog generator, and commit/push the updated CHANGELOG.rst and tag. Add update-changelog.sh: a script that builds CHANGELOG.rst from git tags/commits with commit links to the repository. Also update CHANGELOG.rst content format and add Update-Changelog.ps1 to .gitignore.
+
+- `028b954 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/028b954>`_ Enhance docs with architecture & deployment
+
+  Add detailed Data Plane, Control Plane, Observability, and Deployment Model sections to README.md and README.rst, describing MDL, MDQ, MDP, MDC, WDS, and SCP components, scaling and deployment notes, and OpenTelemetry logging/metrics. Insert architecture.svg reference and move the Context Diagram figure in the RST; remove the old ASCII art diagram. Also update docs/index.rst to remove the separate Architecture entry. Files changed: README.md, README.rst, docs/index.rst.
+
+- `fffa756 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/fffa756>`_ Try adding images to README.rst
+- `4ed2d81 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/4ed2d81>`_ Last-ditch effort to get the architecture diagram to render
+- `f88e3c0 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/f88e3c0>`_ Inline PlantUML code in architecture.rst for ReadTheDocs rendering
+
+  The sphinxcontrib-plantuml extension expects inline PlantUML code within the .. uml:: directive, not a file reference. This change embeds the complete PlantUML source from architecture.puml directly into the RST file so the diagram renders correctly on ReadTheDocs.
+
+- `30a4338 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/30a4338>`_ Add architecture docs and diagrams
+
+  Add component architecture documentation: new PlantUML source (docs/architecture.puml), rendered SVG (docs/architecture.svg), and Sphinx page (docs/architecture.rst). Update docs/conf.py, docs/index.rst, and docs/requirements.txt to include the new page and required tooling/extensions to render the diagram and integrate it into the site.
+
+- `6fa3b0a <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/6fa3b0a>`_ Linting and style cleanups across MDP
+
+  Add flake8 step to CI and apply styling/lint fixes across the MDP package. Reformat meter.create_counter calls to multi-line for readability in massive_data_analyzer, market_data_cache, and massive_data_processor; split a long debug log, simplify some f-strings and string literals, and adjust spacing in a sleep/log statement. Remove an unused typing import, add a noqa for the pythonjsonlogger import to satisfy linters, and fix missing/newline endings in package data files. These changes are aimed at improving readability and addressing flake8 issues.
+
+- `0c5fc52 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/0c5fc52>`_ Update CHANGELOG.rst
+- `44b640b <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/44b640b>`_ Expand README with project overview and features
+
+  Update README.md and README.rst: remove example badge comments and add a concise project Overview and Architecture sections, list the four main packages (library, backend, frontend, deployment), include Key Features (real-time ingestion, microservices, automated deployment, multi-environment, OAuth, Redis caching) and an Additional Resources/blog links. Improves documentation clarity and provides quick entry points for contributors and users.
+
+- `c924417 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/c924417>`_ Add repo link and rename Code Libraries section
+
+  Clarify where the SCP implementation lives by adding a link to the kuhl-haus/kuhl-haus-mdp-app repository and rename the "Code Libraries" heading to "Miscellaneous Code Libraries" in README.md and README.rst. Also apply minor formatting tweaks to the section intro to keep both markdown and rst files consistent.
+
+- `9625c40 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/9625c40>`_ Updated README files
+
 Version 0.2.20 (2026-02-19)
 ===========================
 
@@ -441,3 +489,4 @@ Version 0.0.1 (2025-12-24)
 - `77b1d0e <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/77b1d0e>`_ Hacky work-around for ModuleNotFound error in PDM build.
 - `1f8a6b2 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/1f8a6b2>`_ Install test dependencies in workflow
 - `f6303f6 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/f6303f6>`_ Initial commit
+
