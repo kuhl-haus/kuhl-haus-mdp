@@ -51,15 +51,19 @@ code contribution.
 To build the documentation locally, use one of the provided scripts from the
 project root (there are also PyCharm run configurations for this).
 
-On **Linux / macOS** (bash)::
+.. tab:: Linux / macOS
 
-    ./build-docs.sh
-    ./build-docs.sh --clean
+   .. code-block:: bash
 
-On **Windows** (PowerShell)::
+      ./build-docs.sh
+      ./build-docs.sh --clean
 
-    .\Build-Docs.ps1
-    .\Build-Docs.ps1 -Clean
+.. tab:: Windows
+
+   .. code-block:: powershell
+
+      .\Build-Docs.ps1
+      .\Build-Docs.ps1 -Clean
 
 Both scripts generate HTML output in ``docs/_build/html`` and open
 ``index.html`` in the default browser. The ``--clean`` / ``-Clean`` flag wipes
