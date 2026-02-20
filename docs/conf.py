@@ -72,7 +72,12 @@ extensions = [
     "sphinx.ext.ifconfig",
     "sphinx.ext.mathjax",
     "sphinx.ext.napoleon",
+    "sphinxcontrib.plantuml",
 ]
+
+# PlantUML configuration
+plantuml_output_format = "svg"
+plantuml_url = "https://www.plantuml.com/plantuml"
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
