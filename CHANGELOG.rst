@@ -1,9 +1,34 @@
 =========
 Changelog
 =========
+Version 0.2.23 (2026-02-20)
+===========================
+
+- `446f05f <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/446f05f>`_ Switch Sphinx docs theme to furo
+
+  Update Sphinx theme from 'alabaster' to 'furo' in docs/conf.py and clear theme-specific options (removed custom sidebar/page width settings). Also add 'furo' to docs/requirements.txt and remove the commented-out sphinx_rtd_theme entry. This aligns docs with the furo theme and removes unused alabaster options.
+
+- `3be0a8f <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/3be0a8f>`_ Add doc build scripts and update docs
+
+  Add cross-platform documentation build scripts (build-docs.sh and Build-Docs.ps1) that run sphinx-build, support a clean flag, and open the generated docs in the default browser. Revamp CONTRIBUTING.rst to document PDM-based workflow (Python 3.14), local build/test/style commands, CI release workflow links, and clearer contributor instructions. Update docs configuration and index (maxdepth change, sphinx-apidoc tweak) and add/adjust numerous package/module rst files (components, analyzers, data, enum, helpers, exceptions) to include new automodule entries and improve structure. Minor README formatting fix and adjust modules.rst depth.
+
+- `a282615 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/a282615>`_ Fix docstring formatting for Sphinx
+
+  Update docstrings to use reStructuredText/Sphinx markup: replace quoted inline code with code literal (``leaderboard:*``) in widget_data_service.py, and change `Example:` to `Example::` with a blank line in structured_logging.py so examples render as code blocks and documentation is consistent.
+
+- `12d1be3 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/12d1be3>`_ Increase toctree maxdepth to 5
+
+  Update docs/mdp/modules.rst to raise the Sphinx toctree :maxdepth: from 4 to 5 so deeper nested pages are included in the generated table of contents.
+
+- `1b952f5 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/1b952f5>`_ Add package docstrings and Sphinx automodules
+
+  Add descriptive module docstrings to kuhl_haus.mdp and subpackages (analyzers, components, exceptions) to provide package-level descriptions and context. Update Sphinx RST files for mdp, analyzers, components, data, enum, and helpers by moving  "Module contents" automodule section to the top of the page, improving generated documentation page flow.
+
+
 Version 0.2.22 (2026-02-20)
 ===========================
 
+- `717fc36 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/717fc36>`_ Update CHANGELOG.rst for v0.2.22
 - `59fcb53 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/59fcb53>`_ Disable force-tagging in release workflow
 
   Comment out the git tag -f and forced tag push in .github/workflows/release.yml so the workflow no longer moves or force-pushes the release tag. The job still commits and pushes the updated CHANGELOG, and a TODO was added to investigate a safe way to trigger a release without rewriting tags from CI.
