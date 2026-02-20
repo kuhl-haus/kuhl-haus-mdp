@@ -36,6 +36,12 @@ jobs:
     - name: Install package
       run: pip install --no-cache-dir -e .
 
+    # Linting
+    - name: Run flake8
+      run: |
+        flake8 src/kuhl_haus/mdp --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 src/kuhl_haus/mdp --count --exit-zero --ignore=C901,W503 --max-complexity=10 --max-line-length=127 --statistics
+
     # Tests
     - name: Run tests with coverage
       run: pdm run pytest --cov=kuhl_haus.mdp --cov-report=html --cov-report=xml tests -v

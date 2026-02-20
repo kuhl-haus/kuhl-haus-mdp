@@ -71,7 +71,7 @@ def setup_logging(
     if json_format:
         try:
             # Preferred: python-json-logger for proper JSON encoding
-            from pythonjsonlogger import jsonlogger
+            from pythonjsonlogger import jsonlogger  # noqa: F401
 
             if include_trace_fields:
                 format_str = (

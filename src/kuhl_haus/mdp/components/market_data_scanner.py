@@ -84,7 +84,7 @@ class MarketDataScanner:
         self.pubsub_client = self.redis_client.pubsub()
 
         self.analyzer = self.analyzer_class(cache=self.mdc)
-        self.logger.info(f"mds rehydrating from cache")
+        self.logger.info("mds rehydrating from cache")
         await self.analyzer.rehydrate()
         self.logger.info("mds rehydration complete")
 
@@ -224,7 +224,10 @@ class MarketDataScanner:
                 # Process actual data messages
                 elif msg_type == "message" or msg_type == "pmessage":
                     message_count += 1
-                    self.logger.debug(f"mds.pubsub.message channel:{channel}, data_len:{len(data)}, msg_num:{message_count}, data:{data}")
+                    self.logger.debug(
+                        f"mds.pubsub.message channel:{channel}, "
+                        f"data_len:{len(data)}, msg_num:{message_count}, data:{data}"
+                    )
                     await self._process_message(data=json.loads(data))
                 else:
                     self.logger.warning(f"mds.pubsub.unknown message type: {msg_type}")
@@ -313,4 +316,3 @@ class MarketDataScanner:
         await pipe.execute()
 
         self.logger.debug(f"Cached result for {analyzer_result.cache_key}")
-

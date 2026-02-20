@@ -4,7 +4,7 @@ Provides abstract interface and shared client factories for Redis-backed
 analyzers that consume WebSocket events from Massive.com.
 """
 from dataclasses import dataclass
-from typing import Any, Optional, List
+from typing import Optional, List
 from kuhl_haus.mdp.data.market_data_analyzer_result import MarketDataAnalyzerResult
 from massive.rest import RESTClient
 import redis.asyncio as aioredis

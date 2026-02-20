@@ -90,15 +90,35 @@ class MassiveDataProcessor:
 
         # Metrics
         meter = get_meter(__name__)
-        self.processed_counter = meter.create_counter(name="mdp.processed", description="Number of processed messages", unit="1")
+        self.processed_counter = meter.create_counter(
+            name="mdp.processed",
+            description="Number of processed messages",
+            unit="1"
+        )
         self.processed = 0
-        self.processing_error_counter = meter.create_counter(name="mdp.processing_error", description="Number of messages with processing errors", unit="1")
+        self.processing_error_counter = meter.create_counter(
+            name="mdp.processing_error",
+            description="Number of messages with processing errors",
+            unit="1"
+        )
         self.processing_error = 0
-        self.error_counter = meter.create_counter(name="mdp.error", description="Number of messages with other errors", unit="1")
+        self.error_counter = meter.create_counter(
+            name="mdp.error",
+            description="Number of messages with other errors",
+            unit="1"
+        )
         self.error = 0
-        self.decoding_error_counter = meter.create_counter(name="mdp.decoding_error", description="Number of messages with JSON decoding errors", unit="1")
+        self.decoding_error_counter = meter.create_counter(
+            name="mdp.decoding_error",
+            description="Number of messages with JSON decoding errors",
+            unit="1"
+        )
         self.decoding_error = 0
-        self.published_counter = meter.create_counter(name="mdp.published", description="Number of messages published to Redis", unit="1")
+        self.published_counter = meter.create_counter(
+            name="mdp.published",
+            description="Number of messages published to Redis",
+            unit="1"
+        )
         self.published = 0
         self.mdq_connected = False
         self.mdc_connected = False
@@ -258,8 +278,8 @@ class MassiveDataProcessor:
             except Exception as e:
                 if retry_count < 5:
                     retry_count += 1
-                    self.logger.error(f"Connection error: {e}, sleeping for {2*retry_count}s")
-                    await asyncio.sleep(2*retry_count)
+                    self.logger.error(f"Connection error: {e}, sleeping for {2 * retry_count}s")
+                    await asyncio.sleep(2 * retry_count)
                 else:
                     self.logger.error("Failed to connect to RabbitMQ or Redis")
                     raise

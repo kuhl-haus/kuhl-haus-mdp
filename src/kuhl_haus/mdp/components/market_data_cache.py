@@ -47,17 +47,61 @@ class MarketDataCache:
         self.redis_client = redis_client
         self.http_session = None
         meter = get_meter(__name__)
-        self.delete_counter = meter.create_counter(name="mdc.delete", description="Number of times delete is called", unit="1")
-        self.read_counter = meter.create_counter(name="mdc.read", description="Number of times read is called", unit="1")
-        self.write_counter = meter.create_counter(name="mdc.write", description="Number of times write is called", unit="1")
-        self.broadcast_counter = meter.create_counter(name="mdc.broadcast", description="Number of times broadcast is called", unit="1")
-        self.delete_ticker_snapshot_counter = meter.create_counter(name="mdc.delete_ticker_snapshot", description="Number of times a ticker snapshot is deleted", unit="1")
-        self.get_ticker_snapshot_counter = meter.create_counter(name="mdc.get_ticker_snapshot", description="Number of times a ticker snapshot is retrieved", unit="1")
-        self.get_avg_volume_counter = meter.create_counter(name="mdc.get_avg_volume", description="Number of times average volume is retrieved", unit="1")
-        self.get_free_float_counter = meter.create_counter(name="mdc.get_free_float", description="Number of times free float is retrieved", unit="1")
-        self.error_counter = meter.create_counter(name="mdc.error", description="Number of errors while processing market data cache requests", unit="1")
-        self.timeout_error_counter = meter.create_counter(name="mdc.timeout_error", description="Number of timeout errors while data from Massive API", unit="1")
-        self.http_error_counter = meter.create_counter(name="mdc.http_error", description="Number of HTTP errors while fetching data from Massive API", unit="1")
+        self.delete_counter = meter.create_counter(
+            name="mdc.delete",
+            description="Number of times delete is called",
+            unit="1"
+        )
+        self.read_counter = meter.create_counter(
+            name="mdc.read",
+            description="Number of times read is called",
+            unit="1"
+        )
+        self.write_counter = meter.create_counter(
+            name="mdc.write",
+            description="Number of times write is called",
+            unit="1"
+        )
+        self.broadcast_counter = meter.create_counter(
+            name="mdc.broadcast",
+            description="Number of times broadcast is called",
+            unit="1"
+        )
+        self.delete_ticker_snapshot_counter = meter.create_counter(
+            name="mdc.delete_ticker_snapshot",
+            description="Number of times a ticker snapshot is deleted",
+            unit="1"
+        )
+        self.get_ticker_snapshot_counter = meter.create_counter(
+            name="mdc.get_ticker_snapshot",
+            description="Number of times a ticker snapshot is retrieved",
+            unit="1"
+        )
+        self.get_avg_volume_counter = meter.create_counter(
+            name="mdc.get_avg_volume",
+            description="Number of times average volume is retrieved",
+            unit="1"
+        )
+        self.get_free_float_counter = meter.create_counter(
+            name="mdc.get_free_float",
+            description="Number of times free float is retrieved",
+            unit="1"
+        )
+        self.error_counter = meter.create_counter(
+            name="mdc.error",
+            description="Number of errors while processing market data cache requests",
+            unit="1"
+        )
+        self.timeout_error_counter = meter.create_counter(
+            name="mdc.timeout_error",
+            description="Number of timeout errors while data from Massive API",
+            unit="1"
+        )
+        self.http_error_counter = meter.create_counter(
+            name="mdc.http_error",
+            description="Number of HTTP errors while fetching data from Massive API",
+            unit="1"
+        )
 
     @tracer.start_as_current_span("mdc.delete")
     async def delete(self, cache_key: str):
@@ -240,7 +284,7 @@ class MarketDataCache:
 
         # NOTE: This endpoint is experimental and the interface may change.
         # https://massive.com/docs/rest/stocks/fundamentals/float
-        url = f"https://api.massive.com/stocks/vX/float"
+        url = "https://api.massive.com/stocks/vX/float"
         params = {
             "ticker": ticker,
             "apiKey": self.massive_api_key

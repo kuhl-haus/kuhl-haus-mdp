@@ -39,12 +39,36 @@ class MassiveDataAnalyzer(Analyzer):
         }
         # Metrics
         self.meter = get_meter(__name__)
-        self.processed_counter = self.meter.create_counter(name="mda.processed", description="Massive Data Analyzer processed events", unit="1")
-        self.luld_counter = self.meter.create_counter(name="mda.luld", description="Massive Data Analyzer processed LULD events", unit="1")
-        self.agg_counter = self.meter.create_counter(name="mda.agg", description="Massive Data Analyzer processed Agg events", unit="1")
-        self.trade_counter = self.meter.create_counter(name="mda.trade", description="Massive Data Analyzer processed Trade events", unit="1")
-        self.quote_counter = self.meter.create_counter(name="mda.quote", description="Massive Data Analyzer processed Quote events", unit="1")
-        self.unknown_counter = self.meter.create_counter(name="mda.unknown", description="Massive Data Analyzer processed unknown events", unit="1")
+        self.processed_counter = self.meter.create_counter(
+            name="mda.processed",
+            description="Massive Data Analyzer processed events",
+            unit="1"
+        )
+        self.luld_counter = self.meter.create_counter(
+            name="mda.luld",
+            description="Massive Data Analyzer processed LULD events",
+            unit="1"
+        )
+        self.agg_counter = self.meter.create_counter(
+            name="mda.agg",
+            description="Massive Data Analyzer processed Agg events",
+            unit="1"
+        )
+        self.trade_counter = self.meter.create_counter(
+            name="mda.trade",
+            description="Massive Data Analyzer processed Trade events",
+            unit="1"
+        )
+        self.quote_counter = self.meter.create_counter(
+            name="mda.quote",
+            description="Massive Data Analyzer processed Quote events",
+            unit="1"
+        )
+        self.unknown_counter = self.meter.create_counter(
+            name="mda.unknown",
+            description="Massive Data Analyzer processed unknown events",
+            unit="1"
+        )
 
     @tracer.start_as_current_span("mda.analyze_data")
     async def analyze_data(self, data: dict) -> Optional[List[MarketDataAnalyzerResult]]:
@@ -122,7 +146,7 @@ class MassiveDataAnalyzer(Analyzer):
     def handle_unknown_event(self, data: dict) -> Optional[List[MarketDataAnalyzerResult]]:
         """Handle unknown or malformed events for debugging visibility."""
         self.unknown_counter.add(1)
-        timestamp = f"{time()}".replace('.','')
+        timestamp = f"{time()}".replace('.', '')
         cache_key = f"{MarketDataCacheKeys.UNKNOWN.value}:{timestamp}"
         return [MarketDataAnalyzerResult(
             data=data,
