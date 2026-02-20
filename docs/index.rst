@@ -30,7 +30,6 @@ Contents
    :maxdepth: 2
 
    Overview <readme>
-   Architecture <architecture>
    Module Reference <mdp/modules>
    Contributions & Help <contributing>
    License <license>

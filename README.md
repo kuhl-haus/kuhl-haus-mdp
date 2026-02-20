@@ -43,11 +43,50 @@ The platform consists of four main packages:
 
 # Components Summary
 
-Non-business Massive (AKA Polygon.IO) accounts are limited to a single WebSocket connection per asset class and it has to be fast enough to handle messages in a non-blocking fashion or it'll get disconnected.  The Market Data Listener (MDL) connects to the Market Data Source (Massive) and subscribes to unfiltered feeds. MDL inspects the message type for selecting the appropriate serialization method and destination Market Data Queue (MDQ).  The Market Data Processors (MDP) subscribe to raw market data in the MDQ and perform the heavy lifting that would otherwise constrain the message handling speed of the MDL.  This decoupling allows the MDP and MDL to scale independently.  Post-processed market data is stored in the MDC for consumption by the Widget Data Service (WDS).  Client-side widgets receive market data from the WDS, which provides a WebSocket interface to MDC pub/sub streams and cached data.
 
-[![Market Data Processing C4-V1.drawio.png](docs/Market_Data_Processing_C4.png)]
+## Data Plane Components
+
+**Market Data Listener (MDL)**
+  WebSocket client connecting to Massive.com, routing events to appropriate queues with minimal processing overhead.
+
+**Market Data Queues (MDQ)**
+  RabbitMQ-based FIFO queues with 5-second TTL, buffering high-velocity streams for distributed processing.
+
+**Market Data Processor (MDP)**
+  Horizontally-scalable event processors with semaphore-based concurrency (500 concurrent tasks), delegating to pluggable analyzers.
+
+**Market Data Cache (MDC)**
+  Redis-backed cache layer with TTL policies (5s-24h), atomic operations, and pub/sub distribution.
+
+**Widget Data Service (WDS)**
+  WebSocket-to-Redis bridge providing real-time streaming to client applications with fan-out pattern.
+
+## Control Plane
+
+**Service Control Plane (SCP)**
+  OAuth authentication, SPA serving, runtime controls, and management API (external repository: kuhl-haus-mdp-app).
+
+## Observability
+
+All components emit OpenTelemetry traces/metrics and structured JSON logs for Kubernetes/OpenObserve integration.
+
+## Deployment Model
+
+The platform deploys to Kubernetes with independent scaling per component:
+
+- **Data plane**: Internal network only (MDL, MDQ, MDP, MDC)
+- **Client interface**: Exposed to client networks (WDS)
+- **Control plane**: External access (SCP)
+
+All components run as Docker containers with automated deployment via Ansible playbooks and Kubernetes manifests (kuhl-haus-mdp-deployment repository).
+
+
+![Market Data Processing C4-V1.drawio.png](docs/Market_Data_Processing_C4.png)
 
 # Component Descriptions
+
+![architecture.svg](docs/architecture.svg)
+
 
 ## Market Data Listener (MDL)
 The MDL performs minimal processing on the messages.  MDL inspects the message type for selecting the appropriate serialization method and destination queue.  MDL implementations may vary as new MDS become available (for example, news).
