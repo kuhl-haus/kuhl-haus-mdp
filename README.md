@@ -43,6 +43,8 @@ The platform consists of four main packages:
 
 # Components Summary
 
+![Market Data Processing C4-V1.drawio.png](docs/Market_Data_Processing_C4.png)
+
 
 ## Data Plane Components
 
@@ -80,8 +82,6 @@ The platform deploys to Kubernetes with independent scaling per component:
 
 All components run as Docker containers with automated deployment via Ansible playbooks and Kubernetes manifests (kuhl-haus-mdp-deployment repository).
 
-
-![Market Data Processing C4-V1.drawio.png](docs/Market_Data_Processing_C4.png)
 
 # Component Descriptions
 

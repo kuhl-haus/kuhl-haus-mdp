@@ -73,6 +73,13 @@ Components Summary
 ==================
 
 
+.. figure:: Market_Data_Processing_C4.png
+   :align: center
+   :alt: Market Data Platform Context Diagram
+
+   Market Data Platform Context Diagram
+
+
 Data Plane Components
 ----------------------
 
@@ -112,13 +119,6 @@ The platform deploys to Kubernetes with independent scaling per component:
 - **Control plane**: External access (SCP)
 
 All components run as Docker containers with automated deployment via Ansible playbooks and Kubernetes manifests (kuhl-haus-mdp-deployment repository).
-
-
-.. figure:: Market_Data_Processing_C4.png
-   :align: center
-   :alt: Market Data Platform Context Diagram
-
-   Market Data Platform Context Diagram
 
 
 Component Descriptions
