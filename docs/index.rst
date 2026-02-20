@@ -31,11 +31,11 @@ Contents
 
    Overview <readme>
    Architecture <architecture>
+   Module Reference <mdp/modules>
    Contributions & Help <contributing>
    License <license>
    Authors <authors>
    Changelog <changelog>
-   Module Reference <mdp/modules>
 
 
 Indices and tables

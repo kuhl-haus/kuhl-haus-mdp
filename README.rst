@@ -74,6 +74,14 @@ Components Summary
 
 Non-business Massive (AKA Polygon.IO) accounts are limited to a single WebSocket connection per asset class and it has to be fast enough to handle messages in a non-blocking fashion or it'll get disconnected. The Market Data Listener (MDL) connects to the Market Data Source (Massive) and subscribes to unfiltered feeds. MDL inspects the message type for selecting the appropriate serialization method and destination Market Data Queue (MDQ). The Market Data Processors (MDP) subscribe to raw market data in the MDQ and perform the heavy lifting that would otherwise constrain the message handling speed of the MDL. This decoupling allows the MDP and MDL to scale independently. Post-processed market data is stored in the MDC for consumption by the Widget Data Service (WDS). Client-side widgets receive market data from the WDS, which provides a WebSocket interface to MDC pub/sub streams and cached data.
 
+.. figure:: Market_Data_Processing_C4.png
+   :align: center
+   :alt: Market Data Platform Context Diagram
+
+   Market Data Platform Context Diagram
+
+
+
 ::
 
                       +---------------------------+
@@ -153,6 +161,14 @@ Non-business Massive (AKA Polygon.IO) accounts are limited to a single WebSocket
 
 Component Descriptions
 ======================
+
+
+.. figure:: architecture.svg
+   :align: center
+   :alt: Market Data Platform Component Architecture
+
+   Market Data Platform Component Architecture
+
 
 Market Data Listener (MDL)
 ---------------------------
