@@ -1,9 +1,32 @@
 =========
 Changelog
 =========
+Version 0.2.26 (2026-02-21)
+===========================
+
+- `34fe6be <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/34fe6be>`_ Fix WDS pmessage bug, remove dead code, drive test coverage to 99%
+
+  Resolves kuhl-haus/kuhl-haus-mdp#4
+
+  See https://github.com/kuhl-haus/kuhl-haus-mdp/issues/4#issuecomment-3939560525
+
+  - Fix silent drop of all wildcard subscription messages in WDS
+
+  (_handle_pubsub only checked "message", not "pmessage")
+
+  - Fix stale _pubsub_task reference in WDS stop()
+
+  - Remove unreachable else branch in MDP start()
+
+  - Add 31 tests (367→398) covering P0 bugs, P1 branch gaps, P2 scenarios
+
+  - Coverage: 97% → 99% (1853 stmts, 5 missed; 364 branches, 1 partial)
+
+
 Version 0.2.25 (2026-02-21)
 ===========================
 
+- `29f6979 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/29f6979>`_ Update CHANGELOG.rst for v0.2.25
 - `922b667 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/922b667>`_ Fix stale connection_status and auto-restart MDL on property changes
 
   Convert feed, market, and subscriptions from plain attributes to properties with getters/setters that keep connection_status dict in sync on every reassignment. Previously, reassigning these attributes broke the shared reference established in init, leaving connection_status stale.
