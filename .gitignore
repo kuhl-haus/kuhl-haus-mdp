@@ -60,3 +60,4 @@ __pypackages__/
 /Build-Images.ps1
 .output.txt
 /Update-Changelog.ps1
+/docs/plantuml.jar

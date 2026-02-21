@@ -1,0 +1,28 @@
+/* Constrain large PlantUML diagrams so they don't overlap the right-hand ToC */
+p.plantuml object,
+p.plantuml img {
+    max-width: 100% !important;
+    height: auto !important;
+}
+
+/* Full-page diagram: render at native size with horizontal scroll */
+.full-page-diagram p.plantuml object,
+.full-page-diagram p.plantuml img {
+    max-width: none !important;
+}
+.full-page-diagram p.plantuml {
+    overflow-x: auto;
+}
+
+/* On pages with no ToC (e.g. full-page diagram), collapse the right drawer
+   and let the content area span the full width of the main region. */
+aside.toc-drawer.no-toc {
+    display: none !important;
+}
+.page:has(aside.toc-drawer.no-toc) .content {
+    max-width: none !important;
+    width: 100% !important;
+}
+.page:has(aside.toc-drawer.no-toc) .main {
+    grid-template-columns: minmax(0, 1fr) !important;
+}

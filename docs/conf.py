@@ -73,6 +73,7 @@ extensions = [
     "sphinx.ext.mathjax",
     "sphinx.ext.napoleon",
     "sphinx_copybutton",
+    "sphinxcontrib.plantuml",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -144,6 +145,14 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", ".venv"]
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = "sphinx"
+
+# PlantUML settings
+_plantuml_jar = os.path.join(__location__, 'plantuml.jar')
+if os.path.exists(_plantuml_jar):
+    plantuml = f"java -jar {_plantuml_jar}"
+else:
+    plantuml = "plantuml"
+plantuml_output_format = "svg"
 
 # A list of ignored prefixes for module index sorting.
 # modindex_common_prefix = []
@@ -241,6 +250,7 @@ html_theme_options = {
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
+html_css_files = ["custom.css"]
 
 # If not '', a 'Last updated on:' timestamp is inserted at every page bottom,
 # using the given strftime format.

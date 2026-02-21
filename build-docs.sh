@@ -24,7 +24,6 @@ if $clean && [ -d "$source_dir/_build" ]; then
     echo "Cleaning previous build..."
     rm -rf "$source_dir/_build"
 fi
-
 echo "Building Sphinx documentation..."
 python -m sphinx -b html "$source_dir" "$build_dir"
 

@@ -29,7 +29,9 @@ Contents
 .. toctree::
    :maxdepth: 3
 
-   Architecture <readme>
+   Overview <readme>
+   Architecture <architecture>
+   Component Architecture <architecture-diagram>
    Module Reference <mdp/modules>
    Contributions & Help <contributing>
    Security Policy <security>

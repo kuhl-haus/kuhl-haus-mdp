@@ -27,7 +27,6 @@ if ($Clean -and (Test-Path $buildDir)) {
     Write-Host 'Cleaning previous build...' -ForegroundColor Yellow
     Remove-Item -Recurse -Force (Join-Path $sourceDir '_build')
 }
-
 Write-Host 'Building Sphinx documentation...' -ForegroundColor Cyan
 python -m sphinx -b html $sourceDir $buildDir
 if ($LASTEXITCODE -ne 0) {
