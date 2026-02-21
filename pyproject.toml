@@ -9,7 +9,7 @@ description = "Market data processing pipeline for stock market scanner"
 authors = [
     { name = "Tom Pounders", email = "git@oldschool.engineer" },
 ]
-readme = "README.md"
+readme = "README.rst"
 requires-python = ">=3.14"
 license = {file = "LICENSE.txt"}
 classifiers = [
