@@ -32,6 +32,7 @@ Contents
    Architecture <readme>
    Module Reference <mdp/modules>
    Contributions & Help <contributing>
+   Security Policy <security>
    License <license>
    Authors <authors>
    Changelog <changelog>
