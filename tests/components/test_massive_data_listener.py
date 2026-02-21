@@ -51,7 +51,7 @@ def sut(mock_message_handler, mock_rest_client):
     )
 
 
-def test_massivedatalistener_init_with_valid_params_expect_correct_init(
+def test_mdl_init_with_valid_params_expect_correct_init(
     mock_message_handler
 ):
     # Arrange
@@ -137,15 +137,16 @@ async def test_mdl_stop_with_active_conn_expect_ws_client_stopped(
     # Act
     # Save the connection because stop sets it to None
     ws_connection = sut.ws_connection
-    await sut.stop()
+    with patch("asyncio.sleep", new_callable=AsyncMock):
+        await sut.stop()
 
-    # Assert
-    mock_ws_coroutine.cancel.assert_called_once()
-    ws_connection.unsubscribe_all.assert_called_once()
-    ws_connection.close.assert_awaited_once()
-    assert sut.connection_status["connected"] is False
-    assert sut.ws_connection is None
-    assert sut.ws_coroutine is None
+        # Assert
+        mock_ws_coroutine.cancel.assert_called_once()
+        ws_connection.unsubscribe_all.assert_called_once()
+        ws_connection.close.assert_awaited_once()
+        assert sut.connection_status["connected"] is False
+        assert sut.ws_connection is None
+        assert sut.ws_coroutine is None
 
 
 @pytest.mark.asyncio
@@ -154,7 +155,8 @@ async def test_mdl_restart_with_active_conn_expect_stop_and_start_called(
 ):
     # Arrange
     with patch.object(sut, "stop", new_callable=AsyncMock) as mock_stop, \
-         patch.object(sut, "start", new_callable=AsyncMock) as mock_start:
+         patch.object(sut, "start", new_callable=AsyncMock) as mock_start, \
+         patch("asyncio.sleep", new_callable=AsyncMock):
         # Act
         await sut.restart()
 
