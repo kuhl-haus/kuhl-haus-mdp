@@ -1,9 +1,30 @@
 =========
 Changelog
 =========
+Version 0.2.24 (2026-02-20)
+===========================
+
+- `033adf3 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/033adf3>`_ Remove setup.py/setup.cfg; clean pyproject.toml
+
+  Delete legacy setup.py and setup.cfg and consolidate project configuration in pyproject.toml. Remove setuptools-specific sections (tool.setuptools, tool.setuptools_scm) and devpi.upload entries, drop setuptools-scm from build-system requires (using pdm backend), and simplify pytest and flake8 exclude lists. Also normalize project URLs (remove .git from Source and point Changelog to CHANGELOG.rst). These changes modernize packaging to PEP 517/518 with pdm and remove redundant legacy config.
+
+- `c7040cc <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/c7040cc>`_ Remove README.md and tox.ini; switch to README.rst
+
+  Delete the legacy README.md and tox.ini files and update pyproject.toml to reference README.rst instead of README.md. This aligns packaging metadata with the repository's README format and removes the standalone tox configuration.
+
+- `7fb8194 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/7fb8194>`_ Update CONTRIBUTING to use venv and pip
+
+  Replace previous PDM-based setup with explicit virtualenv instructions and pip installs. Adds platform-specific venv activation examples (Linux/macOS and Windows), uses requirements.txt and requirements-test.txt for dependency installation, and removes older PDM install steps and PyCharm-specific notes. Also updates the release checklist to require passing workflows for the latest commit instead of only unit tests.
+
+- `73f37f6 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/73f37f6>`_ Sphinx docs: tabs, copybutton and theme tweaks
+
+  Replace platform-specific build instructions in CONTRIBUTING.rst with Sphinx inline tabs and language-specific code blocks for Linux/macOS and Windows. Add sphinx_copybutton and sphinx_inline_tabs to docs/conf.py and docs/requirements.txt to enable copy-buttons and inline tabs. Normalize the release version by stripping local/dev suffixes, add theme color variables, navigation keys and a GitHub footer icon, and extend intersphinx mappings for redis, fastapi and pydantic to improve documentation UX and cross-references.
+
+
 Version 0.2.23 (2026-02-20)
 ===========================
 
+- `ad9fdf6 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/ad9fdf6>`_ Update CHANGELOG.rst for v0.2.23
 - `446f05f <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/446f05f>`_ Switch Sphinx docs theme to furo
 
   Update Sphinx theme from 'alabaster' to 'furo' in docs/conf.py and clear theme-specific options (removed custom sidebar/page width settings). Also add 'furo' to docs/requirements.txt and remove the commented-out sphinx_rtd_theme entry. This aligns docs with the furo theme and removes unused alabaster options.
