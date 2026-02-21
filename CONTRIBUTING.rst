@@ -51,19 +51,19 @@ code contribution.
 To build the documentation locally, use one of the provided scripts from the
 project root (there are also PyCharm run configurations for this).
 
-.. tab:: Linux / macOS
+**Linux / macOS:**
 
-   .. code-block:: bash
+.. code-block:: bash
 
-      ./build-docs.sh
-      ./build-docs.sh --clean
+   ./build-docs.sh
+   ./build-docs.sh --clean
 
-.. tab:: Windows
+**Windows:**
 
-   .. code-block:: powershell
+.. code-block:: powershell
 
-      .\Build-Docs.ps1
-      .\Build-Docs.ps1 -Clean
+   .\Build-Docs.ps1
+   .\Build-Docs.ps1 -Clean
 
 Both scripts generate HTML output in ``docs/_build/html`` and open
 ``index.html`` in the default browser. The ``--clean`` / ``-Clean`` flag wipes
@@ -102,19 +102,19 @@ This project uses PDM_ for builds and requires **Python 3.14** or later.
 
 #. Create and activate a Python virtual environment:
 
-   .. tab:: Linux / macOS
+   **Linux / macOS:**
 
-      .. code-block:: bash
+   .. code-block:: bash
 
-         python3 -m venv .venv
-         source .venv/bin/activate
+      python3 -m venv .venv
+      source .venv/bin/activate
 
-   .. tab:: Windows
+   **Windows:**
 
-      .. code-block:: powershell
+   .. code-block:: powershell
 
-         python -m venv .venv
-         .venv\Scripts\Activate.ps1
+      python -m venv .venv
+      .venv\Scripts\Activate.ps1
 
 #. Install the project's dependencies::
 
