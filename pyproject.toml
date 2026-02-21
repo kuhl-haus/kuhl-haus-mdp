@@ -1,5 +1,5 @@
 [build-system]
-requires = ["pdm-backend", "setuptools-scm>=8"]
+requires = ["pdm-backend"]
 build-backend = "pdm.backend"
 
 [project]
@@ -36,8 +36,8 @@ dependencies = [
 [project.urls]
 Homepage = "https://github.com/kuhl-haus/kuhl-haus-mdp"
 Documentation = "https://kuhl-haus-mdp.readthedocs.io"
-Source = "https://github.com/kuhl-haus/kuhl-haus-mdp.git"
-Changelog = "https://github.com/kuhl-haus/kuhl-haus-mdp/commits"
+Source = "https://github.com/kuhl-haus/kuhl-haus-mdp"
+Changelog = "https://github.com/kuhl-haus/kuhl-haus-mdp/blob/mainline/CHANGELOG.rst"
 Tracker = "https://github.com/kuhl-haus/kuhl-haus-mdp/issues"
 
 [project.optional-dependencies]
@@ -49,10 +49,6 @@ testing = [
     "pytest-asyncio",
 ]
 
-[tool.setuptools_scm]
-version_scheme = "guess-next-dev"
-local_scheme = "no-local-version"
-
 [tool.pdm]
 distribution = true
 version = { source = "scm" }
@@ -61,25 +57,15 @@ version = { source = "scm" }
 package-dir = "src"
 includes = ["src/kuhl_haus"]
 
-[tool.setuptools]
-zip-safe = true
-include-package-data = true
-package-dir = {"" = "src"}
-packages = {find = {where = ["src"], exclude = ["tests"]}}
-
 [tool.pytest.ini_options]
 addopts = ["--verbose"]
-norecursedirs = ["dist", "build", ".tox"]
+norecursedirs = ["dist", "build"]
 testpaths = ["tests"]
-
-[tool.devpi.upload]
-no_vcs = 1
-formats = ["bdist_wheel"]
 
 [tool.flake8]
 max_line_length = 88
 extend_ignore = ["E203", "W503", "C901"]
-exclude = [".tox", "build", "dist", ".eggs", "docs/conf.py"]
+exclude = ["build", "dist", "docs/conf.py"]
 
 [tool.pyscaffold]
 version = "4.6"
