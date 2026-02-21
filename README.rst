@@ -73,7 +73,7 @@ Components Summary
 ==================
 
 
-.. figure:: Market_Data_Processing_C4.png
+.. figure:: https://raw.githubusercontent.com/kuhl-haus/kuhl-haus-mdp/mainline/docs/Market_Data_Processing_C4.png
    :align: center
    :alt: Market Data Platform Context Diagram
 
@@ -125,7 +125,7 @@ Component Descriptions
 ======================
 
 
-.. figure:: architecture.svg
+.. figure:: https://raw.githubusercontent.com/kuhl-haus/kuhl-haus-mdp/mainline/docs/architecture.svg
    :align: center
    :alt: Market Data Platform Component Architecture
 
