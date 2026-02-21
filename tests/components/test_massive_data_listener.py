@@ -308,6 +308,30 @@ async def test_mdl_subscriptions_changed_while_connected_expect_restart_called(
 
 
 @pytest.mark.asyncio
+async def test_mdl_rapid_property_changes_while_connected_expect_multiple_restarts(
+    sut,
+):
+    # Arrange — simulate rapid property changes during active connection
+    sut.connection_status["connected"] = True
+    created_tasks = []
+
+    with patch.object(sut, "restart", new_callable=AsyncMock) as mock_restart, \
+         patch("asyncio.create_task") as mock_create_task:
+        mock_create_task.side_effect = lambda coro: created_tasks.append(coro)
+
+        # Act — change feed, market, and subscriptions in rapid succession
+        sut.feed = Feed.Delayed
+        sut.market = Market.Crypto
+        sut.subscriptions = ["X.BTC-USD"]
+
+    # Assert — each property change scheduled a restart task
+    assert len(created_tasks) == 3
+    assert sut.feed is Feed.Delayed
+    assert sut.market is Market.Crypto
+    assert sut.subscriptions == ["X.BTC-USD"]
+
+
+@pytest.mark.asyncio
 async def test_mdl_async_task_with_success_conn_expect_connected_and_healthy(
     sut, mock_ws_client, mock_message_handler
 ):

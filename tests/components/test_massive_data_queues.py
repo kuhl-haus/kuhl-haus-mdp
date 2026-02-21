@@ -243,3 +243,37 @@ async def test_mdq_handle_messages_with_invalid_input_expect_exception(
     # Act & Assert
     with pytest.raises(Exception):
         await sut.handle_messages(input_val)
+
+
+@pytest.mark.asyncio
+async def test_mdq_handle_messages_with_no_connection_expect_exception(sut):
+    # Arrange — channels exist but connection is None
+    sut.channels = {"some_queue": MagicMock()}
+    sut.connection = None
+
+    # Act & Assert
+    with pytest.raises(Exception, match="RabbitMQ connection not initialized"):
+        await sut.handle_messages([MagicMock()])
+
+
+@pytest.mark.asyncio
+async def test_mdq_publish_with_channel_closed_mid_batch_expect_error_logged(
+    sut, mock_aio_pika, caplog,
+):
+    # Arrange — connect, then simulate channel closing during publish
+    await sut.connect()
+
+    mock_exchange = mock_aio_pika["channel"].default_exchange
+    mock_exchange.publish = AsyncMock(
+        side_effect=ConnectionError("channel closed")
+    )
+
+    msg = MagicMock()
+
+    # Act — _publish_message catches the exception and logs it
+    import logging
+    with caplog.at_level(logging.ERROR):
+        await sut._publish_message(rabbit_message=msg, queue_name="trades")
+
+    # Assert — error was logged, not propagated
+    assert "channel closed" in caplog.text

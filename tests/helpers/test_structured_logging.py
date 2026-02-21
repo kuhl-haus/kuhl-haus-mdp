@@ -401,9 +401,12 @@ def test_sl_log_exception_with_no_active_exc_expect_no_crash():
 
 
 def test_sl_ensure_with_no_handlers_expect_handlers_added():
-    # Arrange — handlers cleared by fixture
+    # Arrange — explicitly clear handlers right before calling ensure
+    for h in logging.root.handlers[:]:
+        logging.root.removeHandler(h)
+    assert len(logging.root.handlers) == 0
 
-    # Act
+    # Act — with no handlers, ensure should call setup_logging() (line 215)
     ensure_logging_configured()
 
     # Assert
@@ -411,14 +414,14 @@ def test_sl_ensure_with_no_handlers_expect_handlers_added():
 
 
 def test_sl_ensure_with_already_configured_expect_no_change():
-    # Arrange
-    setup_logging()
+    # Arrange — first call sets _logging_configured=True
+    ensure_logging_configured()
     count = len(logging.root.handlers)
 
-    # Act
+    # Act — second call hits the 212→exit early-return branch
     ensure_logging_configured()
 
-    # Assert
+    # Assert — no additional handlers added
     assert len(logging.root.handlers) == count
 
 

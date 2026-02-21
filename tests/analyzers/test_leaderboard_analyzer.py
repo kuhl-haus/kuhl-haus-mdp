@@ -620,3 +620,110 @@ async def test_lba_analyze_data_with_exception_expect_wrapped(sut):
 
     assert "BOOM" in str(exc_info.value)
     assert isinstance(exc_info.value.cause, RuntimeError)
+
+
+@pytest.mark.asyncio
+async def test_lba_build_results_with_empty_volume_expect_skip(
+    sut,
+):
+    # Arrange — top_volume empty, others populated (hits 202→211 branch)
+    with patch.object(
+        sut, "_fetch_leaderboards", new_callable=AsyncMock
+    ) as mock_fetch:
+        mock_fetch.return_value = {
+            "top_volume": [],
+            "top_gappers": [{"symbol": "TSLA"}],
+            "top_gainers": [{"symbol": "NVDA"}],
+        }
+
+        # Act
+        results = await sut._build_leaderboard_results()
+
+    # Assert — only gappers and gainers, volume skipped
+    assert len(results) == 2
+
+
+@pytest.mark.asyncio
+async def test_lba_check_market_open_reset_with_930_already_reset_expect_noop(
+    sut, mock_redis
+):
+    # Arrange — 9:30 AM ET but was_set=False (key already exists)
+    fake_et = datetime(
+        2026, 2, 19, 9, 30, 0,
+        tzinfo=ZoneInfo("America/New_York")
+    )
+    fake_utc = fake_et.astimezone(timezone.utc)
+    mock_redis.set.return_value = None  # nx=True failed — key already exists
+
+    with patch(f"{MODULE}.datetime") as mock_dt:
+        mock_dt.now.return_value = fake_utc
+        mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+
+        # Act
+        await sut._check_market_open_reset()
+
+    # Assert — set was called but pipeline was NOT executed
+    mock_redis.set.assert_awaited_once()
+    mock_redis.pipeline.return_value.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_lba_check_market_open_reset_with_930_no_open_prices_expect_reset(
+    sut, mock_redis
+):
+    # Arrange — 9:30 AM ET, was_set=True, SCAN returns no keys
+    fake_et = datetime(
+        2026, 2, 19, 9, 30, 0,
+        tzinfo=ZoneInfo("America/New_York")
+    )
+    fake_utc = fake_et.astimezone(timezone.utc)
+    mock_redis.set.return_value = True
+    mock_redis.scan.return_value = (0, [])  # no open_price keys
+    pipe = mock_redis.pipeline.return_value
+
+    with patch(f"{MODULE}.datetime") as mock_dt:
+        mock_dt.now.return_value = fake_utc
+        mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+
+        # Act
+        await sut._check_market_open_reset()
+
+    # Assert — pipeline executed but no delete calls for open prices
+    mock_redis.set.assert_awaited_once()
+    pipe.execute.assert_awaited_once()
+    # Only the gainers leaderboard delete, no open_price deletes
+    pipe.delete.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_lba_market_boundary_race_with_concurrent_resets_expect_one_wins(
+    sut, mock_redis
+):
+    # Arrange — simulate two concurrent processors both calling
+    # _handle_market_open_reset at 9:30 AM. The nx=True guard
+    # ensures only one actually performs the reset.
+    fake_et = datetime(
+        2026, 2, 19, 9, 30, 0,
+        tzinfo=ZoneInfo("America/New_York")
+    )
+    fake_utc = fake_et.astimezone(timezone.utc)
+    pipe = mock_redis.pipeline.return_value
+
+    with patch(f"{MODULE}.datetime") as mock_dt:
+        mock_dt.now.return_value = fake_utc
+        mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+
+        # First caller wins the nx=True race
+        mock_redis.set.return_value = True
+        mock_redis.scan.return_value = (0, [])
+        await sut._check_market_open_reset()
+        first_pipeline_calls = pipe.execute.await_count
+
+        # Second caller loses the nx=True race
+        mock_redis.set.return_value = None  # nx=True failed
+        await sut._check_market_open_reset()
+        second_pipeline_calls = pipe.execute.await_count
+
+    # Assert — pipeline only executed for the first caller
+    assert first_pipeline_calls == 1
+    assert second_pipeline_calls == first_pipeline_calls  # no additional execute

@@ -398,6 +398,30 @@ async def test_mdc_get_avg_vol_with_no_aggs_expect_zero(
     )
 
 
+@pytest.mark.asyncio
+async def test_mdc_get_avg_vol_with_over_30_aggs_expect_capped(
+    sut, mock_redis, mock_rest,
+):
+    # Arrange — 35 aggs, only first 30 should be summed (break at 31st)
+    mock_redis.get.return_value = None
+    mock_rest.list_financials_ratios.return_value = iter(
+        [MagicMock(), MagicMock()]
+    )
+    aggs = []
+    for _ in range(35):
+        agg = MagicMock()
+        agg.volume = 100
+        aggs.append(agg)
+    mock_rest.list_aggs.return_value = iter(aggs)
+
+    # Act
+    result = await sut.get_avg_volume("TEST")
+
+    # Assert — 30 * 100 / 30 = 100.0, not 35 * 100 / 35
+    assert result == 100.0
+    mock_redis.setex.assert_awaited_once()
+
+
 # -- get_free_float --------------------------------------------------
 
 

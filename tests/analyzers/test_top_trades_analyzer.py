@@ -469,6 +469,21 @@ async def test_tta_throttle_with_already_set_expect_false(
 
     # Act
     result = await sut._check_publish_throttle()
-
     # Assert
     assert result is False
+
+
+@pytest.mark.asyncio
+async def test_tta_get_active_with_bytes_keys_expect_skipped(
+    sut, mock_redis
+):
+    # Arrange — scan returns bytes keys (not str), should be skipped
+    mock_redis.scan = AsyncMock(
+        return_value=(0, [b"tta:AAPL:recent", b"tta:MSFT:recent"])
+    )
+
+    # Act
+    result = await sut._get_active_symbols()
+
+    # Assert — bytes keys are not isinstance(str), so no symbols extracted
+    assert result == []

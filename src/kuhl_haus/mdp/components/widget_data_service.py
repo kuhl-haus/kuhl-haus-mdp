@@ -93,6 +93,7 @@ class WidgetDataService:
                 await self._pubsub_task
             except asyncio.CancelledError:
                 pass
+            self._pubsub_task = None
 
         self.logger.info("wds.stopped")
 
@@ -230,14 +231,14 @@ class WidgetDataService:
                 msg_type = message.get("type")
 
                 # Log subscription lifecycle events
-                if msg_type == "subscribe":
+                if msg_type in ("subscribe", "psubscribe"):
                     self.logger.debug(f"wds.pubsub.subscribed channel:{message['channel']}, num_subs:{message['data']}")
 
-                elif msg_type == "unsubscribe":
+                elif msg_type in ("unsubscribe", "punsubscribe"):
                     self.logger.debug(f"wds.pubsub.unsubscribed channel:{message['channel']}, num_subs:{message['data']}")
 
                 # Process actual data messages
-                elif msg_type == "message":
+                elif msg_type in ("message", "pmessage"):
                     message_count += 1
                     self.message_received_counter.add(1)
                     feed = message["channel"]

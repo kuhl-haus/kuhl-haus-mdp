@@ -283,11 +283,7 @@ class MassiveDataProcessor:
                 else:
                     self.logger.error("Failed to connect to RabbitMQ or Redis")
                     raise
-        if self.mdc_connected and self.mdq_connected:
-            self.running = True
-        else:
-            self.logger.error("Failed to connect to RabbitMQ or Redis")
-            raise RuntimeError("Failed to connect to RabbitMQ or Redis")
+        self.running = True
 
         self.analyzer = self.analyzer_class(options=self.analyzer_options)
         self.logger.info(f"{self.analyzer_class} rehydrating from cache")

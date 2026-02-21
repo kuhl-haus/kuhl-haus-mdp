@@ -24,6 +24,17 @@ class _FakeTask:
         return None
 
 
+class _FakeTaskCancelled:
+    """Awaitable that raises CancelledError (simulates cancelled task)."""
+
+    def __init__(self):
+        self.cancel = MagicMock()
+
+    def __await__(self):
+        raise asyncio.CancelledError()
+        yield  # pragma: no cover
+
+
 # ── helpers ──────────────────────────────────────────────────────────
 
 
@@ -612,3 +623,113 @@ async def test_mds_handle_pubsub_with_generic_error_expect_raises(
         with pytest.raises(RuntimeError, match="fatal"):
             await sut._handle_pubsub()
     assert sut.running is False
+
+
+@pytest.mark.asyncio
+async def test_mds_stop_with_cancelled_task_expect_clean_shutdown(
+    sut, mock_redis,
+):
+    # Arrange — pubsub task raises CancelledError during await
+    mock_task = _FakeTaskCancelled()
+    sut._pubsub_task = mock_task
+    sut.mdc = None
+    sut.pubsub_client = None
+    sut.redis_client = None
+
+    # Act
+    await sut.stop()
+
+    # Assert
+    mock_task.cancel.assert_called_once()
+    assert sut._pubsub_task is None
+
+
+@pytest.mark.asyncio
+async def test_mds_handle_pubsub_with_unsubscribe_expect_logged(
+    sut,
+):
+    # Arrange — unsubscribe and punsubscribe lifecycle events
+    messages = [
+        {
+            "type": "unsubscribe",
+            "channel": "feed:trades",
+            "data": 0,
+        },
+        {
+            "type": "punsubscribe",
+            "channel": "feed:agg:*",
+            "data": 0,
+        },
+    ]
+    call_count = 0
+
+    async def get_msg(**kwargs):
+        nonlocal call_count
+        idx = call_count
+        call_count += 1
+        if idx < len(messages):
+            return messages[idx]
+        raise asyncio.CancelledError()
+
+    mock_pubsub = AsyncMock()
+    mock_pubsub.get_message = get_msg
+    sut.pubsub_client = mock_pubsub
+
+    # Act
+    with pytest.raises(asyncio.CancelledError):
+        await sut._handle_pubsub()
+
+    # Assert — no crash, lifecycle events logged (not processed)
+    assert sut.running is False
+
+
+@pytest.mark.asyncio
+async def test_mds_process_msg_with_json_error_expect_decode_error(
+    sut,
+):
+    # Arrange — analyzer raises JSONDecodeError
+    mock_analyzer = AsyncMock()
+    mock_analyzer.analyze_data = AsyncMock(
+        side_effect=json.JSONDecodeError("bad", "", 0)
+    )
+    sut.analyzer = mock_analyzer
+    sut.decoding_errors = 0
+
+    # Act
+    await sut._process_message(data={"bad": "data"})
+
+    # Assert
+    assert sut.decoding_errors == 1
+
+
+@pytest.mark.asyncio
+async def test_mds_process_msg_with_analyzer_exception_expect_continues(
+    sut,
+):
+    # Arrange — analyzer raises on first call, succeeds on second
+    mock_analyzer = AsyncMock()
+    mock_analyzer.analyze_data = AsyncMock(
+        side_effect=[
+            RuntimeError("analyzer exploded"),
+            [MagicMock(
+                cache_key="test:key",
+                cache_ttl=5,
+                publish_key="pub:key",
+                data={"result": "ok"},
+            )],
+        ]
+    )
+    sut.analyzer = mock_analyzer
+    sut.errors = 0
+    sut.processed = 0
+    sut.published_results = 0
+
+    with patch.object(sut, "cache_result", new_callable=AsyncMock):
+        # Act — first message fails, second succeeds
+        await sut._process_message(data={"msg": 1})
+        await sut._process_message(data={"msg": 2})
+
+    # Assert — scanner survived the first error and processed the second
+    assert sut.errors == 1
+    assert sut.processed == 1
+    assert sut.published_results == 1

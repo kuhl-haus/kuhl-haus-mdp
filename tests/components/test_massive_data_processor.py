@@ -654,6 +654,40 @@ async def test_mdp_stop_with_pending_tasks_expect_gathered(
 
 
 @pytest.mark.asyncio
+async def test_mdp_semaphore_exhaustion_expect_messages_queue(
+    sut,
+):
+    # Arrange — set semaphore to 2 and submit 5 concurrent tasks
+    sut.semaphore = asyncio.Semaphore(2)
+    sut.running = True
+    completed = []
+
+    async def slow_analyze(data):
+        return []
+
+    sut.analyzer = MagicMock()
+    sut.analyzer.analyze_data = AsyncMock(side_effect=slow_analyze)
+
+    # Create mock messages
+    messages = []
+    for i in range(5):
+        msg = AsyncMock(spec=AbstractIncomingMessage)
+        msg.body = json.dumps({"ev": "T", "sym": f"SYM{i}"}).encode()
+        messages.append(msg)
+
+    # Act — process all messages via _callback
+    for msg in messages:
+        await sut._callback(msg)
+
+    # Wait for all tasks to complete
+    if sut.processing_tasks:
+        await asyncio.gather(*sut.processing_tasks, return_exceptions=True)
+
+    # Assert — all 5 messages processed despite semaphore limit of 2
+    assert sut.analyzer.analyze_data.call_count == 5
+
+
+@pytest.mark.asyncio
 async def test_mdp_stop_with_no_conns_expect_no_errors(
     sut,
 ):
@@ -664,3 +698,5 @@ async def test_mdp_stop_with_no_conns_expect_no_errors(
 
     # Assert
     assert sut.running is False
+
+

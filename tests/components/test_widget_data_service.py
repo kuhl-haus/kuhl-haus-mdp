@@ -21,6 +21,28 @@ class _FakeTask:
         return None
 
 
+class _FakeTaskCancelled:
+    """Awaitable that raises CancelledError (simulates cancelled task)."""
+
+    def __init__(self):
+        self.cancel = MagicMock()
+
+    def __await__(self):
+        raise asyncio.CancelledError()
+        yield  # pragma: no cover
+
+
+class _FakeTaskRuntimeError:
+    """Awaitable that raises RuntimeError (simulates closed event loop)."""
+
+    def __init__(self):
+        self.cancel = MagicMock()
+
+    def __await__(self):
+        raise RuntimeError("event loop closed")
+        yield  # pragma: no cover
+
+
 # ── fixtures ─────────────────────────────────────────────────────────
 
 
@@ -476,6 +498,202 @@ async def test_wds_handle_pubsub_with_subscribe_type_expect_noop(
     # Act (should not raise)
     with pytest.raises(asyncio.CancelledError):
         await sut._handle_pubsub()
+
+
+@pytest.mark.asyncio
+async def test_wds_handle_pubsub_with_pmessage_expect_fanout(
+    sut, mock_ws,
+):
+    # Arrange — pmessage from a wildcard (psubscribe) pattern
+    sut.subscriptions = {"leaderboard:volume": {mock_ws}}
+    data_payload = '{"symbol": "AAPL"}'
+    messages = [
+        {
+            "type": "pmessage",
+            "pattern": "leaderboard:*",
+            "channel": "leaderboard:volume",
+            "data": data_payload,
+        },
+    ]
+    call_count = 0
+
+    async def get_msg(**kwargs):
+        nonlocal call_count
+        idx = call_count
+        call_count += 1
+        if idx < len(messages):
+            return messages[idx]
+        raise asyncio.CancelledError()
+
+    sut.pubsub_client.get_message = get_msg
+
+    # Act
+    with pytest.raises(asyncio.CancelledError):
+        await sut._handle_pubsub()
+
+    # Assert
+    mock_ws.send_text.assert_awaited_once_with(data_payload)
+
+
+@pytest.mark.asyncio
+async def test_wds_handle_pubsub_with_orphan_pmessage_expect_warning(
+    sut,
+):
+    # Arrange — pmessage for feed with no subscribers
+    messages = [
+        {
+            "type": "pmessage",
+            "pattern": "leaderboard:*",
+            "channel": "leaderboard:unknown",
+            "data": "{}",
+        },
+    ]
+    call_count = 0
+
+    async def get_msg(**kwargs):
+        nonlocal call_count
+        idx = call_count
+        call_count += 1
+        if idx < len(messages):
+            return messages[idx]
+        raise asyncio.CancelledError()
+
+    sut.pubsub_client.get_message = get_msg
+
+    # Act (should not raise, just log warning)
+    with pytest.raises(asyncio.CancelledError):
+        await sut._handle_pubsub()
+
+
+@pytest.mark.asyncio
+async def test_wds_handle_pubsub_with_psubscribe_type_expect_noop(
+    sut,
+):
+    # Arrange — psubscribe and punsubscribe lifecycle events
+    messages = [
+        {
+            "type": "psubscribe",
+            "channel": "leaderboard:*",
+            "data": 1,
+        },
+        {
+            "type": "punsubscribe",
+            "channel": "leaderboard:*",
+            "data": 0,
+        },
+    ]
+    call_count = 0
+
+    async def get_msg(**kwargs):
+        nonlocal call_count
+        idx = call_count
+        call_count += 1
+        if idx < len(messages):
+            return messages[idx]
+        raise asyncio.CancelledError()
+
+    sut.pubsub_client.get_message = get_msg
+
+    # Act (should not raise — lifecycle events are logged, not processed)
+    with pytest.raises(asyncio.CancelledError):
+        await sut._handle_pubsub()
+
+
+@pytest.mark.asyncio
+async def test_wds_stop_with_cancelled_task_expect_clean_shutdown(sut):
+    # Arrange — pubsub task raises CancelledError during await
+    mock_task = _FakeTaskCancelled()
+    sut._pubsub_task = mock_task
+
+    # Act
+    await sut.stop()
+
+    # Assert
+    mock_task.cancel.assert_called_once()
+    assert sut._pubsub_task is None
+
+
+@pytest.mark.asyncio
+async def test_wds_unsubscribe_last_client_task_cancelled_expect_clean(
+    sut, mock_pubsub, mock_ws,
+):
+    # Arrange
+    with patch("asyncio.create_task"):
+        await sut.subscribe("feed:agg", mock_ws)
+    sut._pubsub_task = _FakeTaskCancelled()
+
+    # Act
+    await sut.unsubscribe("feed:agg", mock_ws)
+
+    # Assert
+    assert sut._pubsub_task is None
+    assert "feed:agg" not in sut.subscriptions
+
+
+@pytest.mark.asyncio
+async def test_wds_unsubscribe_last_client_task_runtime_err_expect_clean(
+    sut, mock_pubsub, mock_ws,
+):
+    # Arrange
+    with patch("asyncio.create_task"):
+        await sut.subscribe("feed:agg", mock_ws)
+    sut._pubsub_task = _FakeTaskRuntimeError()
+
+    # Act
+    await sut.unsubscribe("feed:agg", mock_ws)
+
+    # Assert
+    assert sut._pubsub_task is None
+    assert "feed:agg" not in sut.subscriptions
+
+
+@pytest.mark.asyncio
+async def test_wds_concurrent_disconnect_during_fanout_expect_no_crash(
+    sut, mock_ws,
+):
+    # Arrange — multiple clients disconnect simultaneously during fan-out
+    ws1 = AsyncMock()
+    ws2 = AsyncMock()
+    ws3 = AsyncMock()
+    ws1.send_text = AsyncMock(side_effect=RuntimeError("ws1 closed"))
+    ws2.send_text = AsyncMock(side_effect=RuntimeError("ws2 closed"))
+    ws3.send_text = AsyncMock(return_value=None)
+
+    sut.subscriptions = {"feed:agg": {ws1, ws2, ws3}}
+    messages = [
+        {"type": "message", "channel": "feed:agg", "data": '{"price": 42}'},
+    ]
+    call_count = 0
+
+    async def get_msg(**kwargs):
+        nonlocal call_count
+        idx = call_count
+        call_count += 1
+        if idx < len(messages):
+            return messages[idx]
+        raise asyncio.CancelledError()
+
+    sut.pubsub_client.get_message = get_msg
+
+    # Patch unsubscribe to track calls without lock issues
+    unsub_calls = []
+    original_unsub = sut.unsubscribe
+
+    async def tracking_unsub(feed, ws):
+        unsub_calls.append((feed, ws))
+        sut.subscriptions.get(feed, set()).discard(ws)
+
+    with patch.object(sut, "unsubscribe", side_effect=tracking_unsub):
+        # Act
+        with pytest.raises(asyncio.CancelledError):
+            await sut._handle_pubsub()
+
+    # Assert — ws3 got the message, ws1 and ws2 were unsubscribed
+    ws3.send_text.assert_awaited_once_with('{"price": 42}')
+    assert len(unsub_calls) == 2
+    disconnected_ws = {call[1] for call in unsub_calls}
+    assert ws1 in disconnected_ws
+    assert ws2 in disconnected_ws
 
 
 @pytest.mark.asyncio
