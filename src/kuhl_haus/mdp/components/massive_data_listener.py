@@ -31,13 +31,49 @@ class MassiveDataListener:
     connection_status: dict
     ws_connection: Union[WebSocketClient, None]
     ws_coroutine: Union[asyncio.Task, None]
-    feed: Feed
-    market: Market
-    subscriptions: List[str]
+    _feed: Feed
+    _market: Market
+    _subscriptions: List[str]
     raw: bool
     verbose: bool
     max_reconnects: Optional[int]
     secure: bool
+
+    @property
+    def feed(self) -> Feed:
+        """Current WebSocket feed."""
+        return self._feed
+
+    @feed.setter
+    def feed(self, value: Feed):
+        self._feed = value
+        self.connection_status["feed"] = value
+        if self.connection_status.get("connected"):
+            asyncio.create_task(self.restart())
+
+    @property
+    def market(self) -> Market:
+        """Current WebSocket market."""
+        return self._market
+
+    @market.setter
+    def market(self, value: Market):
+        self._market = value
+        self.connection_status["market"] = value
+        if self.connection_status.get("connected"):
+            asyncio.create_task(self.restart())
+
+    @property
+    def subscriptions(self) -> List[str]:
+        """Current WebSocket subscriptions."""
+        return self._subscriptions
+
+    @subscriptions.setter
+    def subscriptions(self, value: List[str]):
+        self._subscriptions = value
+        self.connection_status["subscriptions"] = value
+        if self.connection_status.get("connected"):
+            asyncio.create_task(self.restart())
 
     def __init__(
         self,
@@ -59,9 +95,9 @@ class MassiveDataListener:
         self.rest_client = RESTClient(api_key=api_key)
         self.message_handler = message_handler
         self.api_key = api_key
-        self.feed = feed
-        self.market = market
-        self.subscriptions = subscriptions
+        self._feed = feed
+        self._market = market
+        self._subscriptions = subscriptions
         self.raw = raw
         self.verbose = verbose
         self.max_reconnects = max_reconnects

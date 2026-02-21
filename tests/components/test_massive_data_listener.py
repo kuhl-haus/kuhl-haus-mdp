@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -42,7 +43,7 @@ def sut(mock_message_handler, mock_rest_client):
         api_key="test_api_key",
         feed=Feed.RealTime,
         market=Market.Stocks,
-        subscriptions=["AAPL", "MSFT"],
+        subscriptions=["T.AAPL", "T.MSFT"],
         raw=False,
         verbose=True,
         max_reconnects=3,
@@ -58,7 +59,7 @@ def test_mdl_init_with_valid_params_expect_correct_init(
     api_key = "test_api_key"
     feed = Feed.RealTime
     market = Market.Stocks
-    subscriptions = ["AAPL"]
+    subscriptions = ["T.AAPL"]
 
     # Act
     sut = MassiveDataListener(
@@ -163,6 +164,147 @@ async def test_mdl_restart_with_active_conn_expect_stop_and_start_called(
         # Assert
         mock_stop.assert_awaited_once()
         mock_start.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_mdl_stop_with_exception_expect_error_logged_and_state_reset(
+    sut, mock_ws_client, caplog
+):
+    # Arrange
+    sut.ws_connection = mock_ws_client.return_value
+    mock_ws_coroutine = MagicMock(spec=asyncio.Task)
+    mock_ws_coroutine.cancel.side_effect = Exception("Cancel Error")
+    sut.ws_coroutine = mock_ws_coroutine
+    sut.connection_status["connected"] = True
+
+    # Act
+    with caplog.at_level(logging.ERROR):
+        await sut.stop()
+
+    # Assert
+    assert sut.connection_status["connected"] is False
+    assert sut.ws_connection is None
+    assert sut.ws_coroutine is None
+    assert "Cancel Error" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_mdl_restart_with_exception_expect_error_logged(
+    sut, caplog
+):
+    # Arrange
+    with patch.object(
+        sut, "stop", new_callable=AsyncMock,
+        side_effect=Exception("Stop Error")
+    ) as mock_stop, caplog.at_level(logging.ERROR):
+        # Act
+        await sut.restart()
+
+        # Assert
+        mock_stop.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_mdl_feed_changed_post_init_expect_connection_status_synced(
+    sut,
+):
+    # Arrange
+    original_feed = sut.feed
+    assert sut.connection_status["feed"] is original_feed
+
+    # Act - reassign feed
+    new_feed = Feed.Delayed
+    sut.feed = new_feed
+
+    # Assert - connection_status reflects the new feed
+    assert sut.feed is new_feed
+    assert sut.connection_status["feed"] is sut.feed
+    assert sut.connection_status["feed"] is new_feed
+
+
+@pytest.mark.asyncio
+async def test_mdl_market_changed_post_init_expect_connection_status_synced(
+    sut,
+):
+    # Arrange
+    original_market = sut.market
+    assert sut.connection_status["market"] is original_market
+
+    # Act - reassign market
+    new_market = Market.Crypto
+    sut.market = new_market
+
+    # Assert - connection_status reflects the new market
+    assert sut.market is new_market
+    assert sut.connection_status["market"] is sut.market
+    assert sut.connection_status["market"] is new_market
+
+
+@pytest.mark.asyncio
+async def test_mdl_subscriptions_changed_post_init_expect_connection_status_synced(
+    sut,
+):
+    # Arrange
+    original_subscriptions = sut.subscriptions
+    assert sut.connection_status["subscriptions"] is original_subscriptions
+
+    # Act - reassign subscriptions like the MDL server API does
+    new_subscriptions = ["T.AAPL", "T.MSFT", "Q.GOOG"]
+    sut.subscriptions = new_subscriptions
+
+    # Assert - connection_status reflects the new subscriptions
+    assert sut.subscriptions is new_subscriptions
+    assert sut.connection_status["subscriptions"] is sut.subscriptions
+    assert sut.connection_status["subscriptions"] is new_subscriptions
+
+
+@pytest.mark.asyncio
+async def test_mdl_feed_changed_while_connected_expect_restart_called(
+    sut,
+):
+    # Arrange
+    sut.connection_status["connected"] = True
+    with patch.object(sut, "restart", new_callable=AsyncMock) as mock_restart:
+        # Act
+        sut.feed = Feed.Delayed
+
+        # Assert
+        assert sut.feed is Feed.Delayed
+        assert sut.connection_status["feed"] is Feed.Delayed
+        mock_restart.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_mdl_market_changed_while_connected_expect_restart_called(
+    sut,
+):
+    # Arrange
+    sut.connection_status["connected"] = True
+    with patch.object(sut, "restart", new_callable=AsyncMock) as mock_restart:
+        # Act
+        sut.market = Market.Crypto
+
+        # Assert
+        assert sut.market is Market.Crypto
+        assert sut.connection_status["market"] is Market.Crypto
+        mock_restart.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_mdl_subscriptions_changed_while_connected_expect_restart_called(
+    sut,
+):
+    # Arrange
+    sut.connection_status["connected"] = True
+    new_subscriptions = ["T.AAPL", "T.MSFT"]
+    with patch.object(sut, "restart", new_callable=AsyncMock) as mock_restart:
+        # Act
+        sut.subscriptions = new_subscriptions
+
+        # Assert
+        assert sut.subscriptions is new_subscriptions
+        assert sut.connection_status["subscriptions"] is new_subscriptions
+        mock_restart.assert_called_once()
 
 
 @pytest.mark.asyncio
