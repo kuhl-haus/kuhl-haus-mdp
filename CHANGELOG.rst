@@ -1,9 +1,59 @@
 =========
 Changelog
 =========
-Version 0.2.24 (2026-02-20)
+Version 0.2.25 (2026-02-21)
 ===========================
 
+- `922b667 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/922b667>`_ Fix stale connection_status and auto-restart MDL on property changes
+
+  Convert feed, market, and subscriptions from plain attributes to properties with getters/setters that keep connection_status dict in sync on every reassignment. Previously, reassigning these attributes broke the shared reference established in init, leaving connection_status stale.
+
+  Add auto-restart behavior: when feed, market, or subscriptions are changed while the MDL is connected, the setter schedules an asyncio.create_task( self.restart()) so callers no longer need a separate API call to restart.
+
+  Add 8 new unit tests covering:
+
+  • connection_status stays synced after feed/market/subscriptions reassignment
+
+  • restart is triggered when properties change while connected
+
+  • exception branches in stop() and restart() log errors and reset state
+
+  Patch asyncio.sleep in two existing slow tests to eliminate real sleeps.
+
+- `e1aa22d <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/e1aa22d>`_ tests(mdl): mock asyncio.sleep and shorten test name
+
+  Rename a long test name to a shorter one for readability and add patching of asyncio.sleep (AsyncMock) in stop/restart tests in tests/components/test_massive_data_listener.py. Patching prevents real sleeps during sut.stop() and sut.restart(), avoids delays/flakiness, and ensures assertions run with the sleep mocked.
+
+- `903a257 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/903a257>`_ Update index.rst
+- `fe014a2 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/fe014a2>`_ Add architecture docs with PlantUML support
+
+  Move the architecture content out of README into Sphinx docs and add PlantUML-based diagrams. Adds docs/architecture.rst and a full-page architecture-diagram.rst, a custom CSS to constrain PlantUML output, and removes the large embedded SVG. Updates Sphinx/ReadTheDocs config (conf.py, index.rst, docs/requirements.txt, .readthedocs.yml) to enable PlantUML on the build environment and ignores docs/plantuml.jar in .gitignore. Also small whitespace cleanups in build scripts and README updated to link to the full docs on Read the Docs.
+
+- `6ed5c36 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/6ed5c36>`_ Added SECURITY.md stub for GitHub Security tab
+
+  GitHub only recognizes SECURITY.md (Markdown) for the Security tab — it does not support .rst files. Created a minimal SECURITY.md that links readers to the full security policy on Read the Docs, avoiding the need to maintain duplicate content. SECURITY.rst remains the single source of truth, consumed by Sphinx/RTD.
+
+- `dc7a99e <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/dc7a99e>`_ Convert security policy to RST and link docs
+
+  Remove SECURITY.md and add a reStructuredText version (SECURITY.rst) as the canonical security policy. Add docs/security.rst to include the top-level SECURITY.rst into the Sphinx docs, and update docs/index.rst to add a "Security Policy" entry in the docs table of contents. This standardizes the security documentation format for the project's Sphinx documentation.
+
+- `51ae175 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/51ae175>`_ Remove PyCharm run configs note from CONTRIBUTING
+
+  Delete the parenthetical mention of PyCharm run configurations in CONTRIBUTING.rst. The docs now simply instruct contributors to use the provided scripts from the project root, removing an IDE-specific reference that may be outdated or unnecessary.
+
+- `1eab2f5 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/1eab2f5>`_ Remove sphinx-inline-tabs and update docs
+
+  Drop the sphinx-inline-tabs extension and its dependency, and replace tab-based markup in CONTRIBUTING.rst with plain bold headings and standard code-blocks. docs/conf.py no longer lists the extension and docs/requirements.txt removes the package, so the documentation build no longer depends on sphinx-inline-tabs. Adjusted CONTRIBUTING.rst formatting/indentation to match the new markup.
+
+- `fdb3301 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/fdb3301>`_ Use raw GitHub URLs for README figures
+
+  Replace local figure references in README.rst with raw.githubusercontent.com links so images render when the README is viewed externally. Updated two figure references: Market_Data_Processing_C4.png and architecture.svg to point to the mainline/docs path on GitHub.
+
+
+Version 0.2.24 (2026-02-21)
+===========================
+
+- `c0231df <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/c0231df>`_ Update CHANGELOG.rst for v0.2.24
 - `033adf3 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/033adf3>`_ Remove setup.py/setup.cfg; clean pyproject.toml
 
   Delete legacy setup.py and setup.cfg and consolidate project configuration in pyproject.toml. Remove setuptools-specific sections (tool.setuptools, tool.setuptools_scm) and devpi.upload entries, drop setuptools-scm from build-system requires (using pdm backend), and simplify pytest and flake8 exclude lists. Also normalize project URLs (remove .git from Source and point Changelog to CHANGELOG.rst). These changes modernize packaging to PEP 517/518 with pdm and remove redundant legacy config.
