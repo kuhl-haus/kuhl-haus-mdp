@@ -49,7 +49,7 @@ the project code, and any documentation update follows the same workflow as a
 code contribution.
 
 To build the documentation locally, use one of the provided scripts from the
-project root (there are also PyCharm run configurations for this).
+project root.
 
 **Linux / macOS:**
 
