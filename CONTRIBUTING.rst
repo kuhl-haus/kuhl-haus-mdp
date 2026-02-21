@@ -84,15 +84,6 @@ Before you work on any non-trivial code contribution it's best to first create
 a report in the `issue tracker`_ to start a discussion on the subject.
 This often provides additional considerations and avoids unnecessary work.
 
-Create an environment
----------------------
-
-This project uses PDM_ as its package and dependency manager and requires
-**Python 3.14** or later. After installing PDM, create a virtual environment
-and install all dependencies (including test/dev extras)::
-
-    pdm install -G testing
-
 Clone the repository
 --------------------
 
@@ -104,9 +95,34 @@ Clone the repository
     git clone git@github.com:YourLogin/kuhl-haus-mdp.git
     cd kuhl-haus-mdp
 
-#. Install the project in development mode with test dependencies::
+Create an environment
+---------------------
 
-    pdm install -G testing
+This project uses PDM_ for builds and requires **Python 3.14** or later.
+
+#. Create and activate a Python virtual environment:
+
+   .. tab:: Linux / macOS
+
+      .. code-block:: bash
+
+         python3 -m venv .venv
+         source .venv/bin/activate
+
+   .. tab:: Windows
+
+      .. code-block:: powershell
+
+         python -m venv .venv
+         .venv\Scripts\Activate.ps1
+
+#. Install the project's dependencies::
+
+    pip install -r requirements.txt
+
+#. Install the project's test dependencies::
+
+    pip install -r requirements-test.txt
 
 Implement your changes
 ----------------------
@@ -143,17 +159,13 @@ Implement your changes
 
     pdm run pytest --cov=kuhl_haus.mdp --cov-report=html tests -v
 
-   This produces an HTML coverage report in ``htmlcov/``. There is also a
-   PyCharm run configuration called **pdm pytest w/coverage** that does the
-   same thing.
+   This produces an HTML coverage report in ``htmlcov/``.
 
 #. Run flake8_ to check code style::
 
     flake8 src/kuhl_haus/mdp --count --select=E9,F63,F7,F82 --show-source --statistics
     flake8 src/kuhl_haus/mdp --count --exit-zero --ignore=C901,W503 --max-complexity=10 --max-line-length=127 --statistics
 
-   There is also a PyCharm run configuration called **flake8** that runs both
-   passes.
 
 Submit your contribution
 ------------------------
@@ -195,7 +207,7 @@ If you are part of the group of maintainers and have correct user permissions
 on PyPI_, the following steps can be used to release a new version for
 ``kuhl-haus-mdp``:
 
-#. Make sure all unit tests are successful.
+#. Make sure all workflows for the latest commit are successful.
 #. Run the `release-workflow`_ to generate release notes.
 #. After reviewing the release notes, tag the commit on the mainline branch with a corresponding release tag, e.g., ``v1.2.3``.
 #. Push the new tag to the upstream repository_, e.g., ``git push upstream v1.2.3``
