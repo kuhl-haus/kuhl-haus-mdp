@@ -74,10 +74,10 @@ MDL runs as a container and scales independently of other components. The MDL sh
 Code Libraries
 ~~~~~~~~~~~~~~
 
-- **MassiveDataListener** (``components/massive_data_listener.py``) - WebSocket client wrapper for Massive.com with persistent connection management and market-aware reconnection logic
-- **MassiveDataQueues** (``components/massive_data_queues.py``) - Multi-channel RabbitMQ publisher routing messages by event type with concurrent batch publishing (100 msg/frame)
-- **WebSocketMessageSerde** (``helpers/web_socket_message_serde.py``) - Serialization/deserialization for Massive WebSocket messages to/from JSON
-- **QueueNameResolver** (``helpers/queue_name_resolver.py``) - Event type to queue name routing logic
+- **MassiveDataListener** (`components/massive_data_listener.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.components.html#module-kuhl_haus.mdp.components.massive_data_listener>`_) - WebSocket client wrapper for Massive.com with persistent connection management and market-aware reconnection logic
+- **MassiveDataQueues** (`components/massive_data_queues.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.components.html#module-kuhl_haus.mdp.components.massive_data_queues>`_) - Multi-channel RabbitMQ publisher routing messages by event type with concurrent batch publishing (100 msg/frame)
+- **WebSocketMessageSerde** (`helpers/web_socket_message_serde.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.helpers.html#module-kuhl_haus.mdp.helpers.web_socket_message_serde>`_) - Serialization/deserialization for Massive WebSocket messages to/from JSON
+- **QueueNameResolver** (`helpers/queue_name_resolver.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.helpers.html#module-kuhl_haus.mdp.helpers.queue_name_resolver>`_) - Event type to queue name routing logic
 
 Market Data Queues (MDQ)
 -------------------------
@@ -96,8 +96,8 @@ The MDQ should not be accessible outside the data plane local network.
 Code Libraries
 ~~~~~~~~~~~~~~
 
-- **MassiveDataQueues** (``components/massive_data_queues.py``) - Queue setup, per-queue channel management, and message publishing with NOT_PERSISTENT delivery mode
-- **MassiveDataQueue** enum (``enum/massive_data_queue.py``) - Queue name constants for routing (AGGREGATE, TRADES, QUOTES, HALTS, UNKNOWN)
+- **MassiveDataQueues** (`components/massive_data_queues.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.components.html#module-kuhl_haus.mdp.components.massive_data_queues>`_) - Queue setup, per-queue channel management, and message publishing with NOT_PERSISTENT delivery mode
+- **MassiveDataQueue** enum (`enum/massive_data_queue.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.enum.html#module-kuhl_haus.mdp.enum.massive_data_queue>`_) - Queue name constants for routing (AGGREGATE, TRADES, QUOTES, HALTS, UNKNOWN)
 
 Market Data Processors (MDP)
 -----------------------------
@@ -116,17 +116,17 @@ MDPs runs as containers and scale independently of other components. The MDPs sh
 Code Libraries
 ~~~~~~~~~~~~~~
 
-- **MassiveDataProcessor** (``components/massive_data_processor.py``) - RabbitMQ consumer with semaphore-based concurrency control for high-throughput scenarios (1,000+ events/sec)
-- **MarketDataScanner** (``components/market_data_scanner.py``) - Redis pub/sub consumer with pluggable analyzer pattern for sequential message processing
-- **Analyzers** (``analyzers/``)
+- **MassiveDataProcessor** (`components/massive_data_processor.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.components.html#module-kuhl_haus.mdp.components.massive_data_processor>`_) - RabbitMQ consumer with semaphore-based concurrency control for high-throughput scenarios (1,000+ events/sec)
+- **MarketDataScanner** (`components/market_data_scanner.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.components.html#module-kuhl_haus.mdp.components.market_data_scanner>`_) - Redis pub/sub consumer with pluggable analyzer pattern for sequential message processing
+- **Analyzers** (`analyzers/ <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.analyzers.html>`_)
 
-  - **MassiveDataAnalyzer** (``massive_data_analyzer.py``) - Stateless event router dispatching by event type
-  - **LeaderboardAnalyzer** (``leaderboard_analyzer.py``) - Redis sorted set leaderboards (volume, gappers, gainers) with day/market boundary resets and distributed throttling
-  - **TopTradesAnalyzer** (``top_trades_analyzer.py``) - Redis List-based trade history with sliding window (last 1,000 trades/symbol) and aggregated statistics
-  - **TopStocksAnalyzer** (``top_stocks.py``) - In-memory leaderboard prototype (legacy, single-instance)
+  - **MassiveDataAnalyzer** (`massive_data_analyzer.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.analyzers.html#module-kuhl_haus.mdp.analyzers.massive_data_analyzer>`_) - Stateless event router dispatching by event type
+  - **LeaderboardAnalyzer** (`leaderboard_analyzer.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.analyzers.html#module-kuhl_haus.mdp.analyzers.leaderboard_analyzer>`_) - Redis sorted set leaderboards (volume, gappers, gainers) with day/market boundary resets and distributed throttling
+  - **TopTradesAnalyzer** (`top_trades_analyzer.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.analyzers.html#module-kuhl_haus.mdp.analyzers.top_trades_analyzer>`_) - Redis List-based trade history with sliding window (last 1,000 trades/symbol) and aggregated statistics
+  - **TopStocksAnalyzer** (`top_stocks.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.analyzers.html#module-kuhl_haus.mdp.analyzers.top_stocks>`_) - In-memory leaderboard prototype (legacy, single-instance)
 
-- **MarketDataAnalyzerResult** (``data/market_data_analyzer_result.py``) - Result envelope for analyzer output with cache/publish metadata
-- **ProcessManager** (``helpers/process_manager.py``) - Multiprocess orchestration for async workers with OpenTelemetry context propagation
+- **MarketDataAnalyzerResult** (`data/market_data_analyzer_result.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.data.html#module-kuhl_haus.mdp.data.market_data_analyzer_result>`_) - Result envelope for analyzer output with cache/publish metadata
+- **ProcessManager** (`helpers/process_manager.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.helpers.html#module-kuhl_haus.mdp.helpers.process_manager>`_) - Multiprocess orchestration for async workers with OpenTelemetry context propagation
 
 Market Data Cache (MDC)
 ------------------------
@@ -142,10 +142,10 @@ The MDC should not be accessible outside the data plane local network.
 Code Libraries
 ~~~~~~~~~~~~~~
 
-- **MarketDataCache** (``components/market_data_cache.py``) - Redis cache-aside layer for Massive.com API with TTL policies, negative caching, and specialized metric methods (snapshot, avg volume, free float)
-- **MarketDataCacheKeys** enum (``enum/market_data_cache_keys.py``) - Internal Redis cache key patterns and templates
-- **MarketDataCacheTTL** enum (``enum/market_data_cache_ttl.py``) - TTL values balancing freshness vs. API quotas vs. memory pressure (5s for trades, 24h for reference data)
-- **MarketDataPubSubKeys** enum (``enum/market_data_pubsub_keys.py``) - Redis pub/sub channel names for external consumption
+- **MarketDataCache** (`components/market_data_cache.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.components.html#module-kuhl_haus.mdp.components.market_data_cache>`_) - Redis cache-aside layer for Massive.com API with TTL policies, negative caching, and specialized metric methods (snapshot, avg volume, free float)
+- **MarketDataCacheKeys** enum (`enum/market_data_cache_keys.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.enum.html#module-kuhl_haus.mdp.enum.market_data_cache_keys>`_) - Internal Redis cache key patterns and templates
+- **MarketDataCacheTTL** enum (`enum/market_data_cache_ttl.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.enum.html#module-kuhl_haus.mdp.enum.market_data_cache_ttl>`_) - TTL values balancing freshness vs. API quotas vs. memory pressure (5s for trades, 24h for reference data)
+- **MarketDataPubSubKeys** enum (`enum/market_data_pubsub_keys.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.enum.html#module-kuhl_haus.mdp.enum.market_data_pubsub_keys>`_) - Redis pub/sub channel names for external consumption
 
 Widget Data Service (WDS)
 --------------------------
@@ -160,8 +160,8 @@ WDS runs as a container and scales independently of other components. WDS is the
 Code Libraries
 ~~~~~~~~~~~~~~
 
-- **WidgetDataService** (``components/widget_data_service.py``) - WebSocket-to-Redis bridge with fan-out pattern, lazy task initialization, wildcard subscription support, and lock-protected subscription management
-- **MarketDataCache** (``components/market_data_cache.py``) - Snapshot retrieval for initial state before streaming
+- **WidgetDataService** (`components/widget_data_service.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.components.html#module-kuhl_haus.mdp.components.widget_data_service>`_) - WebSocket-to-Redis bridge with fan-out pattern, lazy task initialization, wildcard subscription support, and lock-protected subscription management
+- **MarketDataCache** (`components/market_data_cache.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.components.html#module-kuhl_haus.mdp.components.market_data_cache>`_) - Snapshot retrieval for initial state before streaming
 
 Service Control Plane (SCP)
 ----------------------------
@@ -184,6 +184,6 @@ The SCP code is in the `kuhl-haus/kuhl-haus-mdp-app <https://github.com/kuhl-hau
 Miscellaneous Code Libraries
 -----------------------------
 
-- **Observability** (``helpers/observability.py``) - OpenTelemetry tracer/meter factory for distributed tracing and metrics
-- **StructuredLogging** (``helpers/structured_logging.py``) - JSON logging for K8s/OpenObserve with dev mode support
-- **Utils** (``helpers/utils.py``) - API key resolution (MASSIVE_API_KEY → POLYGON_API_KEY → file) and TickerSnapshot serialization
+- **Observability** (`helpers/observability.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.helpers.html#module-kuhl_haus.mdp.helpers.observability>`_) - OpenTelemetry tracer/meter factory for distributed tracing and metrics
+- **StructuredLogging** (`helpers/structured_logging.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.helpers.html#module-kuhl_haus.mdp.helpers.structured_logging>`_) - JSON logging for K8s/OpenObserve with dev mode support
+- **Utils** (`helpers/utils.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.helpers.html#module-kuhl_haus.mdp.helpers.utils>`_) - API key resolution (MASSIVE_API_KEY → POLYGON_API_KEY → file) and TickerSnapshot serialization

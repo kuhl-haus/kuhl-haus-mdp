@@ -5,14 +5,16 @@ or human-readable formatting for local development. Call setup_logging() once at
 application entry point; all subsequent getLogger() calls inherit configuration.
 
 Usage:
-    # In server entry point (ONCE at startup):
-    from kuhl_haus.mdp.helpers.structured_logging import setup_logging
-    setup_logging()
+    In server entry point (ONCE at startup)::
 
-    # In ALL modules (library and servers):
-    import logging
-    logger = logging.getLogger(__name__)
-    logger.info("message here")
+        from kuhl_haus.mdp.helpers.structured_logging import setup_logging
+        setup_logging()
+
+    In ALL modules (library and servers)::
+
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info("message here")
 """
 
 import logging
@@ -45,14 +47,17 @@ def setup_logging(
                             (filename, function, line, pid, thread).
 
     Examples:
-        # Production (JSON to stdout for K8s/OpenObserve)
-        setup_logging()
+        Production (JSON to stdout for K8s/OpenObserve)::
 
-        # Local development (human-readable)
-        setup_logging(log_level='DEBUG', json_format=False)
+            setup_logging()
 
-        # Minimal JSON (no trace fields)
-        setup_logging(include_trace_fields=False)
+        Local development (human-readable)::
+
+            setup_logging(log_level='DEBUG', json_format=False)
+
+        Minimal JSON (no trace fields)::
+
+            setup_logging(include_trace_fields=False)
     """
     level = (log_level or os.getenv('LOG_LEVEL', 'INFO')).upper()
 
@@ -165,7 +170,8 @@ def get_logger(name: Optional[str] = None) -> logging.Logger:
     Returns:
         Configured logger instance.
 
-    Example:
+    Example::
+
         logger = get_logger(__name__)
         logger.info("Started processing")
     """

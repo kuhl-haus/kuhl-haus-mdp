@@ -16,9 +16,10 @@ def get_massive_api_key():
     """Resolve Massive API key from environment variables or Docker secret file.
 
     Resolution order:
+
     1. MASSIVE_API_KEY environment variable
-    2. POLYGON_API_KEY environment variable (legacy fallback)
-    3. /app/massive_api_key.txt (Docker secret mount)
+    #. POLYGON_API_KEY environment variable (legacy fallback)
+    #. /app/massive_api_key.txt (Docker secret mount)
 
     Raises:
         ValueError: When no API key found via any method.
