@@ -53,7 +53,7 @@ def get_massive_api_key():
 
 def ticker_snapshot_to_dict(snapshot: TickerSnapshot) -> Dict[str, Any]:
     """Convert TickerSnapshot to JSON-serializable dict with camelCase keys matching Massive API format."""
-    data = {
+    data: Dict[str, Any] = {
         "ticker": snapshot.ticker,
         "todaysChange": snapshot.todays_change,
         "todaysChangePerc": snapshot.todays_change_percent,
