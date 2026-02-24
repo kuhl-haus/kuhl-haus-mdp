@@ -12,6 +12,7 @@ from kuhl_haus.mdp.enum.constants import (
     ONE_HOUR,
     ONE_MINUTE,
     SIX_HOURS,
+    THIRTY_SECONDS,
     THREE_DAYS,
     TWELVE_HOURS,
 )
@@ -40,6 +41,7 @@ class MarketDataCacheTTL(Enum):
     TICKER_AVG_VOLUME = TWELVE_HOURS
     TICKER_FREE_FLOAT = TWELVE_HOURS
     TICKER_SNAPSHOTS = EIGHT_HOURS
+    TICKER_SNAPSHOT_LOCK = THIRTY_SECONDS
 
     # Leaderboard caches
     LEADERBOARD_ANALYZER = ONE_HOUR

@@ -4,6 +4,9 @@ Provides standardized duration values used throughout the market data pipeline
 for Redis cache expiration and throttle intervals. All values are in seconds
 to match Redis TTL expectations.
 """
+# Seconds
+THIRTY_SECONDS = 30
+
 # Minutes in seconds
 ONE_MINUTE = 60
 FIVE_MINUTES = 300

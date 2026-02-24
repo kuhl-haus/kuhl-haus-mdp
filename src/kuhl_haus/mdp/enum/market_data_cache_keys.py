@@ -47,6 +47,7 @@ class MarketDataCacheKeys(Enum):
     TICKER_SNAPSHOTS = 'mdc:snapshots'
     TICKER_AVG_VOLUME = 'mdc:avg_volume'
     TICKER_FREE_FLOAT = 'mdc:free_float'
+    TICKER_SNAPSHOT_LOCK = 'mdc:lock:snapshots'
 
     # MARKET DATA PROCESSOR CACHE
     TOP_TRADES_SCANNER = f'cache:{MarketDataScannerNames.TOP_TRADES.value}'

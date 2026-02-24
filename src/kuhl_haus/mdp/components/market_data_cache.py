@@ -8,8 +8,9 @@ caching prevents repeated API failures from overwhelming the service.
 import asyncio
 import json
 import logging
+import time
 from datetime import datetime, timezone, timedelta
-from typing import Any, Optional, Iterator, List
+from typing import Any, Dict, Optional, Iterator, List
 
 import aiohttp
 import redis.asyncio as aioredis
@@ -102,6 +103,12 @@ class MarketDataCache:
             description="Number of HTTP errors while fetching data from Massive API",
             unit="1"
         )
+        self.snapshot_api_duration = meter.create_histogram(
+            name="mdc.snapshot_api_duration",
+            description="Duration of Massive API get_snapshot_ticker calls",
+            unit="s"
+        )
+        self._pending_snapshots: Dict[str, asyncio.Event] = {}
 
     @tracer.start_as_current_span("mdc.delete")
     async def delete(self, cache_key: str):
@@ -160,9 +167,23 @@ class MarketDataCache:
     async def get_ticker_snapshot(self, ticker: str) -> TickerSnapshot:
         """Fetch ticker snapshot from cache or Massive API.
 
-        Returns cached TickerSnapshot if available, otherwise fetches from
-        Massive.com REST API, caches, and returns. TTL set per TICKER_SNAPSHOTS
-        policy.
+        Returns cached TickerSnapshot if available. On a cache miss, uses a
+        two-layer coordination strategy to prevent stampeding herd:
+
+        1. **In-process**: An ``asyncio.Event`` per ticker collapses N
+           concurrent coroutines into one Redis lock attempt, eliminating
+           redundant polling from ``redis.asyncio.lock`` waiters.
+        2. **Cross-instance**: A Redis distributed lock ensures only one
+           process calls the Massive API for a given ticker at a time.
+
+        If the winning coroutine fails (exception), the event is still
+        signaled so waiters wake up, find the cache empty, and fall
+        through to contend for the distributed lock themselves.
+
+        The underlying REST client includes retry logic with exponential
+        backoff; exceptions bubble up to the caller. The API call is
+        instrumented with a histogram so the lock TTL can be tuned from
+        production data.
 
         Side effects: Calls Massive API on cache miss; writes to Redis.
         """
@@ -171,20 +192,85 @@ class MarketDataCache:
         result = await self.read(cache_key=cache_key)
         if result:
             self.logger.debug(f"Returning cached snapshot for {ticker}")
-            snapshot = TickerSnapshot.from_dict(result)
-        else:
-            snapshot: TickerSnapshot = self.rest_client.get_snapshot_ticker(
-                market_type="stocks",
-                ticker=ticker
+            return TickerSnapshot.from_dict(result)
+
+        # In-process coalescing: if another coroutine is already fetching
+        # this ticker, wait for it instead of polling Redis for the lock.
+        pending_event = self._pending_snapshots.get(ticker)
+        if pending_event is not None:
+            self.logger.debug(
+                f"Waiting on pending snapshot event for {ticker}"
             )
-            self.logger.debug(f"Snapshot result: {snapshot}")
+            await pending_event.wait()
+            result = await self.read(cache_key=cache_key)
+            if result:
+                self.logger.debug(
+                    f"Returning cached snapshot for "
+                    f"{ticker} after event"
+                )
+                return TickerSnapshot.from_dict(result)
+
+        # This coroutine is the leader — register an event so
+        # subsequent callers for the same ticker can await it.
+        event = asyncio.Event()
+        self._pending_snapshots[ticker] = event
+        try:
+            return await self._fetch_snapshot_with_lock(
+                ticker, cache_key,
+            )
+        finally:
+            event.set()
+            self._pending_snapshots.pop(ticker, None)
+
+    async def _fetch_snapshot_with_lock(
+        self, ticker: str, cache_key: str,
+    ) -> TickerSnapshot:
+        """Acquire distributed lock, fetch snapshot, and populate cache.
+
+        Called by the leader coroutine after registering an in-process
+        event. Acquires a Redis distributed lock, double-checks the
+        cache, and calls the Massive API if still needed.
+        """
+        lock_key = (
+            f"{MarketDataCacheKeys.TICKER_SNAPSHOT_LOCK.value}"
+            f":{ticker}"
+        )
+        lock = self.redis_client.lock(
+            lock_key,
+            timeout=MarketDataCacheTTL.TICKER_SNAPSHOT_LOCK.value,
+        )
+        try:
+            await lock.acquire()
+            result = await self.read(cache_key=cache_key)
+            if result:
+                self.logger.debug(
+                    f"Returning cached snapshot for "
+                    f"{ticker} after lock"
+                )
+                return TickerSnapshot.from_dict(result)
+
+            start = time.monotonic()
+            snapshot = self.rest_client.get_snapshot_ticker(
+                market_type="stocks",
+                ticker=ticker,
+            )
+            duration = time.monotonic() - start
+            self.snapshot_api_duration.record(duration)
+            self.logger.debug(
+                f"Snapshot API call for {ticker} "
+                f"took {duration:.3f}s"
+            )
+
             data = ticker_snapshot_to_dict(snapshot)
             await self.write(
                 data=data,
                 cache_key=cache_key,
-                cache_ttl=MarketDataCacheTTL.TICKER_SNAPSHOTS.value
+                cache_ttl=MarketDataCacheTTL.TICKER_SNAPSHOTS.value,
             )
-        return snapshot
+            return snapshot
+        finally:
+            if await lock.locked():
+                await lock.release()
 
     @tracer.start_as_current_span("mdc.get_avg_volume")
     async def get_avg_volume(self, ticker: str):
