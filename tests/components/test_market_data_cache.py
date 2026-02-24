@@ -534,6 +534,7 @@ async def test_mdc_get_avg_vol_with_cache_hit_expect_cached(
     # Assert
     assert result == 1500000
     mock_redis.get.assert_awaited_once()
+    mock_redis.lock.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -541,6 +542,8 @@ async def test_mdc_get_avg_vol_with_single_ratio_expect_val(
     sut, mock_redis, mock_rest,
 ):
     # Arrange
+    lock = _mock_lock()
+    mock_redis.lock = MagicMock(return_value=lock)
     mock_redis.get.return_value = None
     ratio = MagicMock()
     ratio.average_volume = 2500000
@@ -553,10 +556,12 @@ async def test_mdc_get_avg_vol_with_single_ratio_expect_val(
 
     # Assert
     assert result == 2500000
+    lock.acquire.assert_awaited_once()
     mock_rest.list_financials_ratios.assert_called_once_with(
         ticker="TEST",
     )
     mock_redis.setex.assert_awaited_once()
+    lock.release.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -564,6 +569,8 @@ async def test_mdc_get_avg_vol_with_multi_ratio_expect_calc(
     sut, mock_redis, mock_rest,
 ):
     # Arrange
+    lock = _mock_lock()
+    mock_redis.lock = MagicMock(return_value=lock)
     mock_redis.get.return_value = None
     r1 = MagicMock()
     r2 = MagicMock()
@@ -590,6 +597,8 @@ async def test_mdc_get_avg_vol_with_no_aggs_expect_zero(
     sut, mock_redis, mock_rest,
 ):
     # Arrange
+    lock = _mock_lock()
+    mock_redis.lock = MagicMock(return_value=lock)
     mock_redis.get.return_value = None
     mock_rest.list_financials_ratios.return_value = iter(
         [MagicMock(), MagicMock()]
@@ -613,6 +622,8 @@ async def test_mdc_get_avg_vol_with_over_30_aggs_expect_capped(
     sut, mock_redis, mock_rest,
 ):
     # Arrange — 35 aggs, only first 30 should be summed (break at 31st)
+    lock = _mock_lock()
+    mock_redis.lock = MagicMock(return_value=lock)
     mock_redis.get.return_value = None
     mock_rest.list_financials_ratios.return_value = iter(
         [MagicMock(), MagicMock()]
@@ -630,6 +641,193 @@ async def test_mdc_get_avg_vol_with_over_30_aggs_expect_capped(
     # Assert — 30 * 100 / 30 = 100.0, not 35 * 100 / 35
     assert result == 100.0
     mock_redis.setex.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_mdc_get_avg_vol_with_miss_double_check_hit(
+    sut, mock_redis,
+):
+    # Arrange — cache miss on first read, lock acquired, cache hit
+    # on re-check (another caller populated the cache)
+    lock = _mock_lock()
+    mock_redis.lock = MagicMock(return_value=lock)
+    mock_redis.get.side_effect = [None, json.dumps(2500000)]
+
+    # Act
+    result = await sut.get_avg_volume("TEST")
+
+    # Assert — no API call, lock released
+    assert result == 2500000
+    lock.release.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_mdc_get_avg_vol_lock_uses_correct_key_and_ttl(
+    sut, mock_redis, mock_rest,
+):
+    # Arrange
+    lock = _mock_lock()
+    mock_redis.lock = MagicMock(return_value=lock)
+    mock_redis.get.return_value = None
+    ratio = MagicMock()
+    ratio.average_volume = 100
+    mock_rest.list_financials_ratios.return_value = iter(
+        [ratio]
+    )
+
+    # Act
+    await sut.get_avg_volume("AAPL")
+
+    # Assert — lock created with correct key and TTL
+    expected_key = (
+        f"{MarketDataCacheKeys.TICKER_AVG_VOLUME_LOCK.value}:AAPL"
+    )
+    mock_redis.lock.assert_called_once_with(
+        expected_key,
+        timeout=MarketDataCacheTTL.TICKER_AVG_VOLUME_LOCK.value,
+    )
+
+
+@pytest.mark.asyncio
+async def test_mdc_get_avg_vol_with_miss_expect_duration_recorded(
+    sut, mock_redis, mock_rest,
+):
+    # Arrange
+    lock = _mock_lock()
+    mock_redis.lock = MagicMock(return_value=lock)
+    mock_redis.get.return_value = None
+    ratio = MagicMock()
+    ratio.average_volume = 100
+    mock_rest.list_financials_ratios.return_value = iter(
+        [ratio]
+    )
+    sut.avg_volume_api_duration = MagicMock()
+
+    # Act
+    await sut.get_avg_volume("TEST")
+
+    # Assert — histogram records API call duration
+    sut.avg_volume_api_duration.record.assert_called_once()
+    duration = sut.avg_volume_api_duration.record.call_args[0][0]
+    assert isinstance(duration, float)
+    assert duration >= 0
+
+
+@pytest.mark.asyncio
+async def test_mdc_get_avg_vol_with_miss_lock_already_released(
+    sut, mock_redis, mock_rest,
+):
+    # Arrange — lock no longer held when finally runs
+    lock = _mock_lock()
+    lock.locked = AsyncMock(return_value=False)
+    mock_redis.lock = MagicMock(return_value=lock)
+    mock_redis.get.return_value = None
+    ratio = MagicMock()
+    ratio.average_volume = 100
+    mock_rest.list_financials_ratios.return_value = iter(
+        [ratio]
+    )
+
+    # Act
+    await sut.get_avg_volume("TEST")
+
+    # Assert — release not called when lock already expired
+    lock.release.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_mdc_get_avg_vol_pending_event_with_cache_hit(
+    sut, mock_redis,
+):
+    # Arrange — simulate an in-flight fetch by pre-registering
+    # an already-set event; the waiter should read the cache
+    # populated by the leader and return without touching the lock.
+    event = asyncio.Event()
+    event.set()
+    sut._pending_avg_volumes["TEST"] = event
+    mock_redis.get.side_effect = [None, json.dumps(999)]
+
+    # Act
+    result = await sut.get_avg_volume("TEST")
+
+    # Assert
+    assert result == 999
+    mock_redis.lock.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_mdc_get_avg_vol_pending_event_with_miss_fallthrough(
+    sut, mock_redis, mock_rest,
+):
+    # Arrange — event is set but the leader failed; cache is still
+    # empty so the waiter must become the new leader.
+    event = asyncio.Event()
+    event.set()
+    sut._pending_avg_volumes["TEST"] = event
+    lock = _mock_lock()
+    mock_redis.lock = MagicMock(return_value=lock)
+    mock_redis.get.return_value = None
+    ratio = MagicMock()
+    ratio.average_volume = 500
+    mock_rest.list_financials_ratios.return_value = iter(
+        [ratio]
+    )
+
+    # Act
+    result = await sut.get_avg_volume("TEST")
+
+    # Assert — fell through and acquired the lock itself
+    lock.acquire.assert_awaited_once()
+    mock_rest.list_financials_ratios.assert_called_once()
+    assert result == 500
+
+
+@pytest.mark.asyncio
+async def test_mdc_get_avg_vol_event_set_on_leader_exception(
+    sut, mock_redis, mock_rest,
+):
+    # Arrange — the API call throws; the event must still be
+    # signaled so waiters never hang.
+    lock = _mock_lock()
+    mock_redis.lock = MagicMock(return_value=lock)
+    mock_redis.get.return_value = None
+    mock_rest.list_financials_ratios.side_effect = RuntimeError(
+        "API down"
+    )
+
+    # Act
+    with pytest.raises(RuntimeError, match="API down"):
+        await sut.get_avg_volume("TEST")
+
+    # Assert — event was set and removed from pending dict
+    assert "TEST" not in sut._pending_avg_volumes
+
+
+@pytest.mark.asyncio
+async def test_mdc_get_avg_vol_pending_cleaned_after_success(
+    sut, mock_redis, mock_rest,
+):
+    # Arrange
+    lock = _mock_lock()
+    mock_redis.lock = MagicMock(return_value=lock)
+    mock_redis.get.return_value = None
+    ratio = MagicMock()
+    ratio.average_volume = 100
+    mock_rest.list_financials_ratios.return_value = iter(
+        [ratio]
+    )
+
+    # Act
+    await sut.get_avg_volume("TEST")
+
+    # Assert — pending dict is cleaned up
+    assert "TEST" not in sut._pending_avg_volumes
+
+
+@pytest.mark.asyncio
+async def test_mdc_init_pending_avg_volumes_empty(sut):
+    # Assert — dict initialised as empty
+    assert sut._pending_avg_volumes == {}
 
 
 # -- get_free_float --------------------------------------------------

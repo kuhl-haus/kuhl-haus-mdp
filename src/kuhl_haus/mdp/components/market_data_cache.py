@@ -108,7 +108,13 @@ class MarketDataCache:
             description="Duration of Massive API get_snapshot_ticker calls",
             unit="s"
         )
+        self.avg_volume_api_duration = meter.create_histogram(
+            name="mdc.avg_volume_api_duration",
+            description="Duration of Massive API avg volume calls",
+            unit="s"
+        )
         self._pending_snapshots: Dict[str, asyncio.Event] = {}
+        self._pending_avg_volumes: Dict[str, asyncio.Event] = {}
 
     @tracer.start_as_current_span("mdc.delete")
     async def delete(self, cache_key: str):
@@ -276,76 +282,174 @@ class MarketDataCache:
     async def get_avg_volume(self, ticker: str):
         """Retrieve 30-day average volume from cache or Massive API.
 
-        Checks cache, falls back to Massive.com financial ratios or aggregates
-        endpoint. Computes average volume from last 30 trading days if ratio
-        data unavailable. Applies negative caching (short TTL) on failures.
+        Returns cached average volume if available. On a cache miss, uses a
+        two-layer coordination strategy to prevent stampeding herd:
 
+        1. **In-process**: An ``asyncio.Event`` per ticker collapses N
+           concurrent coroutines into one Redis lock attempt, eliminating
+           redundant polling from ``redis.asyncio.lock`` waiters.
+        2. **Cross-instance**: A Redis distributed lock ensures only one
+           process calls the Massive API for a given ticker at a time.
+
+        If the winning coroutine fails (exception), the event is still
+        signaled so waiters wake up, find the cache empty, and fall
+        through to contend for the distributed lock themselves.
+
+        Computes average volume from last 30 trading days if ratio data
+        unavailable. Applies negative caching (short TTL) on failures.
         Returns 0 if no data available.
 
         Side effects: Calls Massive API on cache miss; writes to Redis.
         """
         self.logger.debug(f"Getting average volume for {ticker}")
         cache_key = f"{MarketDataCacheKeys.TICKER_AVG_VOLUME.value}:{ticker}"
-        cache_ttl = MarketDataCacheTTL.TICKER_AVG_VOLUME.value
 
         avg_volume = await self.read(cache_key=cache_key)
         if avg_volume:
-            self.logger.debug(f"Returning cached value for {ticker}: {avg_volume}")
+            self.logger.debug(
+                f"Returning cached value for {ticker}: {avg_volume}"
+            )
             return avg_volume
 
-        # Experimental version - unreliable
-        results: Iterator[FinancialRatio] = self.rest_client.list_financials_ratios(ticker=ticker)
-        ratios: List[FinancialRatio] = []
-        for financial_ratio in results:
-            ratios.append(financial_ratio)
+        # In-process coalescing: if another coroutine is already fetching
+        # this ticker, wait for it instead of polling Redis for the lock.
+        pending_event = self._pending_avg_volumes.get(ticker)
+        if pending_event is not None:
+            self.logger.debug(
+                f"Waiting on pending avg volume event for {ticker}"
+            )
+            await pending_event.wait()
+            result = await self.read(cache_key=cache_key)
+            if result:
+                self.logger.debug(
+                    f"Returning cached avg volume for "
+                    f"{ticker} after event"
+                )
+                return result
 
-        # If there is only one financial ratio, use it's average volume.
-        # Otherwise, calculate average volume from 30 trading sessions.'
-        if len(ratios) == 1:
-            avg_volume = ratios[0].average_volume
-        else:
-            # Get date string in YYYY-MM-DD format
-            end_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-            # Get date from 30 trading sessions ago in YYYY-MM-DD format
-            start_date = (datetime.now(timezone.utc) - timedelta(days=42)).strftime("%Y-%m-%d")
+        # This coroutine is the leader — register an event so
+        # subsequent callers for the same ticker can await it.
+        event = asyncio.Event()
+        self._pending_avg_volumes[ticker] = event
+        try:
+            return await self._fetch_avg_volume_with_lock(
+                ticker, cache_key,
+            )
+        finally:
+            event.set()
+            self._pending_avg_volumes.pop(ticker, None)
 
-            result: Iterator[Agg] = self.rest_client.list_aggs(
-                ticker=ticker,
-                multiplier=1,
-                timespan="day",
-                from_=start_date,
-                to=end_date,
-                adjusted=True,
-                sort="desc"
+    async def _fetch_avg_volume_with_lock(
+        self, ticker: str, cache_key: str,
+    ):
+        """Acquire distributed lock, fetch avg volume, and populate cache.
+
+        Called by the leader coroutine after registering an in-process
+        event. Acquires a Redis distributed lock, double-checks the
+        cache, and calls the Massive API if still needed.
+
+        """
+        lock_key = (
+            f"{MarketDataCacheKeys.TICKER_AVG_VOLUME_LOCK.value}"
+            f":{ticker}"
+        )
+        lock = self.redis_client.lock(
+            lock_key,
+            timeout=MarketDataCacheTTL.TICKER_AVG_VOLUME_LOCK.value,
+        )
+        try:
+            await lock.acquire()
+            result = await self.read(cache_key=cache_key)
+            if result:
+                self.logger.debug(
+                    f"Returning cached avg volume for "
+                    f"{ticker} after lock"
+                )
+                return result
+
+            cache_ttl = MarketDataCacheTTL.TICKER_AVG_VOLUME.value
+            start = time.monotonic()
+
+            # Experimental version - unreliable
+            results: Iterator[FinancialRatio] = (
+                self.rest_client.list_financials_ratios(ticker=ticker)
+            )
+            ratios: List[FinancialRatio] = []
+            for financial_ratio in results:
+                ratios.append(financial_ratio)
+
+            # If there is only one financial ratio, use it's average
+            # volume. Otherwise, calculate from 30 trading sessions.
+            if len(ratios) == 1:
+                avg_volume = ratios[0].average_volume
+            else:
+                end_date = datetime.now(timezone.utc).strftime(
+                    "%Y-%m-%d"
+                )
+                start_date = (
+                    datetime.now(timezone.utc) - timedelta(days=42)
+                ).strftime("%Y-%m-%d")
+
+                agg_result: Iterator[Agg] = (
+                    self.rest_client.list_aggs(
+                        ticker=ticker,
+                        multiplier=1,
+                        timespan="day",
+                        from_=start_date,
+                        to=end_date,
+                        adjusted=True,
+                        sort="desc"
+                    )
+                )
+
+                total_volume = 0
+                max_periods = 30
+                periods_calculated = 0
+                for agg in agg_result:
+                    if periods_calculated < max_periods:
+                        total_volume += agg.volume
+                        periods_calculated += 1
+                    else:
+                        break
+                if periods_calculated == 0:
+                    self.logger.debug(
+                        f"No prior periods received for {ticker}."
+                    )
+                    avg_volume = 0
+                    cache_ttl = (
+                        MarketDataCacheTTL.NEGATIVE_CACHE_SESSION.value
+                    )
+                else:
+                    avg_volume = total_volume / periods_calculated
+
+            duration = time.monotonic() - start
+            self.avg_volume_api_duration.record(duration)
+            self.logger.debug(
+                f"Avg volume API call for {ticker} "
+                f"took {duration:.3f}s"
             )
 
-            total_volume = 0
-            max_periods = 30
-            periods_calculated = 0
-            for agg in result:
-                if periods_calculated < max_periods:
-                    total_volume += agg.volume
-                    periods_calculated += 1
-                else:
-                    break
-            if periods_calculated == 0:
-                self.logger.debug(f"No prior periods received for {ticker}.")
-                avg_volume = 0
-                cache_ttl = MarketDataCacheTTL.NEGATIVE_CACHE_SESSION.value
+            if avg_volume:
+                self.logger.debug(
+                    f"average volume {ticker}: {avg_volume}"
+                )
             else:
-                avg_volume = total_volume / periods_calculated
-        if avg_volume:
-            self.logger.debug(f"average volume {ticker}: {avg_volume}")
-        else:
-            self.logger.debug(f"Unable to get average volume for {ticker}")
-            avg_volume = 0
-            cache_ttl = MarketDataCacheTTL.NEGATIVE_CACHE_SESSION.value
-        await self.write(
-            data=avg_volume,
-            cache_key=cache_key,
-            cache_ttl=cache_ttl
-        )
-        return avg_volume
+                self.logger.debug(
+                    f"Unable to get average volume for {ticker}"
+                )
+                avg_volume = 0
+                cache_ttl = (
+                    MarketDataCacheTTL.NEGATIVE_CACHE_SESSION.value
+                )
+            await self.write(
+                data=avg_volume,
+                cache_key=cache_key,
+                cache_ttl=cache_ttl
+            )
+            return avg_volume
+        finally:
+            if await lock.locked():
+                await lock.release()
 
     @tracer.start_as_current_span("mdc.get_free_float")
     async def get_free_float(self, ticker: str):
