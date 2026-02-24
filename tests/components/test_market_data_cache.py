@@ -845,6 +845,7 @@ async def test_mdc_get_ff_with_cache_hit_expect_cached(
 
     # Assert
     assert result == 2643494955
+    mock_redis.lock.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -852,6 +853,8 @@ async def test_mdc_get_ff_with_cache_miss_expect_api_call(
     sut, mock_redis,
 ):
     # Arrange
+    lock = _mock_lock()
+    mock_redis.lock = MagicMock(return_value=lock)
     mock_redis.get.return_value = None
     resp = AsyncMock()
     resp.raise_for_status = MagicMock()
@@ -866,8 +869,10 @@ async def test_mdc_get_ff_with_cache_miss_expect_api_call(
 
     # Assert
     assert result == 2643494955
+    lock.acquire.assert_awaited_once()
     session.get.assert_called_once()
     mock_redis.setex.assert_awaited_once()
+    lock.release.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -875,6 +880,8 @@ async def test_mdc_get_ff_with_empty_results_expect_zero(
     sut, mock_redis,
 ):
     # Arrange
+    lock = _mock_lock()
+    mock_redis.lock = MagicMock(return_value=lock)
     mock_redis.get.return_value = None
     resp = AsyncMock()
     resp.raise_for_status = MagicMock()
@@ -896,6 +903,8 @@ async def test_mdc_get_ff_with_error_status_expect_raise(
     sut, mock_redis,
 ):
     # Arrange
+    lock = _mock_lock()
+    mock_redis.lock = MagicMock(return_value=lock)
     mock_redis.get.return_value = None
     resp = AsyncMock()
     resp.raise_for_status = MagicMock()
@@ -918,6 +927,8 @@ async def test_mdc_get_ff_with_client_error_expect_zero(
     sut, mock_redis,
 ):
     # Arrange
+    lock = _mock_lock()
+    mock_redis.lock = MagicMock(return_value=lock)
     mock_redis.get.return_value = None
     resp = AsyncMock()
     resp.raise_for_status = MagicMock(
@@ -941,6 +952,8 @@ async def test_mdc_get_ff_with_timeout_expect_zero(
     sut, mock_redis,
 ):
     # Arrange
+    lock = _mock_lock()
+    mock_redis.lock = MagicMock(return_value=lock)
     mock_redis.get.return_value = None
     resp = AsyncMock()
     resp.raise_for_status = MagicMock(
@@ -964,6 +977,8 @@ async def test_mdc_get_ff_with_generic_error_expect_raise(
     sut, mock_redis,
 ):
     # Arrange
+    lock = _mock_lock()
+    mock_redis.lock = MagicMock(return_value=lock)
     mock_redis.get.return_value = None
     resp = AsyncMock()
     resp.raise_for_status = MagicMock(
@@ -974,6 +989,206 @@ async def test_mdc_get_ff_with_generic_error_expect_raise(
     # Act & Assert
     with pytest.raises(RuntimeError, match="unexpected"):
         await sut.get_free_float("TEST")
+
+
+@pytest.mark.asyncio
+async def test_mdc_get_ff_with_miss_double_check_hit(
+    sut, mock_redis,
+):
+    # Arrange — cache miss on first read, lock acquired, cache hit
+    # on re-check (another caller populated the cache)
+    lock = _mock_lock()
+    mock_redis.lock = MagicMock(return_value=lock)
+    mock_redis.get.side_effect = [
+        None, json.dumps(2643494955),
+    ]
+
+    # Act
+    result = await sut.get_free_float("TEST")
+
+    # Assert — no API call, lock released
+    assert result == 2643494955
+    lock.release.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_mdc_get_ff_lock_uses_correct_key_and_ttl(
+    sut, mock_redis,
+):
+    # Arrange
+    lock = _mock_lock()
+    mock_redis.lock = MagicMock(return_value=lock)
+    mock_redis.get.return_value = None
+    resp = AsyncMock()
+    resp.raise_for_status = MagicMock()
+    resp.json = AsyncMock(
+        return_value=_free_float_response()
+    )
+    sut.http_session = _mock_http_session(resp)
+
+    # Act
+    await sut.get_free_float("AAPL")
+
+    # Assert — lock created with correct key and TTL
+    expected_key = (
+        f"{MarketDataCacheKeys.TICKER_FREE_FLOAT_LOCK.value}"
+        f":AAPL"
+    )
+    mock_redis.lock.assert_called_once_with(
+        expected_key,
+        timeout=MarketDataCacheTTL.TICKER_FREE_FLOAT_LOCK.value,
+    )
+
+
+@pytest.mark.asyncio
+async def test_mdc_get_ff_with_miss_expect_duration_recorded(
+    sut, mock_redis,
+):
+    # Arrange
+    lock = _mock_lock()
+    mock_redis.lock = MagicMock(return_value=lock)
+    mock_redis.get.return_value = None
+    resp = AsyncMock()
+    resp.raise_for_status = MagicMock()
+    resp.json = AsyncMock(
+        return_value=_free_float_response()
+    )
+    sut.http_session = _mock_http_session(resp)
+    sut.free_float_api_duration = MagicMock()
+
+    # Act
+    await sut.get_free_float("TEST")
+
+    # Assert — histogram records API call duration
+    sut.free_float_api_duration.record.assert_called_once()
+    duration = (
+        sut.free_float_api_duration.record.call_args[0][0]
+    )
+    assert isinstance(duration, float)
+    assert duration >= 0
+
+
+@pytest.mark.asyncio
+async def test_mdc_get_ff_with_miss_lock_already_released(
+    sut, mock_redis,
+):
+    # Arrange — lock no longer held when finally runs
+    lock = _mock_lock()
+    lock.locked = AsyncMock(return_value=False)
+    mock_redis.lock = MagicMock(return_value=lock)
+    mock_redis.get.return_value = None
+    resp = AsyncMock()
+    resp.raise_for_status = MagicMock()
+    resp.json = AsyncMock(
+        return_value=_free_float_response()
+    )
+    sut.http_session = _mock_http_session(resp)
+
+    # Act
+    await sut.get_free_float("TEST")
+
+    # Assert — release not called when lock already expired
+    lock.release.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_mdc_get_ff_pending_event_with_cache_hit(
+    sut, mock_redis,
+):
+    # Arrange — simulate an in-flight fetch by pre-registering
+    # an already-set event; the waiter should read the cache
+    # populated by the leader and return without touching the lock.
+    event = asyncio.Event()
+    event.set()
+    sut._pending_free_floats["TEST"] = event
+    mock_redis.get.side_effect = [
+        None, json.dumps(2643494955),
+    ]
+
+    # Act
+    result = await sut.get_free_float("TEST")
+
+    # Assert
+    assert result == 2643494955
+    mock_redis.lock.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_mdc_get_ff_pending_event_with_miss_fallthrough(
+    sut, mock_redis,
+):
+    # Arrange — event is set but the leader failed; cache is still
+    # empty so the waiter must become the new leader.
+    event = asyncio.Event()
+    event.set()
+    sut._pending_free_floats["TEST"] = event
+    lock = _mock_lock()
+    mock_redis.lock = MagicMock(return_value=lock)
+    mock_redis.get.return_value = None
+    resp = AsyncMock()
+    resp.raise_for_status = MagicMock()
+    resp.json = AsyncMock(
+        return_value=_free_float_response()
+    )
+    sut.http_session = _mock_http_session(resp)
+
+    # Act
+    result = await sut.get_free_float("TEST")
+
+    # Assert — fell through and acquired the lock itself
+    lock.acquire.assert_awaited_once()
+    assert result == 2643494955
+
+
+@pytest.mark.asyncio
+async def test_mdc_get_ff_event_set_on_leader_exception(
+    sut, mock_redis,
+):
+    # Arrange — the API call throws; the event must still be
+    # signaled so waiters never hang.
+    lock = _mock_lock()
+    mock_redis.lock = MagicMock(return_value=lock)
+    mock_redis.get.return_value = None
+    resp = AsyncMock()
+    resp.raise_for_status = MagicMock(
+        side_effect=RuntimeError("API down")
+    )
+    sut.http_session = _mock_http_session(resp)
+
+    # Act
+    with pytest.raises(RuntimeError, match="API down"):
+        await sut.get_free_float("TEST")
+
+    # Assert — event was set and removed from pending dict
+    assert "TEST" not in sut._pending_free_floats
+
+
+@pytest.mark.asyncio
+async def test_mdc_get_ff_pending_cleaned_after_success(
+    sut, mock_redis,
+):
+    # Arrange
+    lock = _mock_lock()
+    mock_redis.lock = MagicMock(return_value=lock)
+    mock_redis.get.return_value = None
+    resp = AsyncMock()
+    resp.raise_for_status = MagicMock()
+    resp.json = AsyncMock(
+        return_value=_free_float_response()
+    )
+    sut.http_session = _mock_http_session(resp)
+
+    # Act
+    await sut.get_free_float("TEST")
+
+    # Assert — pending dict is cleaned up
+    assert "TEST" not in sut._pending_free_floats
+
+
+@pytest.mark.asyncio
+async def test_mdc_init_pending_free_floats_empty(sut):
+    # Assert — dict initialised as empty
+    assert sut._pending_free_floats == {}
 
 
 # -- get_http_session ------------------------------------------------

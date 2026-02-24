@@ -115,6 +115,12 @@ class MarketDataCache:
         )
         self._pending_snapshots: Dict[str, asyncio.Event] = {}
         self._pending_avg_volumes: Dict[str, asyncio.Event] = {}
+        self._pending_free_floats: Dict[str, asyncio.Event] = {}
+        self.free_float_api_duration = meter.create_histogram(
+            name="mdc.free_float_api_duration",
+            description="Duration of Massive API free float calls",
+            unit="s"
+        )
 
     @tracer.start_as_current_span("mdc.delete")
     async def delete(self, cache_key: str):
@@ -455,70 +461,190 @@ class MarketDataCache:
     async def get_free_float(self, ticker: str):
         """Retrieve free float shares from cache or experimental Massive API.
 
-        Checks cache, falls back to direct HTTP call to Massive /vX/float endpoint
-        (not yet in official SDK). Applies negative caching on timeouts or HTTP
-        errors to avoid hammering the API during outages.
+        Returns cached free float if available. On a cache miss, uses a
+        two-layer coordination strategy to prevent stampeding herd:
 
-        Returns 0 if unavailable or on error.
+        1. **In-process**: An ``asyncio.Event`` per ticker collapses N
+           concurrent coroutines into one Redis lock attempt, eliminating
+           redundant polling from ``redis.asyncio.lock`` waiters.
+        2. **Cross-instance**: A Redis distributed lock ensures only one
+           process calls the Massive API for a given ticker at a time.
+
+        If the winning coroutine fails (exception), the event is still
+        signaled so waiters wake up, find the cache empty, and fall
+        through to contend for the distributed lock themselves.
+
+        Applies negative caching on timeouts or HTTP errors to avoid
+        hammering the API during outages. Returns 0 if unavailable or
+        on error.
 
         Side effects: HTTP GET to Massive API on cache miss; writes to Redis.
         """
         self.logger.debug(f"Getting free float for {ticker}")
-        cache_key = f"{MarketDataCacheKeys.TICKER_FREE_FLOAT.value}:{ticker}"
-        cache_ttl = MarketDataCacheTTL.TICKER_FREE_FLOAT.value
+        cache_key = (
+            f"{MarketDataCacheKeys.TICKER_FREE_FLOAT.value}:{ticker}"
+        )
 
         free_float = await self.read(cache_key=cache_key)
         if free_float:
-            self.logger.debug(f"Returning cached value for {ticker}: {free_float}")
+            self.logger.debug(
+                f"Returning cached value for {ticker}: {free_float}"
+            )
             return free_float
 
-        # NOTE: This endpoint is experimental and the interface may change.
-        # https://massive.com/docs/rest/stocks/fundamentals/float
-        url = "https://api.massive.com/stocks/vX/float"
-        params = {
-            "ticker": ticker,
-            "apiKey": self.massive_api_key
-        }
+        # In-process coalescing: if another coroutine is already fetching
+        # this ticker, wait for it instead of polling Redis for the lock.
+        pending_event = self._pending_free_floats.get(ticker)
+        if pending_event is not None:
+            self.logger.debug(
+                f"Waiting on pending free float event for {ticker}"
+            )
+            await pending_event.wait()
+            result = await self.read(cache_key=cache_key)
+            if result:
+                self.logger.debug(
+                    f"Returning cached free float for "
+                    f"{ticker} after event"
+                )
+                return result
 
-        session = await self.get_http_session()
+        # This coroutine is the leader — register an event so
+        # subsequent callers for the same ticker can await it.
+        event = asyncio.Event()
+        self._pending_free_floats[ticker] = event
         try:
-            async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=10)) as response:
-                response.raise_for_status()
-                data = await response.json()
+            return await self._fetch_free_float_with_lock(
+                ticker, cache_key,
+            )
+        finally:
+            event.set()
+            self._pending_free_floats.pop(ticker, None)
 
-                # Extract free_float from response
-                if data.get("status") == "OK" and data.get("results") is not None:
-                    results = data["results"]
-                    if len(results) > 0:
-                        free_float = results[0].get("free_float")
-                    else:
-                        self.logger.debug(f"No free float data returned for {ticker}")
-                        free_float = 0
-                        cache_ttl = MarketDataCacheTTL.NEGATIVE_CACHE_SESSION.value
-                else:
-                    raise Exception(f"Invalid response from Massive API for {ticker}: {data}")
-        except asyncio.TimeoutError as e:
-            self.logger.error(f"Timeout fetching free float for {ticker}: {e}", stack_info=True, exc_info=True)
-            free_float = 0
-            cache_ttl = MarketDataCacheTTL.NEGATIVE_CACHE_THROTTLE.value
-            self.timeout_error_counter.add(1)
-        except aiohttp.ClientError as e:
-            self.logger.error(f"HTTP error fetching free float for {ticker}: {e}", stack_info=True, exc_info=True)
-            free_float = 0
-            cache_ttl = MarketDataCacheTTL.NEGATIVE_CACHE_THROTTLE.value
-            self.http_error_counter.add(1)
-        except Exception as e:
-            self.logger.error(f"Error fetching free float for {ticker}: {e}", stack_info=True, exc_info=True)
-            self.error_counter.add(1)
-            raise
+    async def _fetch_free_float_with_lock(
+        self, ticker: str, cache_key: str,
+    ):
+        """Acquire distributed lock, fetch free float, and populate cache.
 
-        self.logger.debug(f"free float {ticker}: {free_float}")
-        await self.write(
-            data=free_float,
-            cache_key=cache_key,
-            cache_ttl=cache_ttl
+        Called by the leader coroutine after registering an in-process
+        event. Acquires a Redis distributed lock, double-checks the
+        cache, and calls the Massive API if still needed.
+        """
+        lock_key = (
+            f"{MarketDataCacheKeys.TICKER_FREE_FLOAT_LOCK.value}"
+            f":{ticker}"
         )
-        return free_float
+        lock = self.redis_client.lock(
+            lock_key,
+            timeout=MarketDataCacheTTL.TICKER_FREE_FLOAT_LOCK.value,
+        )
+        try:
+            await lock.acquire()
+            result = await self.read(cache_key=cache_key)
+            if result:
+                self.logger.debug(
+                    f"Returning cached free float for "
+                    f"{ticker} after lock"
+                )
+                return result
+
+            cache_ttl = MarketDataCacheTTL.TICKER_FREE_FLOAT.value
+
+            # NOTE: This endpoint is experimental and the interface
+            # may change.
+            # https://massive.com/docs/rest/stocks/fundamentals/float
+            url = "https://api.massive.com/stocks/vX/float"
+            params = {
+                "ticker": ticker,
+                "apiKey": self.massive_api_key
+            }
+
+            session = await self.get_http_session()
+            start = time.monotonic()
+            try:
+                async with session.get(
+                    url,
+                    params=params,
+                    timeout=aiohttp.ClientTimeout(total=10),
+                ) as response:
+                    response.raise_for_status()
+                    data = await response.json()
+
+                    # Extract free_float from response
+                    if (
+                        data.get("status") == "OK"
+                        and data.get("results") is not None
+                    ):
+                        results = data["results"]
+                        if len(results) > 0:
+                            free_float = results[0].get(
+                                "free_float"
+                            )
+                        else:
+                            self.logger.debug(
+                                f"No free float data returned "
+                                f"for {ticker}"
+                            )
+                            free_float = 0
+                            cache_ttl = (
+                                MarketDataCacheTTL
+                                .NEGATIVE_CACHE_SESSION.value
+                            )
+                    else:
+                        raise Exception(
+                            f"Invalid response from Massive "
+                            f"API for {ticker}: {data}"
+                        )
+            except asyncio.TimeoutError as e:
+                self.logger.error(
+                    f"Timeout fetching free float for "
+                    f"{ticker}: {e}",
+                    stack_info=True, exc_info=True,
+                )
+                free_float = 0
+                cache_ttl = (
+                    MarketDataCacheTTL
+                    .NEGATIVE_CACHE_THROTTLE.value
+                )
+                self.timeout_error_counter.add(1)
+            except aiohttp.ClientError as e:
+                self.logger.error(
+                    f"HTTP error fetching free float for "
+                    f"{ticker}: {e}",
+                    stack_info=True, exc_info=True,
+                )
+                free_float = 0
+                cache_ttl = (
+                    MarketDataCacheTTL
+                    .NEGATIVE_CACHE_THROTTLE.value
+                )
+                self.http_error_counter.add(1)
+            except Exception as e:
+                self.logger.error(
+                    f"Error fetching free float for "
+                    f"{ticker}: {e}",
+                    stack_info=True, exc_info=True,
+                )
+                self.error_counter.add(1)
+                raise
+            duration = time.monotonic() - start
+            self.free_float_api_duration.record(duration)
+            self.logger.debug(
+                f"Free float API call for {ticker} "
+                f"took {duration:.3f}s"
+            )
+
+            self.logger.debug(
+                f"free float {ticker}: {free_float}"
+            )
+            await self.write(
+                data=free_float,
+                cache_key=cache_key,
+                cache_ttl=cache_ttl
+            )
+            return free_float
+        finally:
+            if await lock.locked():
+                await lock.release()
 
     @tracer.start_as_current_span("mdc.get_http_session")
     async def get_http_session(self) -> aiohttp.ClientSession:
