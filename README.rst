@@ -74,3 +74,4 @@ Additional Resources
 - `Part 2: How to Run It <https://the.oldschool.engineer/what-i-built-after-quitting-amazon-spoiler-its-a-stock-scanner-part-2-94e445914951>`_
 - `Part 3: How to Deploy It <https://the.oldschool.engineer/what-i-built-after-quitting-amazon-spoiler-its-a-stock-scanner-part-3-eab7d9bbf5f7>`_
 - `Part 4: Evolution from Prototype to Production <https://the.oldschool.engineer/what-i-built-after-quitting-amazon-spoiler-its-a-stock-scanner-part-4-408779a1f3f2>`_
+- `Part 5: Wave 1 Complete: Bugs, Bottlenecks, and Breaking 1,000 msg/s <https://the.oldschool.engineer/what-i-built-after-quitting-amazon-spoiler-its-a-stock-scanner-part-5-5b1360b64921>`_
