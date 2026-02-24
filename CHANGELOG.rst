@@ -1,9 +1,52 @@
 =========
 Changelog
 =========
+Version 0.2.27 (2026-02-24)
+===========================
+
+- `51e645f <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/51e645f>`_ MDC.get_free_float - Add coordinated free-float cache and lock
+
+  Implement coordinated fetching and caching for ticker free-float values to prevent stampeding-herd and reduce redundant API calls. Changes include:
+
+  - Add in-process coalescing via self._pending_free_floats (asyncio.Event) so concurrent coroutines wait instead of racing.
+
+  - Add free_float_api_duration histogram metric to measure Massive API call durations.
+
+  - Refactor get_free_float to register/wait on an event and delegate the actual fetch to _fetch_free_float_with_lock.
+
+  - Add _fetch_free_float_with_lock which acquires a Redis distributed lock, double-checks the cache, calls the Massive /float endpoint, applies negative caching on errors/timeouts, records metrics, writes the result to Redis, and releases the lock.
+
+  - Add TICKER_FREE_FLOAT_LOCK key and TICKER_FREE_FLOAT_LOCK TTL enum entries.
+
+  This prevents redundant HTTP requests across coroutines and instances, provides observability for API latency, and applies negative caching to avoid hammering the external API during failures.
+
+- `c98d25f <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/c98d25f>`_ MDC.get_avg_volume - Add avg-volume lock & in-process coalescing
+
+  Implement coordinated avg-volume fetches to avoid stampeding herds: add an in-process pending-event map and a Redis distributed lock for per-ticker avg-volume requests. Record avg_volume_api_duration histogram, move fetch logic into _fetch_avg_volume_with_lock which double-checks cache after acquiring the lock, computes avg volume from financial ratios or daily aggs, applies negative caching on failures, and ensures lock release. Add new cache key and TTL enums for the avg-volume lock. Update tests to cover cache-hit behavior, lock acquisition/release, double-check hits, duration recording, pending-event handling, and cleanup of pending state.
+
+- `ec1af06 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/ec1af06>`_ MDC.get_ticker_snapshot - Add per-ticker locking and in-process coalescing
+
+  Prevent stampeding-herd on ticker snapshot cache misses by adding a two-layer coordination strategy: an in-process asyncio.Event per ticker (_pending_snapshots) to collapse concurrent coroutines, and a Redis distributed lock (TICKER_SNAPSHOT_LOCK) to ensure only one instance calls the external API. Instrument the snapshot API call with a histogram (snapshot_api_duration) to collect durations for tuning lock TTL. Add a helper private method to acquire the lock, double-check the cache, fetch from the REST client, and populate Redis; ensure locks are released safely. Introduce a THIRTY_SECONDS constant and a TTL enum entry for the snapshot lock. Update unit tests to cover the new locking/event behavior and instrumentation, and add a mock lock helper.
+
+- `bb50bb8 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/bb50bb8>`_ Add Part 5 link to README
+
+  Add a new entry to the 'Additional Resources' section in README.rst linking to Part 5: 'Wave 1 Complete: Bugs, Bottlenecks, and Breaking 1,000 msg/s' so readers can access the latest article in the series.
+
+- `44d4c57 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/44d4c57>`_ Fix: Explicit type annotation for data dict in ticker_snapshot_to_dict
+
+  Added an explicit Dict[str, Any] type annotation to the data variable on line 56 of utils.py.
+
+  Previously, the IDE inferred a narrow type (Dict[str, str | None | float | int]) from the initial dictionary literal values. When nested dicts were later assigned as values (lines 64-136), this caused type mismatch warnings. The explicit annotation resolves all the warnings by telling the type checker that data can hold Any values.
+
+- `2fe481d <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/2fe481d>`_ Update docs links and docstring formatting
+
+  Replace plain code references in docs/architecture.rst with Sphinx-style links to the ReadTheDocs API pages for components, enums, helpers and analyzers. Clean up examples and formatting in structured_logging.py to use reST literal blocks (::) and consistent indentation, and adjust the get_logger example. Tidy the get_massive_api_key docstring in utils.py to use ordered list/comments for resolution steps. These are documentation/code-comment improvements only and do not change runtime behavior.
+
+
 Version 0.2.26 (2026-02-21)
 ===========================
 
+- `0a3dc03 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/0a3dc03>`_ Update CHANGELOG.rst for v0.2.26
 - `34fe6be <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/34fe6be>`_ Fix WDS pmessage bug, remove dead code, drive test coverage to 99%
 
   Resolves kuhl-haus/kuhl-haus-mdp#4
