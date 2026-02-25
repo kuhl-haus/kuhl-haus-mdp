@@ -14,6 +14,7 @@ from typing import Any, Dict, Optional, Iterator, List
 
 import aiohttp
 import redis.asyncio as aioredis
+from redis.exceptions import LockNotOwnedError
 from massive.rest import RESTClient
 from massive.rest.models import (
     TickerSnapshot,
@@ -281,8 +282,14 @@ class MarketDataCache:
             )
             return snapshot
         finally:
-            if await lock.locked():
-                await lock.release()
+            try:
+                if await lock.locked():
+                    await lock.release()
+            except LockNotOwnedError:
+                self.logger.warning(
+                    f"Lock expired before release for "
+                    f"snapshot {ticker}"
+                )
 
     @tracer.start_as_current_span("mdc.get_avg_volume")
     async def get_avg_volume(self, ticker: str):
@@ -454,8 +461,14 @@ class MarketDataCache:
             )
             return avg_volume
         finally:
-            if await lock.locked():
-                await lock.release()
+            try:
+                if await lock.locked():
+                    await lock.release()
+            except LockNotOwnedError:
+                self.logger.warning(
+                    f"Lock expired before release for "
+                    f"avg volume {ticker}"
+                )
 
     @tracer.start_as_current_span("mdc.get_free_float")
     async def get_free_float(self, ticker: str):
@@ -643,8 +656,14 @@ class MarketDataCache:
             )
             return free_float
         finally:
-            if await lock.locked():
-                await lock.release()
+            try:
+                if await lock.locked():
+                    await lock.release()
+            except LockNotOwnedError:
+                self.logger.warning(
+                    f"Lock expired before release for "
+                    f"free float {ticker}"
+                )
 
     @tracer.start_as_current_span("mdc.get_http_session")
     async def get_http_session(self) -> aiohttp.ClientSession:

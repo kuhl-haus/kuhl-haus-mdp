@@ -6,6 +6,8 @@ import aiohttp
 import pytest
 from massive.rest.models import TickerSnapshot
 
+from redis.exceptions import LockNotOwnedError
+
 from kuhl_haus.mdp.components.market_data_cache import MarketDataCache
 from kuhl_haus.mdp.enum.market_data_cache_keys import MarketDataCacheKeys
 from kuhl_haus.mdp.enum.market_data_cache_ttl import MarketDataCacheTTL
@@ -420,6 +422,36 @@ async def test_mdc_get_snap_with_miss_lock_already_released(
 
 
 @pytest.mark.asyncio
+async def test_mdc_get_snap_lock_not_owned_expect_warning(
+    sut, mock_redis, mock_rest,
+):
+    # Arrange — lock.locked() returns True but release raises
+    # LockNotOwnedError (lock expired between check and release)
+    lock = _mock_lock()
+    lock.locked = AsyncMock(return_value=True)
+    lock.release = AsyncMock(
+        side_effect=LockNotOwnedError(
+            "Cannot release a lock that's no longer owned"
+        )
+    )
+    mock_redis.lock = MagicMock(return_value=lock)
+    mock_redis.get.return_value = None
+    mock_snapshot = MagicMock(spec=TickerSnapshot)
+    mock_rest.get_snapshot_ticker.return_value = mock_snapshot
+    with patch(
+        "kuhl_haus.mdp.components.market_data_cache"
+        ".ticker_snapshot_to_dict",
+        return_value=_snapshot_dict(),
+    ):
+        # Act — should not raise
+        result = await sut.get_ticker_snapshot("TEST")
+
+    # Assert — LockNotOwnedError swallowed, result returned
+    assert result is mock_snapshot
+    lock.release.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_mdc_get_snap_pending_event_with_cache_hit(
     sut, mock_redis,
 ):
@@ -733,6 +765,35 @@ async def test_mdc_get_avg_vol_with_miss_lock_already_released(
 
     # Assert — release not called when lock already expired
     lock.release.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_mdc_get_avg_vol_lock_not_owned_expect_warning(
+    sut, mock_redis, mock_rest,
+):
+    # Arrange — lock.locked() returns True but release raises
+    # LockNotOwnedError (lock expired between check and release)
+    lock = _mock_lock()
+    lock.locked = AsyncMock(return_value=True)
+    lock.release = AsyncMock(
+        side_effect=LockNotOwnedError(
+            "Cannot release a lock that's no longer owned"
+        )
+    )
+    mock_redis.lock = MagicMock(return_value=lock)
+    mock_redis.get.return_value = None
+    ratio = MagicMock()
+    ratio.average_volume = 100
+    mock_rest.list_financials_ratios.return_value = iter(
+        [ratio]
+    )
+
+    # Act — should not raise
+    result = await sut.get_avg_volume("TEST")
+
+    # Assert — LockNotOwnedError swallowed, result returned
+    assert result == 100
+    lock.release.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -1089,6 +1150,36 @@ async def test_mdc_get_ff_with_miss_lock_already_released(
 
     # Assert — release not called when lock already expired
     lock.release.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_mdc_get_ff_lock_not_owned_expect_warning(
+    sut, mock_redis,
+):
+    # Arrange — lock.locked() returns True but release raises
+    # LockNotOwnedError (lock expired between check and release)
+    lock = _mock_lock()
+    lock.locked = AsyncMock(return_value=True)
+    lock.release = AsyncMock(
+        side_effect=LockNotOwnedError(
+            "Cannot release a lock that's no longer owned"
+        )
+    )
+    mock_redis.lock = MagicMock(return_value=lock)
+    mock_redis.get.return_value = None
+    resp = AsyncMock()
+    resp.raise_for_status = MagicMock()
+    resp.json = AsyncMock(
+        return_value=_free_float_response()
+    )
+    sut.http_session = _mock_http_session(resp)
+
+    # Act — should not raise
+    result = await sut.get_free_float("TEST")
+
+    # Assert — LockNotOwnedError swallowed, result returned
+    assert result == 2643494955
+    lock.release.assert_awaited_once()
 
 
 @pytest.mark.asyncio
