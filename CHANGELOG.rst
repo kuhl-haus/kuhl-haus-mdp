@@ -1,9 +1,32 @@
 =========
 Changelog
 =========
+Version 0.2.28 (2026-02-25)
+===========================
+
+- `a02de2f <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/a02de2f>`_ Fix: Handle LockNotOwnedError gracefully in Redis lock release
+
+  The LockNotOwnedError was raised when a Redis distributed lock expired before the finally block could release it. Even though the code checked lock.locked(), a race condition exists where the lock can expire between the check and the release() call.
+
+  Changes made to market_data_cache.py:
+
+  • Added import: from redis.exceptions import LockNotOwnedError
+
+  • Wrapped lock release in try/except LockNotOwnedError blocks in all three _fetch_*_with_lock methods:
+
+  ◦ _fetch_free_float_with_lock (the originally reported method)
+
+  ◦ _fetch_avg_volume_with_lock
+
+  ◦ _fetch_snapshot_with_lock
+
+  When a LockNotOwnedError occurs, it is now logged as a warning instead of propagating as an unhandled exception.
+
+
 Version 0.2.27 (2026-02-24)
 ===========================
 
+- `7304722 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/7304722>`_ Update CHANGELOG.rst for v0.2.27
 - `51e645f <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/51e645f>`_ MDC.get_free_float - Add coordinated free-float cache and lock
 
   Implement coordinated fetching and caching for ticker free-float values to prevent stampeding-herd and reduce redundant API calls. Changes include:
