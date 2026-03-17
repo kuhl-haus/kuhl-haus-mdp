@@ -268,6 +268,7 @@ def test_sl_setup_with_multiple_calls_expect_last_wins():
 
     # Assert
     assert logging.root.level == logging.ERROR
+    assert len(logging.root.handlers) == 1  # no duplicate handlers
 
 
 def test_sl_setup_with_existing_loggers_expect_preserved():
@@ -362,10 +363,9 @@ def test_sl_log_exception_with_exc_info_false_expect_no_tb():
 
 
 def test_sl_log_exception_with_extra_fields_expect_logged():
-    # Arrange
-    setup_logging(json_format=False)
-    stream = StringIO()
-    logging.root.handlers[0].stream = stream
+    # Arrange — human format does not emit extra kwargs; use JSON format
+    # to verify extra fields actually reach the log output
+    stream = _setup_and_capture(json_format=True)
     logger = logging.getLogger("test.exc.extra")
 
     # Act
@@ -377,9 +377,18 @@ def test_sl_log_exception_with_extra_fields_expect_logged():
         )
 
     # Assert
-    output = stream.getvalue()
+    output = stream.getvalue().strip()
     assert "failed" in output
     assert "RuntimeError" in output
+    if HAS_JSON_LOGGER:
+        data = json.loads(output)
+        # Extra kwargs are nested under "extra_fields" by the structured logger
+        extra = data.get("extra_fields", data)
+        assert extra.get("user_id") == "123"   # extra field present
+        assert extra.get("code") == "E01"       # extra field present
+    else:
+        # Fallback formatter: extra fields not guaranteed in output
+        assert "failed" in output
 
 
 def test_sl_log_exception_with_no_active_exc_expect_no_crash():
@@ -480,4 +489,8 @@ def test_sl_output_with_special_message_expect_logged(message):
 
     # Assert
     output = stream.getvalue()
-    assert message.split(":")[0] in output
+    if len(message) >= 10_000:
+        # Verify long message is not truncated
+        assert output.count("A") >= 10_000
+    else:
+        assert message.split(":")[0] in output
