@@ -103,15 +103,8 @@ Test files live in `tests/`. Uses `pytest-asyncio` for async test support.
 
 ## Commit Authorship
 
-Every commit must include this trailer — replace `noreply@anthropic.com` with the human author:
-
-```
-Co-Authored-By: Tom Pounders <git@oldschool.engineer>
-```
-
-- **Do NOT** use `Co-Authored-By: Claude ... <noreply@anthropic.com>`
+- **Do NOT** add `Co-Authored-By:` trailers of any kind
 - **Do NOT** add `🤖 Generated with Claude Code` to PR descriptions
-- The correct trailer is always `Co-Authored-By: Tom Pounders <git@oldschool.engineer>`
 
 ## Documentation
 
