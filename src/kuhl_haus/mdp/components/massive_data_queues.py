@@ -1,7 +1,7 @@
 """RabbitMQ publisher for Massive.com WebSocket messages with multi-channel concurrency.
 
 Routes incoming WebSocket messages from Massive.com to dedicated RabbitMQ queues
-by message type (trades, quotes, aggregates, halts, news). Uses per-queue dedicated
+by message type (trades, quotes, aggregates, halts). Uses per-queue dedicated
 channels for parallel publishing to maximize throughput and minimize latency.
 """
 import asyncio
@@ -62,7 +62,6 @@ class MassiveDataQueues:
             MassiveDataQueue.AGGREGATE.value,
             MassiveDataQueue.QUOTES.value,
             MassiveDataQueue.HALTS.value,
-            MassiveDataQueue.NEWS.value,
             MassiveDataQueue.UNKNOWN.value,
         ]
         self.message_ttl = message_ttl
@@ -77,7 +76,6 @@ class MassiveDataQueues:
             MassiveDataQueue.AGGREGATE.value: 0,
             MassiveDataQueue.QUOTES.value: 0,
             MassiveDataQueue.HALTS.value: 0,
-            MassiveDataQueue.NEWS.value: 0,
             MassiveDataQueue.UNKNOWN.value: 0,
             "unsupported_messages": 0,
             "reconnect_attempts": 0,
@@ -126,13 +124,6 @@ class MassiveDataQueues:
                 name=f"mdq.{MassiveDataQueue.HALTS.value}",
                 description=(
                     "Number of halts received from the market data provider"
-                ),
-                unit="1"
-            ),
-            MassiveDataQueue.NEWS.value: meter.create_counter(
-                name=f"mdq.{MassiveDataQueue.NEWS.value}",
-                description=(
-                    "Number of news received from the market data provider"
                 ),
                 unit="1"
             ),

@@ -17,5 +17,4 @@ class MassiveDataQueue(Enum):
     TRADES = 'trades'
     QUOTES = 'quotes'
     HALTS = 'halts'
-    NEWS = 'news'
     UNKNOWN = 'unknown'
