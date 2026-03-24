@@ -14,6 +14,7 @@ Contents
    Overview <readme>
    Architecture <architecture>
    Component Architecture <architecture-diagram>
+   Configuration Reference <configuration>
    Module Reference <mdp/modules>
    Contributions & Help <contributing>
    Security Policy <security>
