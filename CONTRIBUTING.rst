@@ -208,9 +208,34 @@ on PyPI_, the following steps can be used to release a new version for
 ``kuhl-haus-mdp``:
 
 #. Make sure all workflows for the latest commit are successful.
-#. Run the `release-workflow`_ to generate release notes.
-#. After reviewing the release notes, tag the commit on the mainline branch with a corresponding release tag, e.g., ``v1.2.3``.
+
+#. Generate release notes by running the changelog script with the appropriate version bump:
+
+   **Linux / macOS / Windows with WSLv2:**
+
+   .. code-block:: bash
+
+      # For a patch release (e.g., 0.2.28 → 0.2.29)
+      ./update-changelog.sh --bump patch
+
+      # For a minor release (e.g., 0.2.28 → 0.3.0)
+      ./update-changelog.sh --bump minor
+
+      # For a major release (e.g., 0.2.28 → 1.0.0)
+      ./update-changelog.sh --bump major
+
+
+   The script will generate a new version section in ``CHANGELOG.rst`` with all
+   commits since the last tagged release.
+
+#. Review the generated ``CHANGELOG.rst``, commit it, and create a pull request
+   targeting the mainline branch.
+
+#. After the PR is merged, tag the merge commit on the mainline branch with the
+   corresponding release tag, e.g., ``v1.2.3``.
+
 #. Push the new tag to the upstream repository_, e.g., ``git push upstream v1.2.3``
+
 #. The `publish-to-pypi`_ GitHub Actions workflow will build and upload the
    package automatically.
 
@@ -224,7 +249,6 @@ on PyPI_, the following steps can be used to release a new version for
 .. _repository: https://github.com/kuhl-haus/kuhl-haus-mdp
 .. _issue tracker: https://github.com/kuhl-haus/kuhl-haus-mdp/issues
 .. _publish-to-pypi: https://github.com/kuhl-haus/kuhl-haus-mdp/actions/workflows/publish-to-pypi.yml
-.. _release-workflow: https://github.com/kuhl-haus/kuhl-haus-mdp/blob/mainline/.github/workflows/release.yml
 
 .. _API documentation: https://kuhl-haus-mdp.readthedocs.io/en/latest/
 .. _README: https://github.com/kuhl-haus/kuhl-haus-mdp/blob/mainline/README.rst
