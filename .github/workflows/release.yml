@@ -61,12 +61,6 @@ jobs:
           echo "tag=$next" >> "$GITHUB_OUTPUT"
           echo "Next version: $next"
 
-      - name: Create release branch
-        run: |
-          branch_name="release/${{ steps.version.outputs.tag }}"
-          git checkout -b "$branch_name"
-          echo "branch=$branch_name" >> "$GITHUB_ENV"
-
       - name: Create tag
         run: |
           git tag "${{ steps.version.outputs.tag }}"
@@ -76,32 +70,25 @@ jobs:
           chmod +x update-changelog.sh
           bash update-changelog.sh
 
-      - name: Commit and push branch
-        run: |
-          git add CHANGELOG.rst
-          git commit -m "Update CHANGELOG.rst for ${{ steps.version.outputs.tag }}"
-          git push origin "${{ env.branch }}"
-
       - name: Create pull request
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh pr create \
-            --title "Release ${{ steps.version.outputs.tag }}" \
-            --body "$(cat <<'EOF'
-          ## Release ${{ steps.version.outputs.tag }}
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "Update CHANGELOG.rst for ${{ steps.version.outputs.tag }}"
+          title: "Release ${{ steps.version.outputs.tag }}"
+          body: |
+            ## Release ${{ steps.version.outputs.tag }}
 
-          This PR prepares the repository for release ${{ steps.version.outputs.tag }}.
+            This PR prepares the repository for release ${{ steps.version.outputs.tag }}.
 
-          ### Changes
-          - Updated CHANGELOG.rst with commits since last release
-          - Tagged commit as ${{ steps.version.outputs.tag }}
+            ### Changes
+            - Updated CHANGELOG.rst with commits since last release
+            - Tagged commit as ${{ steps.version.outputs.tag }}
 
-          ### Post-merge actions
-          After merging this PR, the tag will be pushed to trigger the PyPI publish workflow.
+            ### Post-merge actions
+            After merging this PR, the tag will be pushed to trigger the PyPI publish workflow.
 
-          **Automated release created by GitHub Actions workflow.**
-          EOF
-          )" \
-            --base mainline \
-            --head "${{ env.branch }}"
+            **Automated release created by GitHub Actions workflow.**
+          branch: "release/${{ steps.version.outputs.tag }}"
+          base: mainline
+          delete-branch: true
