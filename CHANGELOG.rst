@@ -1,9 +1,135 @@
 =========
 Changelog
 =========
+Version 0.3.0 (2026-03-24)
+==========================
+
+- `c3b8556 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/c3b8556>`_ Add --bump option to update-changelog.sh
+
+  Add CLI support to update-changelog.sh to generate unreleased changelog entries and compute the next version via --bump (major|minor|patch). The script now validates arguments, determines the next semantic version from the latest v-tag, emits a dated changelog section with commit links and bodies, and handles formatting. CONTRIBUTING.rst was updated with platform-specific usage examples (bash and PowerShell) explaining how to run the script and the release workflow steps. Minor cleanup: removed an obsolete release-workflow link.
+
+- `a049250 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/a049250>`_ Updated the release workflow to use peter-evans/create-pull-request@v7
+
+  Updated the release workflow to use `peter-evans/create-pull-request@v7` action instead of `gh pr create`.
+
+  This action:
+
+  1. Works with the default `GITHUB_TOKEN` without requiring a PAT
+
+  2. Handles the branch creation and push automatically
+
+  3. Creates the PR targeting `mainline`
+
+  4. Automatically deletes the release branch after the PR is merged
+
+  5. Properly handles git tags created in the workflow
+
+  The workflow now complies with repository branch protection rules by creating a PR instead of pushing directly to mainline.
+
+- `028e845 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/028e845>`_ Create release branch and PR in workflow
+
+  Update the release GitHub Actions workflow to create a release branch, commit the updated CHANGELOG.rst to that branch, and open a pull request instead of directly pushing tags. Adds pull-requests: write permission, sets a release branch name in GITHUB_ENV, pushes the branch, and uses the gh CLI to create a PR targeting mainline. This prepares releases via a PR merge (after which tags can be pushed to trigger the publish job) and centralizes changelog updates in a reviewable change.
+
+- `838470f <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/838470f>`_ feat: FinlightDataProcessor component (#22)
+
+  * test: add FinlightDataProcessor unit tests (TDD — tests first, red phase)
+
+  Co-Authored-By: Tom Pounders <git@oldschool.engineer>
+
+  * feat: implement FinlightDataProcessor component (closes #16)
+
+  Mirrors MassiveDataProcessor with Finlight-specific adaptations:
+
+  - No massive_api_key param; AnalyzerOptions receives only redis_url
+
+  - _process_message deserializes with json.loads directly (no WebSocketMessageSerde)
+
+  - All OTel counter names use fdp. prefix
+
+  Co-Authored-By: Tom Pounders <git@oldschool.engineer>
+
+  * docs: update commit authorship convention in CLAUDE.md
+
+  Co-Authored-By: Tom Pounders <git@oldschool.engineer>
+
+  ---------
+
+  Co-authored-by: Tom Pounders <git@oldschool.engineer>
+
+- `164ef71 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/164ef71>`_ Remove NEWS queue handling from MassiveDataQueues
+
+  Remove the 'news' message type from the MassiveDataQueue enum and strip all handling for it in MassiveDataQueues.
+
+  Reason: Massive doesn't have a WebSocket-based news feed.
+
+- `37caccb <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/37caccb>`_ feat: FinlightDataQueues component (#21)
+
+  * test: add FinlightDataQueues unit tests (TDD — tests first, red phase)
+
+  * feat: implement FinlightDataQueues component (closes #20)
+
+  Adds FinlightDataQueue enum (ARTICLES = "finlight.articles") and
+
+  FinlightDataQueues class that publishes Finlight article data to
+
+  RabbitMQ. Mirrors the MassiveDataQueues pattern: dedicated per-queue
+
+  channel, passive queue verification on connect, NOT_PERSISTENT delivery,
+
+  OpenTelemetry metrics with "fdq." prefix, and graceful shutdown.
+
+  handle_message() accepts Pydantic models (via model_dump) or plain dicts,
+
+  validates input type, serializes to UTF-8 JSON bytes, and publishes to
+
+  the articles queue. _publish_message() logs errors without re-raising.
+
+  * test: rename FinlightDataQueue.ARTICLES → NEWS in test suite (TDD — red phase)
+
+  * feat: rename FinlightDataQueue.ARTICLES → NEWS
+
+  - FinlightDataQueue: ARTICLES ("finlight.articles") → NEWS ("news")
+
+  - MassiveDataQueue.NEWS removal is out of scope for this PR
+
+- `c3ba6ea <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/c3ba6ea>`_ feat: add FinlightDataListener (FDL) component (#15) (#19)
+- `551cb1b <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/551cb1b>`_ test: fix minor issues in test_structured_logging (#14)
+
+  - test_sl_setup_with_multiple_calls_expect_last_wins: assert handler
+
+  count is 1 after two setup_logging calls (guards against duplicate
+
+  handler accumulation)
+
+  - test_sl_log_exception_with_extra_fields_expect_logged: switch to JSON
+
+  format and assert extra kwargs (user_id, code) appear under the
+
+  'extra_fields' key in the JSON output, matching the test's intent
+
+  - test_sl_output_with_special_message_expect_logged: strengthen the
+
+  10k-char case to assert output.count('A') >= 10_000 rather than
+
+  'A' in output, which would pass even on truncation
+
+  Fixes #13
+
+  Co-authored-by: Tom Pounders <git@oldschool.engineer>
+
+- `a26f1c0 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/a26f1c0>`_ ci: bump Docker actions to Node.js 24-compatible versions (#10) (#11)
+- `42197a4 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/42197a4>`_ docs: update blog links to canonical oldschool-engineer.dev (#8) (#9)
+- `5cfe3c7 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/5cfe3c7>`_ docs: add CLAUDE.md and AGENTS.md for AI agent maintainers (#7)
+
+  Closes #6
+
+  Co-authored-by: Tom Pounders <git@oldschool.engineer>
+
+
 Version 0.2.28 (2026-02-25)
 ===========================
 
+- `eec32d5 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/eec32d5>`_ Update CHANGELOG.rst for v0.2.28
 - `a02de2f <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/a02de2f>`_ Fix: Handle LockNotOwnedError gracefully in Redis lock release
 
   The LockNotOwnedError was raised when a Redis distributed lock expired before the finally block could release it. Even though the code checked lock.locked(), a race condition exists where the lock can expire between the check and the release() call.
