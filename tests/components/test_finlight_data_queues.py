@@ -85,7 +85,7 @@ def test_fdq_init_with_valid_params_expect_correct_setup(sut):
     assert sut.rabbitmq_url == "amqp://guest:guest@localhost/"
     assert sut.message_ttl == 5000
     assert sut.publisher_confirms is True
-    assert FinlightDataQueue.ARTICLES.value in sut.queues
+    assert FinlightDataQueue.NEWS.value in sut.queues
 
 
 def test_fdq_init_with_valid_params_expect_connection_status_defaults(sut):
@@ -96,7 +96,7 @@ def test_fdq_init_with_valid_params_expect_connection_status_defaults(sut):
     assert sut.connection_status["messages_received"] == 0
     assert sut.connection_status["last_message_time"] is None
     assert sut.connection_status["reconnect_attempts"] == 0
-    assert sut.connection_status[FinlightDataQueue.ARTICLES.value] == 0
+    assert sut.connection_status[FinlightDataQueue.NEWS.value] == 0
 
 
 def test_fdq_init_with_publisher_confirms_false_expect_stored(mock_telemetry):
@@ -212,11 +212,11 @@ async def test_fdq_handle_message_with_pydantic_article_expect_published(
         mock_article.model_dump.assert_called_once()
         assert sut.connection_status["messages_received"] == 1
         assert sut.connection_status["last_message_time"] is not None
-        assert sut.connection_status[FinlightDataQueue.ARTICLES.value] == 1
-        exchange = sut.exchanges[FinlightDataQueue.ARTICLES.value]
+        assert sut.connection_status[FinlightDataQueue.NEWS.value] == 1
+        exchange = sut.exchanges[FinlightDataQueue.NEWS.value]
         exchange.publish.assert_awaited_once_with(
             mock_rabbit_msg,
-            routing_key=FinlightDataQueue.ARTICLES.value,
+            routing_key=FinlightDataQueue.NEWS.value,
         )
 
 
@@ -239,8 +239,8 @@ async def test_fdq_handle_message_with_dict_article_expect_published(
 
         # Assert
         assert sut.connection_status["messages_received"] == 1
-        assert sut.connection_status[FinlightDataQueue.ARTICLES.value] == 1
-        exchange = sut.exchanges[FinlightDataQueue.ARTICLES.value]
+        assert sut.connection_status[FinlightDataQueue.NEWS.value] == 1
+        exchange = sut.exchanges[FinlightDataQueue.NEWS.value]
         exchange.publish.assert_awaited_once()
 
 
@@ -290,7 +290,7 @@ async def test_fdq_handle_message_without_channels_expect_exception(sut):
 async def test_fdq_handle_message_with_no_connection_expect_exception(sut):
     """Channels dict is populated but underlying connection is None."""
     # Arrange
-    sut.channels = {FinlightDataQueue.ARTICLES.value: MagicMock()}
+    sut.channels = {FinlightDataQueue.NEWS.value: MagicMock()}
     sut.connection = None
 
     # Act & Assert
@@ -345,7 +345,7 @@ async def test_fdq_handle_message_twice_expect_counts_cumulative(
 
     # Assert
     assert sut.connection_status["messages_received"] == 2
-    assert sut.connection_status[FinlightDataQueue.ARTICLES.value] == 2
+    assert sut.connection_status[FinlightDataQueue.NEWS.value] == 2
 
 
 # ---------------------------------------------------------------------------
@@ -359,16 +359,16 @@ async def test_fdq_publish_message_with_error_expect_logged_and_no_raise(
     # Arrange
     await sut.connect()
     mock_rabbit_msg = MagicMock()
-    sut.exchanges[FinlightDataQueue.ARTICLES.value].publish.side_effect = (
+    sut.exchanges[FinlightDataQueue.NEWS.value].publish.side_effect = (
         Exception("Pub Error")
     )
 
     # Act — must NOT raise
-    await sut._publish_message(mock_rabbit_msg, FinlightDataQueue.ARTICLES.value)
+    await sut._publish_message(mock_rabbit_msg, FinlightDataQueue.NEWS.value)
 
     # Assert — publish was attempted; per-queue counter was not incremented
-    sut.exchanges[FinlightDataQueue.ARTICLES.value].publish.assert_called_once()
-    assert sut.connection_status[FinlightDataQueue.ARTICLES.value] == 0
+    sut.exchanges[FinlightDataQueue.NEWS.value].publish.assert_called_once()
+    assert sut.connection_status[FinlightDataQueue.NEWS.value] == 0
 
 
 @pytest.mark.asyncio
@@ -386,7 +386,7 @@ async def test_fdq_publish_message_with_channel_closed_expect_error_logged(
     with caplog.at_level(logging.ERROR):
         await sut._publish_message(
             rabbit_message=msg,
-            queue_name=FinlightDataQueue.ARTICLES.value,
+            queue_name=FinlightDataQueue.NEWS.value,
         )
 
     # Assert — error was logged, not propagated
@@ -453,7 +453,7 @@ async def test_fdq_setup_queues_with_custom_ttl_expect_ttl_passed(
 
     # Assert
     mock_aio_pika["channel"].declare_queue.assert_any_call(
-        FinlightDataQueue.ARTICLES.value,
+        FinlightDataQueue.NEWS.value,
         durable=True,
         arguments={"x-message-ttl": custom_ttl},
     )
