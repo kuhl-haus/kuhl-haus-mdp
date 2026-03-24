@@ -14,6 +14,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   release:
@@ -60,6 +61,12 @@ jobs:
           echo "tag=$next" >> "$GITHUB_OUTPUT"
           echo "Next version: $next"
 
+      - name: Create release branch
+        run: |
+          branch_name="release/${{ steps.version.outputs.tag }}"
+          git checkout -b "$branch_name"
+          echo "branch=$branch_name" >> "$GITHUB_ENV"
+
       - name: Create tag
         run: |
           git tag "${{ steps.version.outputs.tag }}"
@@ -69,12 +76,32 @@ jobs:
           chmod +x update-changelog.sh
           bash update-changelog.sh
 
-      - name: Commit and push
+      - name: Commit and push branch
         run: |
           git add CHANGELOG.rst
           git commit -m "Update CHANGELOG.rst for ${{ steps.version.outputs.tag }}"
-          git push origin HEAD
-          
-          # TODO: Figure out how to do this so that it triggers a release
-          # git tag -f "${{ steps.version.outputs.tag }}"
-          # git push origin "${{ steps.version.outputs.tag }}" --force
+          git push origin "${{ env.branch }}"
+
+      - name: Create pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr create \
+            --title "Release ${{ steps.version.outputs.tag }}" \
+            --body "$(cat <<'EOF'
+          ## Release ${{ steps.version.outputs.tag }}
+
+          This PR prepares the repository for release ${{ steps.version.outputs.tag }}.
+
+          ### Changes
+          - Updated CHANGELOG.rst with commits since last release
+          - Tagged commit as ${{ steps.version.outputs.tag }}
+
+          ### Post-merge actions
+          After merging this PR, the tag will be pushed to trigger the PyPI publish workflow.
+
+          **Automated release created by GitHub Actions workflow.**
+          EOF
+          )" \
+            --base mainline \
+            --head "${{ env.branch }}"
