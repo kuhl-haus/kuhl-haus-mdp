@@ -9,6 +9,7 @@ skinparam ArrowThickness 2
 title Kuhl Haus Market Data Platform - Component Architecture
 
 cloud "Massive.com WebSocket API" as Massive #FFEEEE
+cloud "Finlight News API" as Finlight #EEF4EE
 
 package "Control Plane" #EEEEEE {
     component "Service Control Plane (SCP)" as SCP #7ED321
@@ -22,6 +23,11 @@ package "Data Plane" #E8F4F8 {
         component "QueueNameResolver" as Resolver
     }
 
+    package "Finlight Data Listener (FDL)" #DDDDDD {
+        component "FinlightDataListener" as FDListener
+        component "FinlightDataQueues" as FDQueues
+    }
+
     queue "Market Data Queues (MDQ)" as MDQ #D0021B
 
     package "Market Data Processor (MDP)" #DDDDDD {
@@ -31,6 +37,10 @@ package "Data Plane" #E8F4F8 {
         component "LeaderboardAnalyzer" as Leaderboard
         component "TopTradesAnalyzer" as TopTrades
         component "TopStocksAnalyzer" as TopStocks
+    }
+
+    package "Finlight Data Processor (FDP)" #DDDDDD {
+        component "FinlightDataProcessor" as FDProcessor
     }
 
     database "Market Data Cache (MDC)" as MDC #F5A623
@@ -59,7 +69,12 @@ Listener --> Resolver : route by type
 Resolver --> Queues : publish
 Queues -[#orange,thickness=3]-> MDQ : RabbitMQ (TTL: 5s)
 
+Finlight -[#green,thickness=3]-> FDListener : WebSocket stream
+FDListener --> FDQueues : handle_message
+FDQueues -[#orange,thickness=3]-> MDQ : RabbitMQ (news queue)
+
 MDQ -[#orange,thickness=3]-> Processor : consume (prefetch: 100)
+MDQ -[#orange,thickness=3]-> FDProcessor : consume (news queue)
 Processor --> Router : analyze
 Router --> Leaderboard : aggregate events
 Router --> TopTrades : trade events
@@ -67,6 +82,7 @@ Router --> TopStocks : legacy path
 Scanner --> Leaderboard : scan leaderboards
 Scanner --> TopTrades : scan trades
 Processor -[#blue,thickness=3]-> MDC : cache + pub/sub
+FDProcessor -[#blue,thickness=3]-> MDC : cache + pub/sub
 
 MDC -[#blue,thickness=3]-> Widget : Redis pub/sub
 Widget --> CacheClient : load snapshots
@@ -76,10 +92,14 @@ SCP .[#purple,dashed].> Widget : manage/monitor
 SCP -[#green,thickness=3]-> Clients : SPA + auth token
 
 Listener .down.> OTel : traces/metrics
+FDListener .down.> OTel : traces/metrics
 Processor .down.> OTel : traces/metrics
+FDProcessor .down.> OTel : traces/metrics
 Widget .down.> OTel : traces/metrics
 Listener .down.> Logging : JSON logs
+FDListener .down.> Logging : JSON logs
 Processor .down.> Logging : JSON logs
+FDProcessor .down.> Logging : JSON logs
 Widget .down.> Logging : JSON logs
 
 Listener --> Serde : serialize

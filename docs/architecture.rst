@@ -16,6 +16,12 @@ Components Summary
 Data Plane Components
 ----------------------
 
+**Finlight Data Listener (FDL)**
+  WebSocket client connecting to the Finlight news API, routing articles to the RabbitMQ news queue with minimal processing overhead.
+
+**Finlight Data Processor (FDP)**
+  Async RabbitMQ consumer processing Finlight news articles through pluggable analyzers and writing results to Redis.
+
 **Market Data Listener (MDL)**
   WebSocket client connecting to Massive.com, routing events to appropriate queues with minimal processing overhead.
 
@@ -63,6 +69,32 @@ Component Descriptions
 
 See the :doc:`full-page diagram <architecture-diagram>` for a full-page view.
 
+
+Finlight Data Listener (FDL)
+-----------------------------
+
+The FDL connects to the Finlight news WebSocket API and routes incoming articles to the RabbitMQ ``news`` queue via ``FinlightDataQueues``. It performs minimal processing — the listener delegates each article directly to ``FinlightDataQueues.handle_message``, which serializes and publishes it. Auto-reconnect is handled by ``FinlightDataListener``.
+
+FDL runs as a container and scales independently of other components. FDL should not be accessible outside the data plane local network.
+
+Code Libraries
+~~~~~~~~~~~~~~
+
+- **FinlightDataListener** (`components/finlight_data_listener.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.components.html#module-kuhl_haus.mdp.components.finlight_data_listener>`_) - WebSocket client wrapper for the Finlight news API with persistent connection management and auto-reconnect logic
+- **FinlightDataQueues** (`components/finlight_data_queues.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.components.html#module-kuhl_haus.mdp.components.finlight_data_queues>`_) - Single-channel RabbitMQ publisher serializing Finlight article objects to the ``news`` queue
+- **FinlightDataQueue** enum (`enum/finlight_data_queue.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.enum.html#module-kuhl_haus.mdp.enum.finlight_data_queue>`_) - Queue name constant for routing (NEWS = ``"news"``)
+
+Finlight Data Processor (FDP)
+-------------------------------
+
+The FDP consumes news articles from the RabbitMQ ``news`` queue and delegates processing to a pluggable analyzer. Like the MDP, it uses semaphore-based concurrency control and writes results to Redis. The FDP is designed for a lower-throughput news feed rather than high-velocity tick data, so it runs as a single async processor rather than using ``ProcessManager`` parallelism.
+
+FDP runs as a container and scales independently of other components. FDP should not be accessible outside the data plane local network.
+
+Code Libraries
+~~~~~~~~~~~~~~
+
+- **FinlightDataProcessor** (`components/finlight_data_processor.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.components.html#module-kuhl_haus.mdp.components.finlight_data_processor>`_) - Async RabbitMQ consumer with semaphore-based concurrency. Deserializes JSON article payloads directly (no WebSocketMessageSerde) and delegates to pluggable analyzers.
 
 Market Data Listener (MDL)
 ---------------------------
