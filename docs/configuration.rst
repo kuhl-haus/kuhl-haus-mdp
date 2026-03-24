@@ -55,7 +55,7 @@ These variables are supported by all servers.
 Finlight Data Listener (FDL)
 -----------------------------
 
-**Default port:** 4200
+**Default port:** 4203
 
 The FDL connects to the Finlight news WebSocket API and routes articles to the
 RabbitMQ ``news`` queue.
@@ -97,7 +97,7 @@ RabbitMQ ``news`` queue.
 Finlight Data Processor (FDP)
 -------------------------------
 
-**Default port:** 4202
+**Default port:** 4204
 
 The FDP consumes articles from the RabbitMQ ``news`` queue and processes them
 through a pluggable analyzer, writing results to Redis.
@@ -193,7 +193,7 @@ multiple RabbitMQ queues and writing results to Redis.
 Leaderboard Analyzer (LBA)
 ---------------------------
 
-**Default port:** 4201
+**Default port:** 4210
 
 The LBA subscribes to Redis pub/sub channels and runs leaderboard and trade
 analyzers sequentially.
@@ -217,7 +217,7 @@ analyzers sequentially.
 Widget Data Service (WDS)
 --------------------------
 
-**Default port:** 4200
+**Default port:** 4202
 
 The WDS bridges Redis pub/sub to client WebSocket connections with fan-out.
 
