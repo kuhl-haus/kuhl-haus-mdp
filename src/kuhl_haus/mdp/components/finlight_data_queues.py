@@ -50,7 +50,7 @@ class FinlightDataQueues:
         self.logger = logging.getLogger(__name__)
         self.rabbitmq_url = rabbitmq_url
         self.queues = [
-            FinlightDataQueue.ARTICLES.value,
+            FinlightDataQueue.NEWS.value,
         ]
         self.message_ttl = message_ttl
         self.publisher_confirms = publisher_confirms
@@ -60,7 +60,7 @@ class FinlightDataQueues:
             "connected": False,
             "last_message_time": None,
             "messages_received": 0,
-            FinlightDataQueue.ARTICLES.value: 0,
+            FinlightDataQueue.NEWS.value: 0,
             "reconnect_attempts": 0,
         }
         # Metrics
@@ -81,8 +81,8 @@ class FinlightDataQueues:
             unit="1"
         )
         self.counters = {
-            FinlightDataQueue.ARTICLES.value: meter.create_counter(
-                name=f"fdq.{FinlightDataQueue.ARTICLES.value}",
+            FinlightDataQueue.NEWS.value: meter.create_counter(
+                name=f"fdq.{FinlightDataQueue.NEWS.value}",
                 description=(
                     "Number of articles received from the Finlight data provider"
                 ),
@@ -174,7 +174,7 @@ class FinlightDataQueues:
             )
 
             await self._publish_message(
-                rabbit_message, FinlightDataQueue.ARTICLES.value
+                rabbit_message, FinlightDataQueue.NEWS.value
             )
         except Exception as e:
             self.logger.error(f"Fatal error while processing message: {e}")
