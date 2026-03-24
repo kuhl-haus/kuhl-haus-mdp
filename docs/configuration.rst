@@ -4,9 +4,6 @@ Configuration Reference
 All MDP server containers are configured exclusively via environment variables.
 No configuration files are required at runtime.
 
-.. contents:: Servers
-   :local:
-   :depth: 1
 
 ----
 
