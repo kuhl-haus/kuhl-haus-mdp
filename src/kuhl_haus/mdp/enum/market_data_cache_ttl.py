@@ -61,3 +61,6 @@ class MarketDataCacheTTL(Enum):
     TOP_VOLUME_SCANNER = THREE_DAYS
     TOP_GAINERS_SCANNER = THREE_DAYS
     TOP_GAPPERS_SCANNER = THREE_DAYS
+
+    # Finlight news caches
+    NEWS_FEED_LATEST = ONE_HOUR

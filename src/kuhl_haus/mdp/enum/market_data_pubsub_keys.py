@@ -26,3 +26,7 @@ class MarketDataPubSubKeys(Enum):
     TOP_GAINERS_SCANNER = f'scanners:{MarketDataScannerNames.TOP_GAINERS.value}'
     TOP_GAPPERS_SCANNER = f'scanners:{MarketDataScannerNames.TOP_GAPPERS.value}'
     TOP_VOLUME_SCANNER = f'scanners:{MarketDataScannerNames.TOP_VOLUME.value}'
+
+    # Finlight news feeds
+    NEWS_FEED_LATEST = 'news:feed:latest'
+    NEWS_TICKER = 'news:ticker:{ticker}'
