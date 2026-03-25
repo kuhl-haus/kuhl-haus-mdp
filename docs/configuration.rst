@@ -4,7 +4,6 @@ Configuration Reference
 All MDP server containers are configured exclusively via environment variables.
 No configuration files are required at runtime.
 
-
 ----
 
 Common Variables
@@ -28,18 +27,6 @@ These variables are supported by all servers.
    * - ``SERVER_PORT``
      - *(server-specific)*
      - TCP port for the HTTP server (see per-server defaults below)
-   * - ``RABBITMQ_URL``
-     - ``amqp://mdq:mdq@localhost:5672/``
-     - RabbitMQ connection URL (AMQP)
-   * - ``REDIS_URL``
-     - ``redis://mdc:mdc@localhost:6379/0``
-     - Redis connection URL
-   * - ``MDQ_PUBLISHER_CONFIRMS``
-     - ``true``
-     - Enable RabbitMQ publisher confirms (``true`` / ``false``)
-   * - ``MARKET_DATA_MESSAGE_TTL``
-     - ``5000``
-     - RabbitMQ message TTL in milliseconds
    * - ``CONTAINER_IMAGE``
      - ``Unknown``
      - Image name injected at build time (informational)
@@ -70,24 +57,27 @@ RabbitMQ ``news`` queue.
    * - ``FINLIGHT_QUERY``
      - *(none)*
      - Full-text query filter for incoming articles (e.g. ``"earnings catalyst"``)
-   * - ``FINLIGHT_TICKERS``
-     - *(none)*
-     - JSON array of ticker symbols to filter (e.g. ``'["AAPL","TSLA"]'``)
-   * - ``FINLIGHT_SOURCES``
-     - *(none)*
-     - JSON array of news source domains to filter (e.g. ``'["reuters.com"]'``)
    * - ``FINLIGHT_LANGUAGE``
      - *(none)*
      - ISO 639-1 language code to filter (e.g. ``en``)
    * - ``FINLIGHT_RAW``
      - ``false``
      - Subscribe to raw (unprocessed) article feed instead of enriched feed
-   * - ``FINLIGHT_MAX_RECONNECTS``
-     - ``5``
-     - Maximum WebSocket reconnection attempts before giving up
+   * - ``FINLIGHT_INCLUDE_ENTITIES``
+     - ``true``
+     - Include entity tagging (tickers, people, orgs) in enriched article payloads
+   * - ``RABBITMQ_URL``
+     - ``amqp://mdq:mdq@localhost:5672/``
+     - RabbitMQ connection URL (AMQP)
+   * - ``MARKET_DATA_MESSAGE_TTL``
+     - ``5000``
+     - RabbitMQ message TTL in milliseconds
+   * - ``MDQ_PUBLISHER_CONFIRMS``
+     - ``true``
+     - Enable RabbitMQ publisher confirms (``true`` / ``false``)
    * - ``MARKET_DATA_LISTENER_AUTO_START_ENABLED``
      - ``false``
-     - Automatically connect to Finlight on startup. When ``false``, use the ``/start`` endpoint to connect manually.
+     - Automatically connect to Finlight on startup. When ``false``, use the ``/start`` endpoint.
 
 ----
 
@@ -106,6 +96,12 @@ through a pluggable analyzer, writing results to Redis.
    * - Variable
      - Default
      - Description
+   * - ``RABBITMQ_URL``
+     - ``amqp://mdq:mdq@localhost:5672/``
+     - RabbitMQ connection URL (AMQP)
+   * - ``REDIS_URL``
+     - ``redis://mdc:mdc@localhost:6379/0``
+     - Redis connection URL
    * - ``FDP_QUEUE_NAME``
      - ``news``
      - RabbitMQ queue to consume from
@@ -133,6 +129,10 @@ to per-type RabbitMQ queues.
    * - Variable
      - Default
      - Description
+   * - ``MASSIVE_API_KEY``
+     - *(required)*
+     - Massive.com API key. Resolved in order: ``MASSIVE_API_KEY`` env var →
+       ``POLYGON_API_KEY`` env var (legacy) → ``/app/massive_api_key.txt`` (Docker secret).
    * - ``MASSIVE_FEED``
      - ``RealTime``
      - Massive.com feed type: ``RealTime`` or ``Delayed``
@@ -154,6 +154,18 @@ to per-type RabbitMQ queues.
    * - ``MASSIVE_MAX_RECONNECTS``
      - ``5``
      - Maximum WebSocket reconnection attempts before giving up
+   * - ``RABBITMQ_URL``
+     - ``amqp://mdq:mdq@localhost:5672/``
+     - RabbitMQ connection URL (AMQP)
+   * - ``MARKET_DATA_MESSAGE_TTL``
+     - ``5000``
+     - RabbitMQ message TTL in milliseconds
+   * - ``MDQ_PUBLISHER_CONFIRMS``
+     - ``true``
+     - Enable RabbitMQ publisher confirms (``true`` / ``false``)
+   * - ``REDIS_URL``
+     - ``redis://mdc:mdc@localhost:6379/0``
+     - Redis connection URL
    * - ``MARKET_DATA_LISTENER_AUTO_START_ENABLED``
      - ``false``
      - Automatically connect to Massive.com on startup. When ``false``, use the ``/start`` endpoint.
@@ -175,6 +187,15 @@ multiple RabbitMQ queues and writing results to Redis.
    * - Variable
      - Default
      - Description
+   * - ``MASSIVE_API_KEY``
+     - *(required)*
+     - Massive.com API key. Same resolution chain as MDL.
+   * - ``RABBITMQ_URL``
+     - ``amqp://mdq:mdq@localhost:5672/``
+     - RabbitMQ connection URL (AMQP)
+   * - ``REDIS_URL``
+     - ``redis://mdc:mdc@localhost:6379/0``
+     - Redis connection URL
    * - ``PARALLELISM``
      - ``10``
      - Number of parallel processor workers per queue type
@@ -202,12 +223,24 @@ analyzers sequentially.
    * - Variable
      - Default
      - Description
-   * - ``AUTH_ENABLED``
-     - ``false``
-     - Enable API key authentication for LBA endpoints
-   * - ``AUTH_API_KEY``
-     - *(none)*
-     - API key required when ``AUTH_ENABLED=true``
+   * - ``MASSIVE_API_KEY``
+     - *(required)*
+     - Massive.com API key. Same resolution chain as MDL.
+   * - ``RABBITMQ_URL``
+     - ``amqp://mdq:mdq@localhost:5672/``
+     - RabbitMQ connection URL (AMQP)
+   * - ``REDIS_URL``
+     - ``redis://mdc:mdc@localhost:6379/0``
+     - Redis connection URL
+   * - ``PARALLELISM``
+     - ``1``
+     - Number of parallel processor workers
+   * - ``PREFETCH_COUNT``
+     - ``10``
+     - RabbitMQ prefetch count per worker
+   * - ``MAX_CONCURRENCY``
+     - ``100``
+     - Maximum concurrent async tasks per worker (semaphore limit)
 
 ----
 
@@ -218,13 +251,19 @@ Widget Data Service (WDS)
 
 The WDS bridges Redis pub/sub to client WebSocket connections with fan-out.
 
-No WDS-specific environment variables beyond the common set above.
+.. list-table::
+   :header-rows: 1
+   :widths: 30 15 55
 
-----
-
-.. note::
-
-   Filter settings for FDL (``FINLIGHT_QUERY``, ``FINLIGHT_TICKERS``,
-   ``FINLIGHT_SOURCES``, ``FINLIGHT_LANGUAGE``) can also be updated at
-   runtime via the FDL server's REST API (``POST /query``, ``POST /tickers``,
-   etc.) without restarting the container.
+   * - Variable
+     - Default
+     - Description
+   * - ``REDIS_URL``
+     - ``redis://localhost:6379/0``
+     - Redis connection URL
+   * - ``AUTH_ENABLED``
+     - ``false``
+     - Enable API key authentication for WebSocket connections
+   * - ``AUTH_API_KEY``
+     - ``secret``
+     - API key required when ``AUTH_ENABLED=true``
