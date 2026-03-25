@@ -61,9 +61,11 @@ docs/                             # Sphinx documentation source
 **Build backend:** pdm-backend (version from git tags via setuptools-scm)
 
 ```bash
-pdm install
-pdm run pytest
+pip install -e ".[testing]"
+pytest --cov=kuhl_haus.mdp --cov-branch
 ```
+
+> ⚠️ **No requirements.txt files.** This repo does not use `requirements.txt` or `requirements-test.txt`. All dependencies are declared in `pyproject.toml`. Do **not** create or install from requirements text files. The exception is `docs/requirements.txt` which is only for ReadTheDocs Sphinx builds — do not modify it.
 
 > ⚠️ **Build order matters:** In CI, always run `pdm build` before `pdm install`. Running `pdm install` first regenerates `pdm.lock`, making the working tree dirty — pdm-backend appends `+d<date>` to dirty builds, which PyPI rejects (PEP 440 local version identifiers).
 

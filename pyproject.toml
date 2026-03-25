@@ -21,6 +21,7 @@ dependencies = [
     "aio-pika",
     "fastapi",
     "finlight-client",
+    "importlib_metadata",
     "massive",
     "opentelemetry-api",
     "opentelemetry-sdk",
@@ -30,6 +31,7 @@ dependencies = [
     "python-json-logger>=2.0.0",
     "redis",
     "tenacity",
+    "tzdata",
     "uvicorn[standard]",
     "websockets",
 ]
@@ -44,7 +46,10 @@ Tracker = "https://github.com/kuhl-haus/kuhl-haus-mdp/issues"
 [project.optional-dependencies]
 testing = [
     "setuptools",
+    "setuptools-scm",
+    "pdm",
     "pdm-backend",
+    "flake8",
     "pytest",
     "pytest-cov",
     "pytest-asyncio",
