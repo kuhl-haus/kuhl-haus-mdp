@@ -1,9 +1,65 @@
 =========
 Changelog
 =========
+Version 0.3.4 (2026-03-25)
+==========================
+
+- `1f0f16c <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/1f0f16c>`_ Add ticker cache and Finlight language
+
+  Always publish articles to the feed and include per-ticker publish entries with proper cache_key and cache_ttl. Update MarketDataCacheTTL: NEWS_FEED_LATEST -> ONE_DAY and add NEWS_TICKER -> THREE_DAYS. Set Finlight WebSocket params to include language="en" for both raw and normal article streams. Tests updated to reflect new cache_key/ttl behavior and language parameter expectations.
+
+- `28575b6 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/28575b6>`_ chore: consolidate deps into pyproject.toml, delete requirements txt files (#39)
+
+  - Add importlib_metadata and tzdata to [project.dependencies]
+
+  - Add setuptools-scm, pdm, flake8 to [project.optional-dependencies].testing
+
+  - Dockerfile: replace requirements.txt install with pip install .
+
+  - publish-to-pypi.yml: replace two-step install with pip install .[testing]
+
+  - CLAUDE.md: update dev install instructions, add no-requirements.txt warning
+
+  - Delete requirements.txt and requirements-test.txt
+
+  docs/requirements.txt retained — used by ReadTheDocs for Sphinx builds only.
+
+
+Version 0.3.3 (2026-03-25)
+==========================
+
+- `fb3ac47 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/fb3ac47>`_ Version 0.3.3 (2026-03-25)
+- `bb90ef0 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/bb90ef0>`_ Add ticker cache and Finlight language
+
+  Always publish articles to the feed and include per-ticker publish entries with proper cache_key and cache_ttl. Update MarketDataCacheTTL: NEWS_FEED_LATEST -> ONE_DAY and add NEWS_TICKER -> THREE_DAYS. Set Finlight WebSocket params to include language="en" for both raw and normal article streams. Tests updated to reflect new cache_key/ttl behavior and language parameter expectations.
+
+- `899edf9 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/899edf9>`_ fix: refactor FinlightDataListener to match working pattern (closes #37) (#38)
+
+  Fixes all six defects identified in issue #37:
+
+  1. WebSocketOptions/RawWebSocketOptions(takeover=True) to prevent session conflicts
+
+  2. Direct await on connect (not asyncio.gather with swallowed exceptions)
+
+  3. while-loop reconnect in single task — no recursive start() / task leak
+
+  4. Task cancellation for stop() — not SDK .stop() call
+
+  5. Property setters still trigger restart; no change to that interface
+
+  6. includeEntities=True by default on enhanced subscriptions
+
+  Also preserves max_reconnects support and async/sync handler dispatch
+
+  via inspect.iscoroutinefunction() + loop.create_task().
+
+  27 tests, 99% branch coverage.
+
+
 Version 0.3.2 (2026-03-25)
 ==========================
 
+- `1eca24e <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/1eca24e>`_ Version 0.3.2 (2026-03-25)
 - `7ca77f6 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/7ca77f6>`_ feat: FinlightDataAnalyzer — stateless news article router (closes #35) (#36)
 
   Adds FinlightDataAnalyzer, an Analyzer subclass for routing Finlight news
