@@ -58,13 +58,18 @@ class FinlightSimpleListener:
                 config=ApiConfig(api_key=self.api_key),
                 raw_websocket_options=RawWebSocketOptions(takeover=True),
             )
-            self.finlight_params = GetRawArticlesWebSocketParams()
+            self.finlight_params = GetRawArticlesWebSocketParams(
+                language="en"
+            )
         else:
             self.finlight_api = FinlightApi(
                 config=ApiConfig(api_key=self.api_key),
                 websocket_options=WebSocketOptions(takeover=True),
             )
-            self.finlight_params = GetArticlesWebSocketParams(includeEntities=include_entities)
+            self.finlight_params = GetArticlesWebSocketParams(
+                language="en",
+                includeEntities=include_entities
+            )
 
     async def start(self):
         """Connect to Finlight WebSocket and begin publishing articles to RabbitMQ."""

@@ -64,15 +64,14 @@ class FinlightDataAnalyzer(Analyzer):
         if not data:
             return None
 
-        results: List[MarketDataAnalyzerResult] = []
-
-        # All articles go to the feed regardless of mode
-        results.append(MarketDataAnalyzerResult(
+        results: List[MarketDataAnalyzerResult] = [MarketDataAnalyzerResult(
             data=data,
             cache_key=MarketDataPubSubKeys.NEWS_FEED_LATEST.value,
             cache_ttl=MarketDataCacheTTL.NEWS_FEED_LATEST.value,
             publish_key=MarketDataPubSubKeys.NEWS_FEED_LATEST.value,
-        ))
+        )]
+
+        # All articles go to the feed regardless of mode
 
         # Determine mode and extract tickers
         companies = data.get("companies")
@@ -86,8 +85,8 @@ class FinlightDataAnalyzer(Analyzer):
         for ticker in tickers:
             results.append(MarketDataAnalyzerResult(
                 data=data,
-                cache_key=None,
-                cache_ttl=0,
+                cache_key=MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker=ticker),
+                cache_ttl=MarketDataCacheTTL.NEWS_TICKER.value,
                 publish_key=MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker=ticker),
             ))
 

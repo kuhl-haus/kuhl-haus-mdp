@@ -89,7 +89,7 @@ def test_fsl_init_with_raw_false_expect_websocket_options_used(mock_queues):
 
     # Assert — WebSocketOptions(takeover=True) used, not RawWebSocketOptions
     mock_ws_opts.assert_called_once_with(takeover=True)
-    mock_params.assert_called_once_with(includeEntities=True)
+    mock_params.assert_called_once_with(language="en",includeEntities=True)
 
 
 def test_fsl_init_with_raw_true_expect_raw_websocket_options_used(mock_queues):
@@ -104,7 +104,7 @@ def test_fsl_init_with_raw_true_expect_raw_websocket_options_used(mock_queues):
 
     # Assert
     mock_raw_opts.assert_called_once_with(takeover=True)
-    mock_params.assert_called_once_with()
+    mock_params.assert_called_once_with(language="en")
 
 
 def test_fsl_init_with_include_entities_false_expect_passed_to_params(mock_queues):
@@ -117,7 +117,7 @@ def test_fsl_init_with_include_entities_false_expect_passed_to_params(mock_queue
         FinlightSimpleListener(api_key="key", queues=mock_queues, include_entities=False)
 
     # Assert
-    mock_params.assert_called_once_with(includeEntities=False)
+    mock_params.assert_called_once_with(language="en", includeEntities=False)
 
 
 def test_fsl_init_with_any_mode_expect_finlight_api_instantiated_once(mock_queues, mock_finlight_api):
