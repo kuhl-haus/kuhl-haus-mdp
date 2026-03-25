@@ -6,6 +6,7 @@ provided handler. Designed to run as a long-lived background task that survives
 temporary connection failures.
 """
 import asyncio
+import inspect
 import logging
 from typing import Awaitable, Callable, List, Optional, Union
 
@@ -195,6 +196,19 @@ class FinlightDataListener:
             self.connection_status["connected"] = True
             self.connection_status["healthy"] = True
 
+            # The Finlight SDK calls on_article synchronously. If message_handler
+            # is a coroutine function, wrap it so it is scheduled on the running
+            # event loop rather than returning an unawaited coroutine object.
+            if inspect.iscoroutinefunction(self.message_handler):
+                loop = asyncio.get_event_loop()
+
+                def _sync_handler(article):
+                    loop.create_task(self.message_handler(article))
+
+                effective_handler = _sync_handler
+            else:
+                effective_handler = self.message_handler
+
             if self.raw:
                 request_params = GetRawArticlesWebSocketParams(
                     query=self.query,
@@ -203,7 +217,7 @@ class FinlightDataListener:
                 )
                 connect_coro = self.ws_connection.raw_websocket.connect(
                     request_payload=request_params,
-                    on_article=self.message_handler,
+                    on_article=effective_handler,
                 )
             else:
                 request_params = GetArticlesWebSocketParams(
@@ -214,7 +228,7 @@ class FinlightDataListener:
                 )
                 connect_coro = self.ws_connection.websocket.connect(
                     request_payload=request_params,
-                    on_article=self.message_handler,
+                    on_article=effective_handler,
                 )
 
             await asyncio.gather(connect_coro, return_exceptions=True)
