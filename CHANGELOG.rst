@@ -1,8 +1,130 @@
 =========
 Changelog
 =========
+Version 0.3.1 (2026-03-25)
+==========================
+
+- `8812802 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/8812802>`_ test: add unit tests for FinlightSimpleListener (closes #29) (#32)
+
+  24 tests, 99% branch coverage.
+
+  Covers: __init__ (all param combinations, API/params construction),
+
+  start (task created, running set), stop (cancel + status cleared,
+
+  no-op on done/no task), _run (enhanced + raw modes, connected status,
+
+  on_article callback, reconnect on exception, CancelledError exit),
+
+  _handle_article (to_dict called, handle_message called, articles_received
+
+  incremented before handle_message, exception counted not raised,
+
+  cumulative counts), parameterized mode combinations.
+
+- `352eda6 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/352eda6>`_ Refactor FinlightSimpleListener init & logging
+
+  Initialize and reuse FinlightApi and websocket params in __init__ (raw vs normal) instead of recreating clients on each connect. Replace module-level tracer and json usage with kuhl_haus.mdp.helpers.serde.to_dict for article serialization and pass dicts to queues.handle_message. Introduce an instance logger (self.logger) and update log calls. Remove unused query/tickers/sources/language attributes and simplify the on_article handler to schedule _handle_article on the event loop. These changes improve resource reuse, simplify the control flow, and standardize serialization.
+
+- `c8549d4 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/c8549d4>`_ feat: add general-purpose serde helper (closes #30) (#31)
+
+  Copies to_dict() from legion-mcp into kuhl_haus.mdp.helpers.serde.
+
+  Recursively converts arbitrary objects (dataclasses, Pydantic models,
+
+  nested objects, primitives) to JSON-serializable dicts.
+
+  35 tests, 100% branch coverage.
+
+- `b86b649 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/b86b649>`_ Remove GitHub Actions release workflow
+- `fcb4c9b <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/fcb4c9b>`_ feat: add FinlightSimpleListener — verified working Finlight SDK pattern (#28)
+
+  Adds FinlightSimpleListener using the exact pattern verified to work
+
+  with the Finlight SDK on dev hardware:
+
+  - WebSocketOptions(takeover=True) / RawWebSocketOptions(takeover=True)
+
+  - includeEntities=True for entity-tagged articles (enhanced mode)
+
+  - Sync on_article callback that schedules async queues.handle_message
+
+  via loop.create_task() — avoids unawaited coroutine warning
+
+  - Auto-reconnect on disconnect (5s delay)
+
+  FinlightDataListener remains unchanged for backwards compatibility.
+
+- `4511a64 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/4511a64>`_ fix: schedule async message_handler as task in FinlightDataListener (#27)
+
+  The Finlight SDK calls on_article synchronously. When message_handler
+
+  is a coroutine (e.g. FinlightDataQueues.handle_message), the call returns
+
+  an unawaited coroutine object, triggering:
+
+  RuntimeWarning: coroutine 'FinlightDataQueues.handle_message' was never awaited
+
+  Fix: in async_task, detect if message_handler is a coroutine function via
+
+  inspect.iscoroutinefunction(). If so, wrap it in a sync shim that calls
+
+  loop.create_task() to schedule the coroutine on the running event loop.
+
+  Sync handlers are passed through unchanged.
+
+- `e64dd18 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/e64dd18>`_ docs: no Co-Authored-By trailers in commits (#26)
+- `7cbe6c3 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/7cbe6c3>`_ docs: remove contents directive from configuration.rst (#25)
+
+  Furo-based docs handle navigation natively; manual TOC is
+
+  unnecessary and causes a Sphinx warning.
+
+  Co-authored-by: Tom Pounders <git@oldschool.engineer>
+
+- `73847ec <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/73847ec>`_ docs: add Configuration Reference page (#24)
+
+  * docs: add Configuration Reference page
+
+  Documents all environment variables for all servers (FDL, FDP, MDL, MDP,
+
+  LBA, WDS) organized by server with defaults and descriptions. Common
+
+  variables (LOG_LEVEL, RABBITMQ_URL, REDIS_URL, etc.) listed once at the
+
+  top. Added to toctree in index.rst.
+
+  Co-Authored-By: Tom Pounders <git@oldschool.engineer>
+
+  * docs: correct default ports in Configuration Reference
+
+  FDL: 4203, FDP: 4204, WDS: 4202, LBA: 4210 (was 4200/4202/4200/4201)
+
+  Co-Authored-By: Tom Pounders <git@oldschool.engineer>
+
+  ---------
+
+  Co-authored-by: Tom Pounders <git@oldschool.engineer>
+
+- `40cdd50 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/40cdd50>`_ docs: add FDL and FDP to architecture docs (#23)
+
+  - architecture.puml: add Finlight cloud, FDL and FDP packages,
+
+  Finlight→FDL→MDQ→FDP→MDC flow, OTel/logging wiring for FDL and FDP
+
+  - architecture.rst: add FDL and FDP to data plane components summary,
+
+  and full component description sections with code library references
+
+  Co-authored-by: Tom Pounders <git@oldschool.engineer>
+
+
 Version 0.3.0 (2026-03-24)
 ==========================
+
+- `410cfe2 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/410cfe2>`_ Update CHANGELOG for v0.3.0
+
+  Add a new Version 0.3.0 changelog section with detailed entries. Highlights: add --bump CLI support to update-changelog.sh; change release workflow to create a release branch/PR and adopt peter-evans/create-pull-request@v7; introduce Finlight components (FinlightDataProcessor, FinlightDataQueues, FinlightDataListener) and associated tests; remove NEWS queue handling from MassiveDataQueues; various test fixes and documentation additions (CLAUDE.md, AGENTS.md), blog link updates, and CI/tooling bumps. Includes contributor and co-authorship notes and minor formatting/cleanup.
 
 - `c3b8556 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/c3b8556>`_ Add --bump option to update-changelog.sh
 
