@@ -65,41 +65,6 @@ Documentation
 For architecture details, component descriptions, and API reference, see the
 `full documentation on Read the Docs <https://kuhl-haus-mdp.readthedocs.io/en/latest/>`_.
 
-Configuration
--------------
-
-Finlight Data Listener (FDL)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The ``FinlightDataListener`` component reads the following environment variables
-when constructing configuration at the application layer:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 30 15 55
-
-   * - Variable
-     - Required
-     - Description
-   * - ``FINLIGHT_API_KEY``
-     - Yes
-     - Finlight API key for authenticating WebSocket connections
-   * - ``FINLIGHT_QUERY``
-     - No
-     - Boolean search query for filtering articles (e.g. ``"earnings AND revenue"``)
-   * - ``FINLIGHT_TICKERS``
-     - No
-     - Comma-separated list of ticker symbols to filter (e.g. ``"AAPL,MSFT,GOOG"``)
-   * - ``FINLIGHT_SOURCES``
-     - No
-     - Comma-separated list of news source domains (e.g. ``"reuters.com,bloomberg.com"``)
-   * - ``FINLIGHT_LANGUAGE``
-     - No
-     - ISO 639-1 language code for filtering articles (e.g. ``"en"``)
-   * - ``FINLIGHT_RAW``
-     - No
-     - Set to ``"true"`` to use the raw WebSocket stream (no AI enrichment; faster delivery)
-
 Additional Resources
 --------------------
 
