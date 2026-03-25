@@ -10,7 +10,6 @@ Serializes each incoming article to JSON and publishes to the RabbitMQ
 news queue via FinlightDataQueues.
 """
 import asyncio
-import json
 import logging
 from typing import Optional, List
 
@@ -18,11 +17,7 @@ from finlight_client import FinlightApi, ApiConfig, WebSocketOptions, RawWebSock
 from finlight_client.models import GetArticlesWebSocketParams, GetRawArticlesWebSocketParams
 
 from kuhl_haus.mdp.components.finlight_data_queues import FinlightDataQueues
-from kuhl_haus.mdp.helpers.observability import get_tracer
-
-tracer = get_tracer(__name__)
-
-logger = logging.getLogger(__name__)
+from kuhl_haus.mdp.helpers.serde import to_dict
 
 
 class FinlightSimpleListener:
@@ -41,19 +36,13 @@ class FinlightSimpleListener:
         self,
         api_key: str,
         queues: FinlightDataQueues,
-        query: Optional[str] = None,
-        tickers: Optional[List[str]] = None,
-        sources: Optional[List[str]] = None,
-        language: Optional[str] = None,
         raw: bool = False,
         include_entities: bool = True,
     ):
+        self.logger = logging.getLogger(__name__)
+
         self.api_key = api_key
         self.queues = queues
-        self.query = query
-        self.tickers = tickers
-        self.sources = sources
-        self.language = language
         self.raw = raw
         self.include_entities = include_entities
         self._task: Optional[asyncio.Task] = None
@@ -64,12 +53,24 @@ class FinlightSimpleListener:
             "articles_received": 0,
             "errors": 0,
         }
+        if raw:
+            self.finlight_api = FinlightApi(
+                config=ApiConfig(api_key=self.api_key),
+                raw_websocket_options=RawWebSocketOptions(takeover=True),
+            )
+            self.finlight_params = GetRawArticlesWebSocketParams()
+        else:
+            self.finlight_api = FinlightApi(
+                config=ApiConfig(api_key=self.api_key),
+                websocket_options=WebSocketOptions(takeover=True),
+            )
+            self.finlight_params = GetArticlesWebSocketParams(includeEntities=include_entities)
 
     async def start(self):
         """Connect to Finlight WebSocket and begin publishing articles to RabbitMQ."""
         self._running = True
         self._task = asyncio.create_task(self._run())
-        logger.info("FinlightSimpleListener started.")
+        self.logger.info("FinlightSimpleListener started.")
 
     async def stop(self):
         """Disconnect and cancel the background task."""
@@ -82,7 +83,7 @@ class FinlightSimpleListener:
                 pass
         self.connection_status["connected"] = False
         self.connection_status["healthy"] = False
-        logger.info("FinlightSimpleListener stopped.")
+        self.logger.info("FinlightSimpleListener stopped.")
 
     async def _run(self):
         """Main loop: connect and stream articles. Reconnects on disconnect."""
@@ -90,54 +91,28 @@ class FinlightSimpleListener:
 
         while self._running:
             try:
-                logger.info("Connecting to Finlight WebSocket...")
+                self.logger.info("Connecting to Finlight WebSocket...")
 
+                def on_article(article):
+                    loop.create_task(self._handle_article(article))
                 if self.raw:
-                    client = FinlightApi(
-                        config=ApiConfig(api_key=self.api_key),
-                        raw_websocket_options=RawWebSocketOptions(takeover=True),
-                    )
-                    params = GetRawArticlesWebSocketParams(
-                        query=self.query,
-                        sources=self.sources,
-                        language=self.language,
-                    )
-
-                    def on_article(article):
-                        loop.create_task(self._handle_article(article))
-
                     self.connection_status["connected"] = True
                     self.connection_status["healthy"] = True
-                    await client.raw_websocket.connect(
-                        request_payload=params,
+                    await self.finlight_api.raw_websocket.connect(
+                        request_payload=self.finlight_params,
                         on_article=on_article,
                     )
                 else:
-                    client = FinlightApi(
-                        config=ApiConfig(api_key=self.api_key),
-                        websocket_options=WebSocketOptions(takeover=True),
-                    )
-                    params = GetArticlesWebSocketParams(
-                        query=self.query,
-                        tickers=self.tickers,
-                        sources=self.sources,
-                        language=self.language,
-                        includeEntities=self.include_entities,
-                    )
-
-                    def on_article(article):
-                        loop.create_task(self._handle_article(article))
-
                     self.connection_status["connected"] = True
                     self.connection_status["healthy"] = True
-                    await client.websocket.connect(
-                        request_payload=params,
+                    await self.finlight_api.websocket.connect(
+                        request_payload=self.finlight_params,
                         on_article=on_article,
                     )
 
                 # Disconnected cleanly
                 self.connection_status["connected"] = False
-                logger.info("Finlight WebSocket disconnected.")
+                self.logger.info("Finlight WebSocket disconnected.")
 
             except asyncio.CancelledError:
                 break
@@ -145,17 +120,17 @@ class FinlightSimpleListener:
                 self.connection_status["connected"] = False
                 self.connection_status["healthy"] = False
                 self.connection_status["errors"] += 1
-                logger.error(f"FinlightSimpleListener error: {e}", exc_info=True)
+                self.logger.error(f"FinlightSimpleListener error: {e}", exc_info=True)
                 if self._running:
-                    logger.info("Reconnecting in 5s...")
+                    self.logger.info("Reconnecting in 5s...")
                     await asyncio.sleep(5)
 
     async def _handle_article(self, article):
         """Serialize and publish a single article to RabbitMQ."""
         try:
-            await self.queues.handle_message(article)
             self.connection_status["articles_received"] += 1
-            logger.debug(f"Article published: {getattr(article, 'headline', str(article))[:80]}")
+            await self.queues.handle_message(to_dict(article))
+            self.logger.debug(f"Article published: {getattr(article, 'headline', str(article))[:80]}")
         except Exception as e:
             self.connection_status["errors"] += 1
-            logger.error(f"Failed to publish article: {e}", exc_info=True)
+            self.logger.error(f"Failed to publish article: {e}", exc_info=True)
