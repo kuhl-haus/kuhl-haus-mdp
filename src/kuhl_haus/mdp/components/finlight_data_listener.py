@@ -4,13 +4,20 @@ Manages a persistent WebSocket connection to the Finlight news API, handles
 reconnection logic on disconnect, and delegates incoming articles to a user-
 provided handler. Designed to run as a long-lived background task that survives
 temporary connection failures.
+
+Key design decisions (mirroring FinlightSimpleListener):
+- WebSocketOptions(takeover=True) to prevent multi-session conflicts
+- Direct await on connect coroutine (not asyncio.gather with swallowed exceptions)
+- while-loop reconnect in a single background task (no recursive start())
+- includeEntities=True by default on enhanced subscriptions
+- Async handler support via loop.create_task() when message_handler is a coroutine
 """
 import asyncio
 import inspect
 import logging
 from typing import Awaitable, Callable, List, Optional, Union
 
-from finlight_client import ApiConfig, FinlightApi
+from finlight_client import ApiConfig, FinlightApi, WebSocketOptions, RawWebSocketOptions
 from finlight_client.models import (
     GetArticlesWebSocketParams,
     GetRawArticlesWebSocketParams,
@@ -21,22 +28,26 @@ class FinlightDataListener:
     """Maintain Finlight WebSocket connection with auto-reconnect logic.
 
     Wraps the official Finlight SDK FinlightApi, providing lifecycle management
-    (start/stop/restart), connection health tracking, and automatic reconnection.
-    When the WebSocket disconnects, automatically attempts to reconnect. Delegates
-    each incoming article to the provided message_handler callable.
+    (start/stop), connection health tracking, and automatic reconnection.
+    When the WebSocket disconnects, automatically attempts to reconnect via a
+    while-loop in a single background task. Delegates each incoming article to
+    the provided message_handler callable.
 
-    Threading: Spawns async task for ws_connection WebSocket connect(); caller is
-    responsible for awaiting or managing the task lifecycle.
+    Supports both sync and async message handlers — async handlers are scheduled
+    via loop.create_task() since the Finlight SDK calls on_article synchronously.
+
+    Threading: Spawns a single asyncio.Task; caller is responsible for awaiting
+    or managing the task lifecycle via start()/stop().
     """
 
     connection_status: dict
-    ws_connection: Union[FinlightApi, None]
-    ws_coroutine: Union[asyncio.Task, None]
+    _task: Optional[asyncio.Task]
     _query: Optional[str]
     _tickers: Optional[List[str]]
     _sources: Optional[List[str]]
     _language: Optional[str]
     raw: bool
+    include_entities: bool
     max_reconnects: Optional[int]
 
     @property
@@ -99,7 +110,8 @@ class FinlightDataListener:
         sources: Optional[List[str]] = None,
         language: Optional[str] = None,
         raw: bool = False,
-        max_reconnects: Optional[int] = 5,
+        include_entities: bool = True,
+        max_reconnects: Optional[int] = None,
         **kwargs,
     ):
         self.logger = logging.getLogger(__name__)
@@ -110,8 +122,11 @@ class FinlightDataListener:
         self._sources = sources
         self._language = language
         self.raw = raw
+        self.include_entities = include_entities
         self.max_reconnects = max_reconnects
         self.kwargs = kwargs
+        self._task: Optional[asyncio.Task] = None
+        self._running = False
         self.connection_status = {
             "connected": False,
             "healthy": False,
@@ -123,129 +138,139 @@ class FinlightDataListener:
         }
 
     async def start(self):
-        """Instantiate FinlightApi client and spawn connection task.
+        """Spawn the background connection task.
 
-        Creates FinlightApi with configured API key, schedules async_task as a
-        background task. Does not block; caller must await the task or manage it
-        separately.
+        Creates a single asyncio.Task that connects to Finlight and handles
+        reconnection via a while-loop. Does not block.
 
-        Side effects: Spawns asyncio.Task; updates connection_status dict.
+        Side effects: Spawns asyncio.Task; updates _running flag.
         """
-        try:
-            self.logger.info("Instantiating WebSocket client...")
-            self.ws_connection = FinlightApi(
-                config=ApiConfig(api_key=self.api_key),
-                **self.kwargs,
-            )
-            self.logger.info("Scheduling WebSocket client task...")
-            self.ws_coroutine = asyncio.create_task(self.async_task())
-        except Exception as e:
-            self.logger.error(f"Error starting WebSocket client: {e}")
-            await self.stop()
+        if self._task and not self._task.done():
+            self.logger.warning("FinlightDataListener already running; ignoring start()")
+            return
+        self._running = True
+        self._task = asyncio.create_task(self._run())
+        self.logger.info("FinlightDataListener started.")
 
     async def stop(self):
-        """Shutdown WebSocket connection gracefully.
+        """Cancel the background task and reset connection status.
 
-        Cancels coroutine task, stops the active WebSocket stream, and resets
-        connection status. Waits 1s between steps to allow in-flight messages
-        to flush.
+        Cancels the asyncio.Task and waits for it to finish. Uses task
+        cancellation rather than SDK stop() for clean async teardown.
 
-        Side effects: Closes network socket; updates connection_status dict.
+        Side effects: Cancels asyncio.Task; updates connection_status.
         """
-        try:
-            self.logger.info("Shutting down WebSocket client...")
-            self.ws_coroutine.cancel()
-            await asyncio.sleep(1)
-            self.logger.info("stopping WebSocket stream...")
-            if self.raw:
-                self.ws_connection.raw_websocket.stop()
-            else:
-                self.ws_connection.websocket.stop()
-            self.logger.info("done.")
-        except Exception as e:
-            self.logger.error(f"Error stopping WebSocket client: {e}")
+        self._running = False
+        if self._task and not self._task.done():
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
+        self._task = None
         self.connection_status["connected"] = False
-        self.ws_connection = None
-        self.ws_coroutine = None
+        self.connection_status["healthy"] = False
+        self.logger.info("FinlightDataListener stopped.")
 
     async def restart(self):
-        """Cycle connection: stop, wait 1s, start."""
-        try:
-            self.logger.info("Stopping WebSocket client...")
-            await self.stop()
-            self.logger.info("done")
-            await asyncio.sleep(1)
-            self.logger.info("Starting WebSocket client...")
-            await self.start()
-            self.logger.info("done")
-        except Exception as e:
-            self.logger.error(f"Error restarting WebSocket client: {e}")
+        """Stop and restart the connection task."""
+        self.logger.info("FinlightDataListener restarting...")
+        await self.stop()
+        await asyncio.sleep(1)
+        await self.start()
 
-    async def async_task(self):
+    async def _run(self):
         """Connect to Finlight WebSocket and handle disconnections.
 
-        Calls ws_connection websocket connect() with message_handler and awaits
-        it. On disconnect, reconnects immediately and increments the reconnect
-        counter for observability.
+        Runs a while-loop that connects, streams articles, and reconnects on
+        disconnect. Respects max_reconnects if set. Exits cleanly on
+        CancelledError or when _running is set to False.
 
         Side effects: Network I/O (WebSocket); calls message_handler for each
-        incoming article.
+        incoming article via create_task() if async, or directly if sync.
         """
-        try:
-            self.logger.info("Connecting to Finlight news stream...")
-            self.connection_status["connected"] = True
-            self.connection_status["healthy"] = True
+        # Build FinlightApi with takeover=True to avoid session conflicts
+        if self.raw:
+            ws_client = FinlightApi(
+                config=ApiConfig(api_key=self.api_key),
+                raw_websocket_options=RawWebSocketOptions(takeover=True),
+                **self.kwargs,
+            )
+        else:
+            ws_client = FinlightApi(
+                config=ApiConfig(api_key=self.api_key),
+                websocket_options=WebSocketOptions(takeover=True),
+                **self.kwargs,
+            )
 
-            # The Finlight SDK calls on_article synchronously. If message_handler
-            # is a coroutine function, wrap it so it is scheduled on the running
-            # event loop rather than returning an unawaited coroutine object.
-            if inspect.iscoroutinefunction(self.message_handler):
-                loop = asyncio.get_event_loop()
+        # Build sync on_article handler (SDK calls it synchronously)
+        loop = asyncio.get_event_loop()
+        if inspect.iscoroutinefunction(self.message_handler):
+            def on_article(article):
+                loop.create_task(self.message_handler(article))
+        else:
+            def on_article(article):
+                self.message_handler(article)
 
-                def _sync_handler(article):
-                    loop.create_task(self.message_handler(article))
+        while self._running:
+            try:
+                self.logger.info("Connecting to Finlight news stream...")
+                self.connection_status["connected"] = True
+                self.connection_status["healthy"] = True
 
-                effective_handler = _sync_handler
-            else:
-                effective_handler = self.message_handler
+                if self.raw:
+                    params = GetRawArticlesWebSocketParams(
+                        query=self._query,
+                        sources=self._sources,
+                        language=self._language,
+                    )
+                    await ws_client.raw_websocket.connect(
+                        request_payload=params,
+                        on_article=on_article,
+                    )
+                else:
+                    params = GetArticlesWebSocketParams(
+                        query=self._query,
+                        tickers=self._tickers,
+                        sources=self._sources,
+                        language=self._language,
+                        includeEntities=self.include_entities,
+                    )
+                    await ws_client.websocket.connect(
+                        request_payload=params,
+                        on_article=on_article,
+                    )
 
-            if self.raw:
-                request_params = GetRawArticlesWebSocketParams(
-                    query=self.query,
-                    sources=self.sources,
-                    language=self.language,
+                # Clean disconnect
+                self.connection_status["connected"] = False
+                self.connection_status["healthy"] = False
+                self.logger.info("Disconnected from Finlight news stream.")
+
+            except asyncio.CancelledError:
+                break
+
+            except Exception as e:
+                self.connection_status["connected"] = False
+                self.connection_status["healthy"] = False
+                self.logger.error(
+                    f"FinlightDataListener error: {e}",
+                    exc_info=True,
                 )
-                connect_coro = self.ws_connection.raw_websocket.connect(
-                    request_payload=request_params,
-                    on_article=effective_handler,
-                )
-            else:
-                request_params = GetArticlesWebSocketParams(
-                    query=self.query,
-                    tickers=self.tickers,
-                    sources=self.sources,
-                    language=self.language,
-                )
-                connect_coro = self.ws_connection.websocket.connect(
-                    request_payload=request_params,
-                    on_article=effective_handler,
-                )
 
-            await asyncio.gather(connect_coro, return_exceptions=True)
+            if not self._running:
+                break
 
-            self.connection_status["connected"] = False
-            self.logger.info("Disconnected from Finlight news stream...")
-            self.connection_status["healthy"] = False
             self.connection_status["reconnects"] += 1
-            self.logger.info(
-                f"Reconnection attempt "
-                f"{self.connection_status['reconnects']}..."
-            )
-            await self.start()
-        except Exception as e:
-            self.logger.error(
-                f"Unhandled exception thrown: {e}",
-                exc_info=True,
-                stack_info=True,
-            )
-            await self.stop()
+            reconnects = self.connection_status["reconnects"]
+            self.logger.info(f"Reconnection attempt {reconnects}...")
+
+            if self.max_reconnects and reconnects >= self.max_reconnects:
+                self.logger.error(
+                    f"Max reconnects ({self.max_reconnects}) reached. Stopping."
+                )
+                break
+
+            await asyncio.sleep(5)
+
+        self.connection_status["connected"] = False
+        self.connection_status["healthy"] = False
