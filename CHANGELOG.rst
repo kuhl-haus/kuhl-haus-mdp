@@ -1,9 +1,70 @@
 =========
 Changelog
 =========
+Version 0.3.2 (2026-03-25)
+==========================
+
+- `7ca77f6 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/7ca77f6>`_ feat: FinlightDataAnalyzer — stateless news article router (closes #35) (#36)
+
+  Adds FinlightDataAnalyzer, an Analyzer subclass for routing Finlight news
+
+  articles to Redis pub/sub via FinlightDataProcessor.
+
+  Routing:
+
+  - All articles → MarketDataPubSubKeys.NEWS_FEED_LATEST (news:feed:latest)
+
+  - Enhanced mode (companies field present): tickers from primaryListing.exchangeCode,
+
+  US exchanges only (XNYS/XASE/XNAS)
+
+  - Raw mode: tickers via regex (Nasdaq: TICKER), (NYSE:TICKER) etc. from title + summary
+
+  - Per-ticker → MarketDataPubSubKeys.NEWS_TICKER (news:ticker:{ticker})
+
+  Also adds:
+
+  - MarketDataPubSubKeys.NEWS_FEED_LATEST and NEWS_TICKER
+
+  - MarketDataCacheTTL.NEWS_FEED_LATEST (1 hour)
+
+  36 tests, 99% branch coverage.
+
+- `7171437 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/7171437>`_ docs: fix Configuration Reference inaccuracies (closes #33) (#34)
+
+  - Common: remove RABBITMQ_URL, REDIS_URL, MDQ_PUBLISHER_CONFIRMS,
+
+  MARKET_DATA_MESSAGE_TTL — these are not universal; moved to each
+
+  server that actually uses them
+
+  - FDL: remove stale FINLIGHT_TICKERS, FINLIGHT_SOURCES,
+
+  FINLIGHT_MAX_RECONNECTS (removed in FinlightSimpleListener refactor);
+
+  add FINLIGHT_INCLUDE_ENTITIES; remove stale runtime filter endpoint note;
+
+  add per-server RabbitMQ vars
+
+  - MDL/MDP/LBA: add MASSIVE_API_KEY (required, previously undocumented)
+
+  - LBA: add PARALLELISM, PREFETCH_COUNT, MAX_CONCURRENCY (previously missing)
+
+  - WDS: add AUTH_ENABLED and AUTH_API_KEY (previously missing);
+
+  correct REDIS_URL default (no credentials for WDS)
+
+- `6e4ac31 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/6e4ac31>`_ Removed Configuration section from README
+
+  Refer to the docs instead.
+
+  https://kuhl-haus-mdp.readthedocs.io/en/latest/configuration.html
+
+
 Version 0.3.1 (2026-03-25)
 ==========================
 
+- `3472967 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/3472967>`_ Version 0.3.1 (2026-03-25)
 - `8812802 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/8812802>`_ test: add unit tests for FinlightSimpleListener (closes #29) (#32)
 
   24 tests, 99% branch coverage.
