@@ -152,15 +152,16 @@ async def test_fda_analyze_data_with_feed_result_expect_zero_ttl(sut):
 async def test_fda_analyze_data_with_enhanced_nasdaq_company_expect_ticker_published(sut):
     # Arrange
     article = _enhanced_article(companies=[_company("ATOS", "XNAS")])
+    publish_key = MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="ATOS")
 
     # Act
     results = await sut.analyze_data(article)
 
     # Assert
-    ticker_results = [r for r in results if r.publish_key == MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="ATOS")]
+    ticker_results = [r for r in results if r.publish_key == publish_key]
     assert len(ticker_results) == 1
-    assert ticker_results[0].data is article
-    assert ticker_results[0].cache_key is None
+    assert ticker_results[0].data == article
+    assert ticker_results[0].cache_key == publish_key
 
 
 @pytest.mark.asyncio
@@ -338,13 +339,14 @@ async def test_fda_analyze_data_with_raw_no_tickers_expect_feed_only(sut):
 async def test_fda_analyze_data_with_raw_ticker_cache_key_is_none(sut):
     # Arrange
     article = _raw_article(title="Chewy (Nasdaq: CHWY) beats estimates")
+    publish_key = MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="CHWY")
 
     # Act
     results = await sut.analyze_data(article)
 
     # Assert
-    ticker = next(r for r in results if r.publish_key == MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="CHWY"))
-    assert ticker.cache_key is None
+    ticker = next(r for r in results if r.publish_key == publish_key)
+    assert ticker.cache_key == publish_key
 
 
 # ---------------------------------------------------------------------------

@@ -63,4 +63,5 @@ class MarketDataCacheTTL(Enum):
     TOP_GAPPERS_SCANNER = THREE_DAYS
 
     # Finlight news caches
-    NEWS_FEED_LATEST = ONE_HOUR
+    NEWS_FEED_LATEST = ONE_DAY
+    NEWS_TICKER = THREE_DAYS
