@@ -196,7 +196,10 @@ class WidgetDataService:
         self.logger.debug(f"wds.cache.get cache_key:{cache_key}")
         key_type = await self.redis_client.type(cache_key)
 
-        if key_type == b"list":
+        # redis-py returns str, not bytes (e.g. "list", "string", "none")
+        key_type_str = key_type.decode() if isinstance(key_type, bytes) else key_type
+
+        if key_type_str == "list":
             values = await self.redis_client.lrange(cache_key, 0, -1)
             if values:
                 self.logger.debug(f"wds.cache.hit cache_key:{cache_key} type:list len:{len(values)}")
@@ -206,7 +209,7 @@ class WidgetDataService:
             self.cache_miss_counter.add(1)
             return []
 
-        if key_type == b"string":
+        if key_type_str == "string":
             value = await self.redis_client.get(cache_key)
             if value:
                 self.logger.debug(f"wds.cache.hit cache_key:{cache_key} type:string")
