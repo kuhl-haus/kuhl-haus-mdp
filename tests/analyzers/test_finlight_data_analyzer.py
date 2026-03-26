@@ -476,3 +476,83 @@ def test_fda_extract_raw_tickers_with_deduplicated_expect_no_duplicates(sut):
 
     # Assert
     assert tickers.count("MSFT") == 1
+
+
+# ── cache_list_max ──────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_fda_analyze_data_with_feed_result_expect_cache_list_max_1000(sut):
+    # Arrange
+    article = _raw_article()
+
+    # Act
+    results = await sut.analyze_data(article)
+
+    # Assert
+    feed = next(r for r in results if r.publish_key == MarketDataPubSubKeys.NEWS_FEED_LATEST.value)
+    assert feed.cache_list_max == 1000
+
+
+@pytest.mark.asyncio
+async def test_fda_analyze_data_with_enhanced_ticker_expect_cache_key_set(sut):
+    # Arrange
+    article = _enhanced_article(companies=[_company("AAPL", "XNAS")])
+
+    # Act
+    results = await sut.analyze_data(article)
+
+    # Assert
+    ticker_result = next(
+        r for r in results
+        if r.publish_key == MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="AAPL")
+    )
+    assert ticker_result.cache_key == MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="AAPL")
+
+
+@pytest.mark.asyncio
+async def test_fda_analyze_data_with_enhanced_ticker_expect_cache_list_max_20(sut):
+    # Arrange
+    article = _enhanced_article(companies=[_company("AAPL", "XNAS")])
+
+    # Act
+    results = await sut.analyze_data(article)
+
+    # Assert
+    ticker_result = next(
+        r for r in results
+        if r.publish_key == MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="AAPL")
+    )
+    assert ticker_result.cache_list_max == 20
+
+
+@pytest.mark.asyncio
+async def test_fda_analyze_data_with_raw_ticker_expect_cache_key_set(sut):
+    # Arrange
+    article = _raw_article(title="AAPL rises (Nasdaq: AAPL)")
+
+    # Act
+    results = await sut.analyze_data(article)
+
+    # Assert
+    ticker_result = next(
+        r for r in results
+        if r.publish_key == MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="AAPL")
+    )
+    assert ticker_result.cache_key == MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="AAPL")
+
+
+@pytest.mark.asyncio
+async def test_fda_analyze_data_with_raw_ticker_expect_cache_list_max_20(sut):
+    # Arrange
+    article = _raw_article(title="AAPL rises (Nasdaq: AAPL)")
+
+    # Act
+    results = await sut.analyze_data(article)
+
+    # Assert
+    ticker_result = next(
+        r for r in results
+        if r.publish_key == MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="AAPL")
+    )
+    assert ticker_result.cache_list_max == 20
