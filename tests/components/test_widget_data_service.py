@@ -314,7 +314,8 @@ async def test_wds_get_cache_with_hit_expect_parsed(
     sut, mock_redis,
 ):
     # Arrange
-    mock_redis.get.return_value = '{"foo": "bar"}'
+    mock_redis.type = AsyncMock(return_value=b"string")
+    mock_redis.get = AsyncMock(return_value=b'{"foo": "bar"}')
 
     # Act
     result = await sut.get_cache("cache:test")
@@ -328,7 +329,7 @@ async def test_wds_get_cache_with_miss_expect_none(
     sut, mock_redis,
 ):
     # Arrange
-    mock_redis.get.return_value = None
+    mock_redis.type = AsyncMock(return_value=b"none")
 
     # Act
     result = await sut.get_cache("cache:test")
