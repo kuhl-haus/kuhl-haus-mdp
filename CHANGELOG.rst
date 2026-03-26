@@ -1,9 +1,58 @@
 =========
 Changelog
 =========
+Version 0.3.5 (2026-03-26)
+==========================
+
+- `aa43cef <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/aa43cef>`_ feat: rolling list cache for news feeds (closes #40) (#41)
+
+  * test: rolling list cache for news feeds (refs #40)
+
+  Tests for:
+
+  - MarketDataAnalyzerResult.cache_list_max field (default None)
+
+  - FinlightDataAnalyzer: feed cache_list_max=1000, ticker cache_list_max=20
+
+  - FinlightDataProcessor: LPUSH+LTRIM+EXPIRE path when cache_list_max set
+
+  - WidgetDataService.get_cache: Redis list type returns parsed list
+
+  * feat: rolling list cache for news feeds (closes #40)
+
+  MarketDataAnalyzerResult:
+
+  - Add cache_list_max: Optional[int] = None field
+
+  FinlightDataAnalyzer:
+
+  - news:feed:latest: cache_list_max=1000
+
+  - news:ticker:{TICKER}: cache_key set + cache_list_max=20
+
+  (previously ticker results had cache_key=None)
+
+  FinlightDataProcessor._cache_result():
+
+  - When cache_list_max set: LPUSH + LTRIM + EXPIRE (if TTL>0)
+
+  - String path (SET/SETEX) unchanged for non-list keys
+
+  WidgetDataService.get_cache():
+
+  - Check Redis key type first (type command)
+
+  - list → LRANGE 0 -1 → return list of parsed dicts
+
+  - string → GET → return parsed dict (unchanged behavior)
+
+  - none/miss → return None (string) or [] (list)
+
+
 Version 0.3.4 (2026-03-25)
 ==========================
 
+- `485d745 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/485d745>`_ Version 0.3.4 (2026-03-25)
 - `1f0f16c <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/1f0f16c>`_ Add ticker cache and Finlight language
 
   Always publish articles to the feed and include per-ticker publish entries with proper cache_key and cache_ttl. Update MarketDataCacheTTL: NEWS_FEED_LATEST -> ONE_DAY and add NEWS_TICKER -> THREE_DAYS. Set Finlight WebSocket params to include language="en" for both raw and normal article streams. Tests updated to reflect new cache_key/ttl behavior and language parameter expectations.
