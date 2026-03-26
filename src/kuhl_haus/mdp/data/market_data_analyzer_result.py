@@ -31,3 +31,4 @@ class MarketDataAnalyzerResult:
     cache_key: Optional[str] = None
     cache_ttl: Optional[int] = 0
     publish_key: Optional[str] = None
+    cache_list_max: Optional[int] = None

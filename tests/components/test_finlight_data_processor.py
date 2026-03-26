@@ -790,3 +790,61 @@ async def test_fdp_semaphore_exhaustion_expect_messages_queued(sut):
 
     # Assert — all 5 messages processed despite semaphore limit of 2
     assert sut.analyzer.analyze_data.call_count == 5
+
+
+@pytest.mark.asyncio
+async def test_fdp_cache_result_with_list_max_and_ttl_expect_lpush_ltrim_expire(sut):
+    # Arrange
+    pipe = MagicMock()
+    pipe.execute = AsyncMock()
+    mock_redis = MagicMock()
+    mock_redis.pipeline.return_value = pipe
+    sut.redis_client = mock_redis
+    result = MarketDataAnalyzerResult(
+        data={"title": "Breaking news"},
+        cache_key="news:feed:latest",
+        cache_ttl=3600,
+        publish_key="news:feed:latest",
+        cache_list_max=1000,
+    )
+
+    # Act
+    await sut._cache_result(result)
+
+    # Assert
+    expected_json = json.dumps({"title": "Breaking news"})
+    pipe.lpush.assert_called_once_with("news:feed:latest", expected_json)
+    pipe.ltrim.assert_called_once_with("news:feed:latest", 0, 999)
+    pipe.expire.assert_called_once_with("news:feed:latest", 3600)
+    pipe.set.assert_not_called()
+    pipe.setex.assert_not_called()
+    pipe.publish.assert_called_once_with("news:feed:latest", expected_json)
+    pipe.execute.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_fdp_cache_result_with_list_max_and_zero_ttl_expect_no_expire(sut):
+    # Arrange
+    pipe = MagicMock()
+    pipe.execute = AsyncMock()
+    mock_redis = MagicMock()
+    mock_redis.pipeline.return_value = pipe
+    sut.redis_client = mock_redis
+    result = MarketDataAnalyzerResult(
+        data={"title": "Ticker news"},
+        cache_key="news:ticker:AAPL",
+        cache_ttl=0,
+        publish_key="news:ticker:AAPL",
+        cache_list_max=20,
+    )
+
+    # Act
+    await sut._cache_result(result)
+
+    # Assert
+    expected_json = json.dumps({"title": "Ticker news"})
+    pipe.lpush.assert_called_once_with("news:ticker:AAPL", expected_json)
+    pipe.ltrim.assert_called_once_with("news:ticker:AAPL", 0, 19)
+    pipe.expire.assert_not_called()
+    pipe.set.assert_not_called()
+    pipe.setex.assert_not_called()

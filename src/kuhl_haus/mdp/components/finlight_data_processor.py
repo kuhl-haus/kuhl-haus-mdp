@@ -245,7 +245,13 @@ class FinlightDataProcessor:
         # Pipeline - no async context manager, no await on queue methods
         pipe = self.redis_client.pipeline(transaction=False)
         if analyzer_result.cache_key:
-            if analyzer_result.cache_ttl > 0:
+            if analyzer_result.cache_list_max is not None:
+                # Rolling list: prepend + trim to max + optional TTL
+                pipe.lpush(analyzer_result.cache_key, result_json)
+                pipe.ltrim(analyzer_result.cache_key, 0, analyzer_result.cache_list_max - 1)
+                if analyzer_result.cache_ttl and analyzer_result.cache_ttl > 0:
+                    pipe.expire(analyzer_result.cache_key, analyzer_result.cache_ttl)
+            elif analyzer_result.cache_ttl and analyzer_result.cache_ttl > 0:
                 pipe.setex(analyzer_result.cache_key, analyzer_result.cache_ttl, result_json)
             else:
                 pipe.set(analyzer_result.cache_key, result_json)

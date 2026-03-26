@@ -314,7 +314,8 @@ async def test_wds_get_cache_with_hit_expect_parsed(
     sut, mock_redis,
 ):
     # Arrange
-    mock_redis.get.return_value = '{"foo": "bar"}'
+    mock_redis.type = AsyncMock(return_value=b"string")
+    mock_redis.get = AsyncMock(return_value=b'{"foo": "bar"}')
 
     # Act
     result = await sut.get_cache("cache:test")
@@ -328,7 +329,7 @@ async def test_wds_get_cache_with_miss_expect_none(
     sut, mock_redis,
 ):
     # Arrange
-    mock_redis.get.return_value = None
+    mock_redis.type = AsyncMock(return_value=b"none")
 
     # Act
     result = await sut.get_cache("cache:test")
@@ -709,3 +710,67 @@ async def test_wds_handle_pubsub_with_generic_error_expect_raises(
     with patch.object(sut.logger, "error"):
         with pytest.raises(RuntimeError, match="fatal"):
             await sut._handle_pubsub()
+
+
+@pytest.mark.asyncio
+async def test_wds_get_cache_with_list_key_expect_parsed_list(
+    sut, mock_redis,
+):
+    # Arrange
+    mock_redis.type = AsyncMock(return_value=b"list")
+    mock_redis.lrange = AsyncMock(return_value=[
+        b'{"title": "Article 1"}',
+        b'{"title": "Article 2"}',
+    ])
+
+    # Act
+    result = await sut.get_cache("news:feed:latest")
+
+    # Assert
+    mock_redis.lrange.assert_called_once_with("news:feed:latest", 0, -1)
+    assert result == [{"title": "Article 1"}, {"title": "Article 2"}]
+
+
+@pytest.mark.asyncio
+async def test_wds_get_cache_with_string_key_expect_parsed_dict(
+    sut, mock_redis,
+):
+    # Arrange
+    mock_redis.type = AsyncMock(return_value=b"string")
+    mock_redis.get = AsyncMock(return_value=b'{"symbol": "AAPL"}')
+
+    # Act
+    result = await sut.get_cache("scanners:top_gainers")
+
+    # Assert
+    mock_redis.get.assert_called_once_with("scanners:top_gainers")
+    assert result == {"symbol": "AAPL"}
+
+
+@pytest.mark.asyncio
+async def test_wds_get_cache_with_list_key_miss_expect_empty_list(
+    sut, mock_redis,
+):
+    # Arrange
+    mock_redis.type = AsyncMock(return_value=b"list")
+    mock_redis.lrange = AsyncMock(return_value=[])
+
+    # Act
+    result = await sut.get_cache("news:feed:latest")
+
+    # Assert
+    assert result == []
+
+
+@pytest.mark.asyncio
+async def test_wds_get_cache_with_none_type_expect_none(
+    sut, mock_redis,
+):
+    # Arrange
+    mock_redis.type = AsyncMock(return_value=b"none")
+
+    # Act
+    result = await sut.get_cache("news:feed:latest")
+
+    # Assert
+    assert result is None

@@ -189,13 +189,30 @@ class WidgetDataService:
 
         Clients typically call this before subscribing to a feed to get current state,
         then receive incremental updates via WebSocket. Returns None if key not found.
+
+        Supports both Redis string keys (returns dict) and list keys (returns list of dicts).
+        List keys are used for rolling news feed caches (news:feed:latest, news:ticker:*).
         """
         self.logger.debug(f"wds.cache.get cache_key:{cache_key}")
-        value = await self.redis_client.get(cache_key)
-        if value:
-            self.logger.debug(f"wds.cache.hit cache_key:{cache_key}")
-            self.cache_hit_counter.add(1)
-            return json.loads(value)
+        key_type = await self.redis_client.type(cache_key)
+
+        if key_type == b"list":
+            values = await self.redis_client.lrange(cache_key, 0, -1)
+            if values:
+                self.logger.debug(f"wds.cache.hit cache_key:{cache_key} type:list len:{len(values)}")
+                self.cache_hit_counter.add(1)
+                return [json.loads(v) for v in values]
+            self.logger.debug(f"wds.cache.miss cache_key:{cache_key} type:list")
+            self.cache_miss_counter.add(1)
+            return []
+
+        if key_type == b"string":
+            value = await self.redis_client.get(cache_key)
+            if value:
+                self.logger.debug(f"wds.cache.hit cache_key:{cache_key} type:string")
+                self.cache_hit_counter.add(1)
+                return json.loads(value)
+
         self.logger.debug(f"wds.cache.miss cache_key:{cache_key}")
         self.cache_miss_counter.add(1)
         return None
