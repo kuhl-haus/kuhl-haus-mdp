@@ -75,7 +75,7 @@ RabbitMQ ``news`` queue.
    * - ``MDQ_PUBLISHER_CONFIRMS``
      - ``true``
      - Enable RabbitMQ publisher confirms (``true`` / ``false``)
-   * - ``MARKET_DATA_LISTENER_AUTO_START_ENABLED``
+   * - ``FDL_AUTO_START_ENABLED``
      - ``false``
      - Automatically connect to Finlight on startup. When ``false``, use the ``/start`` endpoint.
 
@@ -166,7 +166,7 @@ to per-type RabbitMQ queues.
    * - ``REDIS_URL``
      - ``redis://mdc:mdc@localhost:6379/0``
      - Redis connection URL
-   * - ``MARKET_DATA_LISTENER_AUTO_START_ENABLED``
+   * - ``MDL_AUTO_START_ENABLED``
      - ``false``
      - Automatically connect to Massive.com on startup. When ``false``, use the ``/start`` endpoint.
 
