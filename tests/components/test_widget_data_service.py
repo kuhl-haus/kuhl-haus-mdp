@@ -314,7 +314,7 @@ async def test_wds_get_cache_with_hit_expect_parsed(
     sut, mock_redis,
 ):
     # Arrange
-    mock_redis.type = AsyncMock(return_value=b"string")
+    mock_redis.type = AsyncMock(return_value="string")
     mock_redis.get = AsyncMock(return_value=b'{"foo": "bar"}')
 
     # Act
@@ -329,7 +329,7 @@ async def test_wds_get_cache_with_miss_expect_none(
     sut, mock_redis,
 ):
     # Arrange
-    mock_redis.type = AsyncMock(return_value=b"none")
+    mock_redis.type = AsyncMock(return_value="none")
 
     # Act
     result = await sut.get_cache("cache:test")
@@ -717,7 +717,7 @@ async def test_wds_get_cache_with_list_key_expect_parsed_list(
     sut, mock_redis,
 ):
     # Arrange
-    mock_redis.type = AsyncMock(return_value=b"list")
+    mock_redis.type = AsyncMock(return_value="list")
     mock_redis.lrange = AsyncMock(return_value=[
         b'{"title": "Article 1"}',
         b'{"title": "Article 2"}',
@@ -736,7 +736,7 @@ async def test_wds_get_cache_with_string_key_expect_parsed_dict(
     sut, mock_redis,
 ):
     # Arrange
-    mock_redis.type = AsyncMock(return_value=b"string")
+    mock_redis.type = AsyncMock(return_value="string")
     mock_redis.get = AsyncMock(return_value=b'{"symbol": "AAPL"}')
 
     # Act
@@ -752,7 +752,7 @@ async def test_wds_get_cache_with_list_key_miss_expect_empty_list(
     sut, mock_redis,
 ):
     # Arrange
-    mock_redis.type = AsyncMock(return_value=b"list")
+    mock_redis.type = AsyncMock(return_value="list")
     mock_redis.lrange = AsyncMock(return_value=[])
 
     # Act
@@ -767,7 +767,7 @@ async def test_wds_get_cache_with_none_type_expect_none(
     sut, mock_redis,
 ):
     # Arrange
-    mock_redis.type = AsyncMock(return_value=b"none")
+    mock_redis.type = AsyncMock(return_value="none")
 
     # Act
     result = await sut.get_cache("news:feed:latest")
