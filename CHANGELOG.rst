@@ -1,9 +1,28 @@
 =========
 Changelog
 =========
+Version 0.3.6 (2026-03-26)
+==========================
+
+- `6fc9724 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/6fc9724>`_ fix(WDS): redis type() returns str not bytes (#42)
+
+  get_cache() was comparing key_type against b'list'/b'string' (bytes),
+
+  but redis-py returns plain strings. The condition never matched so
+
+  lrange was never called — cache always appeared empty.
+
+  Fix: decode bytes defensively then compare against plain strings.
+
+  Also correct test mocks to return str (matching actual redis-py
+
+  behavior).
+
+
 Version 0.3.5 (2026-03-26)
 ==========================
 
+- `8cad469 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/8cad469>`_ Version 0.3.5 (2026-03-26)
 - `aa43cef <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/aa43cef>`_ feat: rolling list cache for news feeds (closes #40) (#41)
 
   * test: rolling list cache for news feeds (refs #40)
