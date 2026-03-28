@@ -69,7 +69,7 @@ class FinlightDataAnalyzer(Analyzer):
             cache_key=MarketDataPubSubKeys.NEWS_FEED_LATEST.value,
             cache_ttl=MarketDataCacheTTL.NEWS_FEED_LATEST.value,
             publish_key=MarketDataPubSubKeys.NEWS_FEED_LATEST.value,
-            cache_list_max=1000,
+            cache_list_max=10000,
         )]
 
         # All articles go to the feed regardless of mode
@@ -89,7 +89,7 @@ class FinlightDataAnalyzer(Analyzer):
                 cache_key=MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker=ticker),
                 cache_ttl=MarketDataCacheTTL.NEWS_TICKER.value,
                 publish_key=MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker=ticker),
-                cache_list_max=20,
+                cache_list_max=100,
             ))
 
         return results
