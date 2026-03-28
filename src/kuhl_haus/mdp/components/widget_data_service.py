@@ -184,7 +184,7 @@ class WidgetDataService:
             await self.unsubscribe(sub, websocket)
 
     @tracer.start_as_current_span("wds.get_cache")
-    async def get_cache(self, cache_key: str) -> dict:
+    async def get_cache(self, cache_key: str, limit: int = 0) -> dict:
         """Retrieve cached market data for initial client snapshot.
 
         Clients typically call this before subscribing to a feed to get current state,
@@ -192,6 +192,10 @@ class WidgetDataService:
 
         Supports both Redis string keys (returns dict) and list keys (returns list of dicts).
         List keys are used for rolling news feed caches (news:feed:latest, news:ticker:*).
+
+        Args:
+            cache_key: Redis key to fetch.
+            limit: Maximum number of items to return from list keys. 0 means fetch all.
         """
         self.logger.debug(f"wds.cache.get cache_key:{cache_key}")
         key_type = await self.redis_client.type(cache_key)
@@ -200,7 +204,8 @@ class WidgetDataService:
         key_type_str = key_type.decode() if isinstance(key_type, bytes) else key_type
 
         if key_type_str == "list":
-            values = await self.redis_client.lrange(cache_key, 0, -1)
+            end = (limit - 1) if limit > 0 else -1
+            values = await self.redis_client.lrange(cache_key, 0, end)
             if values:
                 self.logger.debug(f"wds.cache.hit cache_key:{cache_key} type:list len:{len(values)}")
                 self.cache_hit_counter.add(1)
