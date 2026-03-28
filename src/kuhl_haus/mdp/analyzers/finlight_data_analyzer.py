@@ -21,6 +21,7 @@ from kuhl_haus.mdp.analyzers.analyzer import Analyzer, AnalyzerOptions
 from kuhl_haus.mdp.data.market_data_analyzer_result import MarketDataAnalyzerResult
 from kuhl_haus.mdp.enum.market_data_cache_ttl import MarketDataCacheTTL
 from kuhl_haus.mdp.enum.market_data_pubsub_keys import MarketDataPubSubKeys
+from kuhl_haus.mdp.enum.finlight_data_cache import FinlightDataCache
 
 
 class FinlightDataAnalyzer(Analyzer):
@@ -69,7 +70,7 @@ class FinlightDataAnalyzer(Analyzer):
             cache_key=MarketDataPubSubKeys.NEWS_FEED_LATEST.value,
             cache_ttl=MarketDataCacheTTL.NEWS_FEED_LATEST.value,
             publish_key=MarketDataPubSubKeys.NEWS_FEED_LATEST.value,
-            cache_list_max=10000,
+            cache_list_max=FinlightDataCache.NEWS_FEED_LIST_MAX.value,
         )]
 
         # All articles go to the feed regardless of mode
@@ -89,7 +90,7 @@ class FinlightDataAnalyzer(Analyzer):
                 cache_key=MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker=ticker),
                 cache_ttl=MarketDataCacheTTL.NEWS_TICKER.value,
                 publish_key=MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker=ticker),
-                cache_list_max=100,
+                cache_list_max=FinlightDataCache.NEWS_TICKER_LIST_MAX.value,
             ))
 
         return results
