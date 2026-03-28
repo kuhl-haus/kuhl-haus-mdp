@@ -43,7 +43,6 @@ class TopStocksAnalyzer(Analyzer):
         self.cache = MarketDataCache(
             rest_client=self.rest_client,
             redis_client=self.redis_client,
-            massive_api_key=options.massive_api_key
         )
         self.cache_key = MarketDataCacheKeys.TOP_STOCKS_SCANNER.value
         self.logger = logging.getLogger(__name__)
