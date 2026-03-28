@@ -1,9 +1,92 @@
 =========
 Changelog
 =========
+Version 0.3.7 (2026-03-28)
+==========================
+
+- `8e33f69 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/8e33f69>`_ feat(WidgetDataService): add optional limit param to get_cache (closes #47 step 1) (#48)
+
+  * test(WidgetDataService): add tests for get_cache limit param
+
+  Tests assert limit=N maps to LRANGE 0 N-1, and limit=0 (default)
+
+  fetches all items (LRANGE 0 -1). Tests fail at this commit (red phase).
+
+  * feat(WidgetDataService): add optional limit param to get_cache (closes #47 step 1)
+
+  Add limit: int = 0 to get_cache(). limit=0 (default) fetches all items
+
+  via LRANGE 0 -1 (backwards compatible). limit=N maps to LRANGE 0 N-1,
+
+  bounding the Redis transfer to N items.
+
+- `6b01797 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/6b01797>`_ feat(FinlightDataAnalyzer): increase news cache limits (feed 10k, ticker 100) (#46)
+
+  * feat(FinlightDataAnalyzer): increase news cache limits (feed 10k, ticker 100)
+
+  Increase news:feed:latest from 1,000 to 10,000 articles (~10MB Redis).
+
+  Increase news:ticker:{ticker} from 20 to 100 articles.
+
+  Decouples backend cache depth from frontend display limit.
+
+  * refactor(FinlightDataAnalyzer): introduce FinlightDataCache enum for list max values
+
+  Add FinlightDataCache enum with NEWS_FEED_LIST_MAX (10000) and
+
+  NEWS_TICKER_LIST_MAX (100). Replace hard-coded integers in
+
+  FinlightDataAnalyzer and its tests with enum references so cache
+
+  limits can be changed in one place without touching tests.
+
+  * test: remove numeric suffixes from cache_list_max test names
+
+- `af04ac9 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/af04ac9>`_ refactor(MarketDataCache): replace aiohttp free float with RESTClient (closes #44) (#45)
+
+  * test(MarketDataCache): update free float tests to mock RESTClient
+
+  Replace aiohttp-based free float mocks with rest_client.list_stocks_floats
+
+  mocks using FinancialFloat-like objects. Remove get_http_session and close
+
+  tests (both removed with aiohttp). Remove massive_api_key from fixture and
+
+  init assertion.
+
+  Tests fail at this commit (red phase). Implementation follows.
+
+  * refactor(MarketDataCache): replace aiohttp free float with RESTClient (closes #44)
+
+  Replace experimental aiohttp GET /stocks/vX/float with
+
+  rest_client.list_stocks_floats(ticker=ticker) — the same endpoint now
+
+  exposed via Massive's official Python RESTClient.
+
+  - Remove aiohttp import, get_http_session(), close(), and http_session state
+
+  - Remove massive_api_key constructor parameter (only needed for aiohttp URL)
+
+  - Remove aiohttp from pyproject.toml dependencies
+
+  - Add FinancialFloat import from massive.rest.models.financials
+
+  - Update all MarketDataCache call sites to drop massive_api_key kwarg
+
+  - Exception handling aligned with rest of MDC: errors propagate to caller
+
+- `880c1d8 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/880c1d8>`_ docs: replace MARKET_DATA_LISTENER_AUTO_START_ENABLED with discrete vars (#43)
+
+  MDL: MDL_AUTO_START_ENABLED
+
+  FDL: FDL_AUTO_START_ENABLED
+
+
 Version 0.3.6 (2026-03-26)
 ==========================
 
+- `6808423 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/6808423>`_ Version 0.3.6 (2026-03-26)
 - `6fc9724 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/6fc9724>`_ fix(WDS): redis type() returns str not bytes (#42)
 
   get_cache() was comparing key_type against b'list'/b'string' (bytes),
