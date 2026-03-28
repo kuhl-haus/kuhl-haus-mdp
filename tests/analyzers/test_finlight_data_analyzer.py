@@ -8,6 +8,7 @@ import pytest
 from unittest.mock import MagicMock
 
 from kuhl_haus.mdp.analyzers.finlight_data_analyzer import FinlightDataAnalyzer
+from kuhl_haus.mdp.enum.finlight_data_cache import FinlightDataCache
 from kuhl_haus.mdp.enum.market_data_pubsub_keys import MarketDataPubSubKeys
 from kuhl_haus.mdp.enum.market_data_cache_ttl import MarketDataCacheTTL
 from kuhl_haus.mdp.analyzers.analyzer import AnalyzerOptions
@@ -482,7 +483,7 @@ def test_fda_extract_raw_tickers_with_deduplicated_expect_no_duplicates(sut):
 
 
 @pytest.mark.asyncio
-async def test_fda_analyze_data_with_feed_result_expect_cache_list_max_1000(sut):
+async def test_fda_analyze_data_with_feed_result_expect_cache_list_max(sut):
     # Arrange
     article = _raw_article()
 
@@ -491,7 +492,7 @@ async def test_fda_analyze_data_with_feed_result_expect_cache_list_max_1000(sut)
 
     # Assert
     feed = next(r for r in results if r.publish_key == MarketDataPubSubKeys.NEWS_FEED_LATEST.value)
-    assert feed.cache_list_max == 1000
+    assert feed.cache_list_max == FinlightDataCache.NEWS_FEED_LIST_MAX.value
 
 
 @pytest.mark.asyncio
@@ -511,7 +512,7 @@ async def test_fda_analyze_data_with_enhanced_ticker_expect_cache_key_set(sut):
 
 
 @pytest.mark.asyncio
-async def test_fda_analyze_data_with_enhanced_ticker_expect_cache_list_max_20(sut):
+async def test_fda_analyze_data_with_enhanced_ticker_expect_cache_list_max(sut):
     # Arrange
     article = _enhanced_article(companies=[_company("AAPL", "XNAS")])
 
@@ -523,7 +524,7 @@ async def test_fda_analyze_data_with_enhanced_ticker_expect_cache_list_max_20(su
         r for r in results
         if r.publish_key == MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="AAPL")
     )
-    assert ticker_result.cache_list_max == 20
+    assert ticker_result.cache_list_max == FinlightDataCache.NEWS_TICKER_LIST_MAX.value
 
 
 @pytest.mark.asyncio
@@ -543,7 +544,7 @@ async def test_fda_analyze_data_with_raw_ticker_expect_cache_key_set(sut):
 
 
 @pytest.mark.asyncio
-async def test_fda_analyze_data_with_raw_ticker_expect_cache_list_max_20(sut):
+async def test_fda_analyze_data_with_raw_ticker_expect_cache_list_max(sut):
     # Arrange
     article = _raw_article(title="AAPL rises (Nasdaq: AAPL)")
 
@@ -555,4 +556,4 @@ async def test_fda_analyze_data_with_raw_ticker_expect_cache_list_max_20(sut):
         r for r in results
         if r.publish_key == MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="AAPL")
     )
-    assert ticker_result.cache_list_max == 20
+    assert ticker_result.cache_list_max == FinlightDataCache.NEWS_TICKER_LIST_MAX.value
