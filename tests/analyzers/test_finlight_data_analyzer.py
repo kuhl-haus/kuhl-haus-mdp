@@ -483,7 +483,7 @@ def test_fda_extract_raw_tickers_with_deduplicated_expect_no_duplicates(sut):
 
 
 @pytest.mark.asyncio
-async def test_fda_analyze_data_with_feed_result_expect_cache_list_max_10000(sut):
+async def test_fda_analyze_data_with_feed_result_expect_cache_list_max(sut):
     # Arrange
     article = _raw_article()
 
@@ -512,7 +512,7 @@ async def test_fda_analyze_data_with_enhanced_ticker_expect_cache_key_set(sut):
 
 
 @pytest.mark.asyncio
-async def test_fda_analyze_data_with_enhanced_ticker_expect_cache_list_max_100(sut):
+async def test_fda_analyze_data_with_enhanced_ticker_expect_cache_list_max(sut):
     # Arrange
     article = _enhanced_article(companies=[_company("AAPL", "XNAS")])
 
@@ -544,7 +544,7 @@ async def test_fda_analyze_data_with_raw_ticker_expect_cache_key_set(sut):
 
 
 @pytest.mark.asyncio
-async def test_fda_analyze_data_with_raw_ticker_expect_cache_list_max_100(sut):
+async def test_fda_analyze_data_with_raw_ticker_expect_cache_list_max(sut):
     # Arrange
     article = _raw_article(title="AAPL rises (Nasdaq: AAPL)")
 
