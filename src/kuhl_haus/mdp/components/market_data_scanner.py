@@ -156,7 +156,6 @@ class MarketDataScanner:
                 self.mdc = MarketDataCache(
                     rest_client=RESTClient(api_key=self.massive_api_key),
                     redis_client=self.redis_client,
-                    massive_api_key=self.massive_api_key
                 )
                 self.mdc_connected = True
                 self.logger.debug(f"Connected to Redis: {self.redis_url}")

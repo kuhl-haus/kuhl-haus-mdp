@@ -12,10 +12,10 @@ import time
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, Optional, Iterator, List
 
-import aiohttp
 import redis.asyncio as aioredis
 from redis.exceptions import LockNotOwnedError
 from massive.rest import RESTClient
+from massive.rest.models.financials import FinancialFloat
 from massive.rest.models import (
     TickerSnapshot,
     FinancialRatio,
@@ -39,15 +39,11 @@ class MarketDataCache:
     cache with appropriate TTL. Negative caching (short TTL) for missing/error
     responses prevents API hammering.
 
-    Uses aiohttp for experimental Massive API endpoints (/vX/float) not yet
-    available in the official SDK.
     """
-    def __init__(self, rest_client: RESTClient, redis_client: aioredis.Redis, massive_api_key: str):
+    def __init__(self, rest_client: RESTClient, redis_client: aioredis.Redis):
         self.logger = logging.getLogger(__name__)
         self.rest_client = rest_client
-        self.massive_api_key = massive_api_key
         self.redis_client = redis_client
-        self.http_session = None
         meter = get_meter(__name__)
         self.delete_counter = meter.create_counter(
             name="mdc.delete",
@@ -561,80 +557,24 @@ class MarketDataCache:
                 return result
 
             cache_ttl = MarketDataCacheTTL.TICKER_FREE_FLOAT.value
-
-            # NOTE: This endpoint is experimental and the interface
-            # may change.
-            # https://massive.com/docs/rest/stocks/fundamentals/float
-            url = "https://api.massive.com/stocks/vX/float"
-            params = {
-                "ticker": ticker,
-                "apiKey": self.massive_api_key
-            }
-
-            session = await self.get_http_session()
             start = time.monotonic()
             try:
-                async with session.get(
-                    url,
-                    params=params,
-                    timeout=aiohttp.ClientTimeout(total=10),
-                ) as response:
-                    response.raise_for_status()
-                    data = await response.json()
-
-                    # Extract free_float from response
-                    if (
-                        data.get("status") == "OK"
-                        and data.get("results") is not None
-                    ):
-                        results = data["results"]
-                        if len(results) > 0:
-                            free_float = results[0].get(
-                                "free_float"
-                            )
-                        else:
-                            self.logger.debug(
-                                f"No free float data returned "
-                                f"for {ticker}"
-                            )
-                            free_float = 0
-                            cache_ttl = (
-                                MarketDataCacheTTL
-                                .NEGATIVE_CACHE_SESSION.value
-                            )
-                    else:
-                        raise Exception(
-                            f"Invalid response from Massive "
-                            f"API for {ticker}: {data}"
-                        )
-            except asyncio.TimeoutError as e:
-                self.logger.error(
-                    f"Timeout fetching free float for "
-                    f"{ticker}: {e}",
-                    stack_info=True, exc_info=True,
+                floats: List[FinancialFloat] = list(
+                    self.rest_client.list_stocks_floats(ticker=ticker)
                 )
-                free_float = 0
-                cache_ttl = (
-                    MarketDataCacheTTL
-                    .NEGATIVE_CACHE_THROTTLE.value
-                )
-                self.timeout_error_counter.add(1)
-            except aiohttp.ClientError as e:
-                self.logger.error(
-                    f"HTTP error fetching free float for "
-                    f"{ticker}: {e}",
-                    stack_info=True, exc_info=True,
-                )
-                free_float = 0
-                cache_ttl = (
-                    MarketDataCacheTTL
-                    .NEGATIVE_CACHE_THROTTLE.value
-                )
-                self.http_error_counter.add(1)
+                if floats:
+                    free_float = floats[0].free_float
+                else:
+                    self.logger.debug(
+                        f"No free float data returned for {ticker}"
+                    )
+                    free_float = 0
+                    cache_ttl = (
+                        MarketDataCacheTTL.NEGATIVE_CACHE_SESSION.value
+                    )
             except Exception as e:
                 self.logger.error(
-                    f"Error fetching free float for "
-                    f"{ticker}: {e}",
+                    f"Error fetching free float for {ticker}: {e}",
                     stack_info=True, exc_info=True,
                 )
                 self.error_counter.add(1)
@@ -645,7 +585,6 @@ class MarketDataCache:
                 f"Free float API call for {ticker} "
                 f"took {duration:.3f}s"
             )
-
             self.logger.debug(
                 f"free float {ticker}: {free_float}"
             )
@@ -664,19 +603,3 @@ class MarketDataCache:
                     f"Lock expired before release for "
                     f"free float {ticker}"
                 )
-
-    @tracer.start_as_current_span("mdc.get_http_session")
-    async def get_http_session(self) -> aiohttp.ClientSession:
-        """Lazily instantiate aiohttp session for experimental API calls."""
-        if self.http_session is None or self.http_session.closed:
-            self.http_session = aiohttp.ClientSession()
-        return self.http_session
-
-    @tracer.start_as_current_span("mdc.close")
-    async def close(self):
-        """Cleanup aiohttp session.
-
-        Called during shutdown; does not close Redis client (caller owns that).
-        """
-        if self.http_session and not self.http_session.closed:
-            await self.http_session.close()

@@ -51,7 +51,6 @@ class LeaderboardAnalyzer(Analyzer):
         self.cache = MarketDataCache(
             rest_client=self.rest_client,
             redis_client=self.redis_client,
-            massive_api_key=options.massive_api_key
         )
         meter = get_meter(__name__)
         self.processed_counter = meter.create_counter(

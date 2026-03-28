@@ -926,10 +926,10 @@ async def test_mdc_get_ff_with_empty_results_expect_zero(
 
 
 @pytest.mark.asyncio
-async def test_mdc_get_ff_with_api_error_expect_zero(
+async def test_mdc_get_ff_with_api_error_expect_raise(
     sut, mock_redis, mock_rest,
 ):
-    """HTTP/client errors from RESTClient are caught and return 0 with throttle TTL."""
+    """Unexpected errors from RESTClient propagate to the caller."""
     # Arrange
     lock = _mock_lock()
     mock_redis.lock = MagicMock(return_value=lock)
@@ -938,15 +938,11 @@ async def test_mdc_get_ff_with_api_error_expect_zero(
         side_effect=Exception("HTTP 500")
     )
 
-    # Act
-    result = await sut.get_free_float("TEST")
+    # Act & Assert
+    with pytest.raises(Exception, match="HTTP 500"):
+        await sut.get_free_float("TEST")
 
-    # Assert
-    assert result == 0
-    call_args = mock_redis.setex.await_args
-    assert call_args[0][1] == (
-        MarketDataCacheTTL.NEGATIVE_CACHE_THROTTLE.value
-    )
+    mock_redis.setex.assert_not_awaited()
 
 
 @pytest.mark.asyncio
