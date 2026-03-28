@@ -726,9 +726,44 @@ async def test_wds_get_cache_with_list_key_expect_parsed_list(
     # Act
     result = await sut.get_cache("news:feed:latest")
 
-    # Assert
+    # Assert — default limit=0 fetches all (LRANGE 0 -1)
     mock_redis.lrange.assert_called_once_with("news:feed:latest", 0, -1)
     assert result == [{"title": "Article 1"}, {"title": "Article 2"}]
+
+
+@pytest.mark.asyncio
+async def test_wds_get_cache_with_list_key_and_limit_expect_bounded_lrange(
+    sut, mock_redis,
+):
+    # Arrange
+    mock_redis.type = AsyncMock(return_value="list")
+    mock_redis.lrange = AsyncMock(return_value=[
+        b'{"title": "Article 1"}',
+        b'{"title": "Article 2"}',
+    ])
+
+    # Act
+    result = await sut.get_cache("news:feed:latest", limit=2)
+
+    # Assert — limit=2 maps to LRANGE 0 1
+    mock_redis.lrange.assert_called_once_with("news:feed:latest", 0, 1)
+    assert result == [{"title": "Article 1"}, {"title": "Article 2"}]
+
+
+@pytest.mark.asyncio
+async def test_wds_get_cache_with_list_key_and_limit_zero_expect_all(
+    sut, mock_redis,
+):
+    # Arrange — limit=0 is the sentinel for "fetch all"
+    mock_redis.type = AsyncMock(return_value="list")
+    mock_redis.lrange = AsyncMock(return_value=[b'{"title": "Article 1"}'])
+
+    # Act
+    result = await sut.get_cache("news:feed:latest", limit=0)
+
+    # Assert
+    mock_redis.lrange.assert_called_once_with("news:feed:latest", 0, -1)
+    assert result == [{"title": "Article 1"}]
 
 
 @pytest.mark.asyncio
