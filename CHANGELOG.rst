@@ -1,9 +1,54 @@
 =========
 Changelog
 =========
+Version 0.3.8 (2026-03-30)
+==========================
+
+- `07082d2 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/07082d2>`_ feat: per-symbol quote pub/sub feed for Quote widget (refs #49) (#50)
+
+  Adds a real-time per-symbol enriched quote feed to the LeaderboardAnalyzer
+
+  pub/sub output, enabling the upcoming Quote widget to subscribe to a single
+
+  ticker and receive live enriched data (~1/sec throttle).
+
+  ## Changes
+
+  ### MarketDataPubSubKeys
+
+  - New: QUOTE = 'quote'  (used as f'quote:{symbol}')
+
+  ### MarketDataCacheTTL
+
+  - New: QUOTE = THREE_DAYS
+
+  Three-day TTL for graceful degradation — stale data is better than no
+
+  data. Timestamp in the payload lets the client display data freshness.
+
+  ### LeaderboardAnalyzer.analyze_data()
+
+  - Inside the existing should_publish branch, after building leaderboard
+
+  results, reads the already-computed symbol:{symbol}:data hash from Redis
+
+  and appends a MarketDataAnalyzerResult for quote:{symbol}.
+
+  - No additional Massive API calls — reuses data written by _update_leaderboards().
+
+  - Throttled to ~1/sec (same as leaderboard publish).
+
+  ### Tests
+
+  - Updated test_lba_analyze_data_with_publish_expect_results to mock
+
+  redis_client.hgetall and assert the quote result is appended correctly.
+
+
 Version 0.3.7 (2026-03-28)
 ==========================
 
+- `03c6bb9 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/03c6bb9>`_ Version 0.3.7 (2026-03-28)
 - `8e33f69 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/8e33f69>`_ feat(WidgetDataService): add optional limit param to get_cache (closes #47 step 1) (#48)
 
   * test(WidgetDataService): add tests for get_cache limit param
