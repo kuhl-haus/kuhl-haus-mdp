@@ -56,6 +56,9 @@ class MarketDataCacheTTL(Enum):
     TOP_TRADES_WIDGET_CACHE_TTL = ONE_MINUTE
     TOP_TRADES_ALL_SYMBOLS_CACHE_TTL = ONE_MINUTE
 
+    # Quote feed cache
+    QUOTE = THREE_DAYS  # Stale data > no data; timestamp in payload shows freshness
+
     # Scanner caches
     TOP_STOCKS_SCANNER = EIGHT_HOURS
     TOP_VOLUME_SCANNER = THREE_DAYS

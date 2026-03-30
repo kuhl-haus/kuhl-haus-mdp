@@ -86,6 +86,19 @@ class LeaderboardAnalyzer(Analyzer):
             should_publish = await self._check_publish_throttle()
             if should_publish:
                 results = await self._build_leaderboard_results()
+
+                # Forward enriched per-symbol data as a quote feed for Quote widget
+                symbol = data.get("symbol")
+                if symbol:
+                    symbol_data = await self.redis_client.hgetall(f"symbol:{symbol}:data")
+                    if symbol_data:
+                        results.append(MarketDataAnalyzerResult(
+                            data={k: self._convert_value(v) for k, v in symbol_data.items()},
+                            cache_key=f"{MarketDataPubSubKeys.QUOTE.value}:{symbol}",
+                            cache_ttl=MarketDataCacheTTL.QUOTE.value,
+                            publish_key=f"{MarketDataPubSubKeys.QUOTE.value}:{symbol}",
+                        ))
+
                 self.published_counter.add(len(results))
                 return results
 
