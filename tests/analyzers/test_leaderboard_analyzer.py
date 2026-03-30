@@ -564,7 +564,9 @@ async def test_lba_check_market_open_reset_with_930_expect_reset(
 async def test_lba_analyze_data_with_publish_expect_results(sut):
     # Arrange
     data = {"symbol": "AAPL", "close": 150.0}
-    expected = [MagicMock(spec=MarketDataAnalyzerResult)]
+    leaderboard_results = [MagicMock(spec=MarketDataAnalyzerResult)]
+    symbol_data = {"symbol": "AAPL", "close": "150.0", "pct_change": "1.5"}
+    sut.redis_client.hgetall = AsyncMock(return_value=symbol_data)
     with patch.object(
         sut, "_check_day_boundary", new_callable=AsyncMock
     ), patch.object(
@@ -576,13 +578,19 @@ async def test_lba_analyze_data_with_publish_expect_results(sut):
         return_value=True
     ), patch.object(
         sut, "_build_leaderboard_results", new_callable=AsyncMock,
-        return_value=expected
+        return_value=leaderboard_results
     ):
         # Act
         result = await sut.analyze_data(data)
 
-    # Assert
-    assert result is expected
+    # Assert — leaderboard results included + quote result appended
+    assert result is not None
+    assert len(result) >= 2
+    quote_result = result[-1]
+    assert quote_result.publish_key == "quote:AAPL"
+    assert quote_result.cache_key == "quote:AAPL"
+    assert quote_result.data["symbol"] == "AAPL"
+    assert quote_result.data["close"] == 150.0
 
 
 @pytest.mark.asyncio

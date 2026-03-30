@@ -22,6 +22,9 @@ class MarketDataPubSubKeys(Enum):
     TOP_TRADES_SCANNER_FIVE_MINUTES = f'scanners:{MarketDataScannerNames.TOP_TRADES.value}:5m'
     TOP_TRADES_SCANNER_ONE_MINUTE = f'scanners:{MarketDataScannerNames.TOP_TRADES.value}:1m'
 
+    # Per-symbol quote feed
+    QUOTE = 'quote'  # Usage: f'{QUOTE.value}:{symbol}'
+
     # Single-feed scanners
     TOP_GAINERS_SCANNER = f'scanners:{MarketDataScannerNames.TOP_GAINERS.value}'
     TOP_GAPPERS_SCANNER = f'scanners:{MarketDataScannerNames.TOP_GAPPERS.value}'
