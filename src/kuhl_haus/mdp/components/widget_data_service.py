@@ -276,7 +276,7 @@ class WidgetDataService:
                         disconnected = []
                         sent_count = 0
 
-                        for ws in self.subscriptions[feed]:
+                        for ws in list(self.subscriptions[feed]):  # snapshot prevents RuntimeError on concurrent disconnect
                             try:
                                 await ws.send_text(data)
                                 sent_count += 1
@@ -298,5 +298,5 @@ class WidgetDataService:
             raise
 
         except Exception as e:
-            self.logger.error(f"wds.pubsub.error error:{repr(e)}", e)
+            self.logger.error(f"wds.pubsub.error error:{repr(e)}", exc_info=True)
             raise
