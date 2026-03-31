@@ -1,9 +1,36 @@
 =========
 Changelog
 =========
+Version 0.3.10 (2026-03-31)
+===========================
+
+- `07732f4 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/07732f4>`_ fix(lba): publish quote:{symbol} on every agg, not just on leaderboard publish (#52)
+
+  The quote result was inside the should_publish branch, so only the
+
+  one elected instance (per second, cluster-wide) ever published a quote —
+
+  and only for the ticker that happened to trigger the election. All other
+
+  instances and all other tickers got no pub/sub update, only stale cache.
+
+  Fix: build the quote result unconditionally (every instance, every agg).
+
+  Append it to leaderboard results when should_publish is true; return it
+
+  alone when not. Leaderboard fan-out (top-500) stays throttled. The quote
+
+  channel is per-symbol so there is no fan-out concern.
+
+  Effect: quote:{symbol} now receives ~1 update/sec on every active ticker
+
+  from every LBA instance processing that ticker's agg messages.
+
+
 Version 0.3.9 (2026-03-31)
 ==========================
 
+- `2e3a915 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/2e3a915>`_ Version 0.3.9 (2026-03-31)
 - `0ba4424 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/0ba4424>`_ fix(wds): snapshot set before iteration; fix exc_info in logger call (#51)
 
   Two bugs in _handle_pubsub() triggered by concurrent client disconnect:
