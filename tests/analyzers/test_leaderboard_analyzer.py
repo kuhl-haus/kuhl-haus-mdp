@@ -594,9 +594,11 @@ async def test_lba_analyze_data_with_publish_expect_results(sut):
 
 
 @pytest.mark.asyncio
-async def test_lba_analyze_data_with_no_publish_expect_none(sut):
-    # Arrange
+async def test_lba_analyze_data_with_no_publish_expect_quote_only(sut):
+    # Arrange: no leaderboard publish, but quote result should still be returned
     data = {"symbol": "AAPL", "close": 150.0}
+    symbol_data = {"symbol": "AAPL", "close": "150.0", "pct_change": "1.5"}
+    sut.redis_client.hgetall = AsyncMock(return_value=symbol_data)
     with patch.object(
         sut, "_check_day_boundary", new_callable=AsyncMock
     ), patch.object(
@@ -610,8 +612,11 @@ async def test_lba_analyze_data_with_no_publish_expect_none(sut):
         # Act
         result = await sut.analyze_data(data)
 
-    # Assert
-    assert result is None
+    # Assert — quote result returned even without leaderboard publish
+    assert result is not None
+    assert len(result) == 1
+    assert result[0].publish_key == "quote:AAPL"
+    assert result[0].data["symbol"] == "AAPL"
 
 
 @pytest.mark.asyncio
