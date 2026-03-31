@@ -1,9 +1,40 @@
 =========
 Changelog
 =========
+Version 0.3.9 (2026-03-31)
+==========================
+
+- `0ba4424 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/0ba4424>`_ fix(wds): snapshot set before iteration; fix exc_info in logger call (#51)
+
+  Two bugs in _handle_pubsub() triggered by concurrent client disconnect:
+
+  Bug 1 — RuntimeError: Set changed size during iteration
+
+  self.subscriptions[feed] is a set. When another coroutine calls
+
+  unsubscribe() while _handle_pubsub is iterating (e.g. the finally
+
+  block in websocket_endpoint), Python raises RuntimeError.
+
+  Fix: iterate list(self.subscriptions[feed]) — a snapshot copy.
+
+  Bug 2 — TypeError: not all arguments converted during string formatting
+
+  self.logger.error(f'...', e) passes the exception as a positional arg.
+
+  The logging module tries to apply %-formatting using e as the argument,
+
+  but the message (already an f-string) has no % tokens.
+
+  Fix: exc_info=True — attaches the traceback correctly.
+
+  Reported in kuhl-haus-mdp-servers#35.
+
+
 Version 0.3.8 (2026-03-30)
 ==========================
 
+- `fbce936 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/fbce936>`_ Version 0.3.8 (2026-03-30)
 - `07082d2 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/07082d2>`_ feat: per-symbol quote pub/sub feed for Quote widget (refs #49) (#50)
 
   Adds a real-time per-symbol enriched quote feed to the LeaderboardAnalyzer
