@@ -8,7 +8,7 @@ same market data feeds with minimal latency.
 import asyncio
 import json
 import logging
-from typing import Dict, Set
+from typing import Dict, Set, Any
 
 import redis.asyncio as redis
 from fastapi import WebSocket
@@ -184,7 +184,7 @@ class WidgetDataService:
             await self.unsubscribe(sub, websocket)
 
     @tracer.start_as_current_span("wds.get_cache")
-    async def get_cache(self, cache_key: str, limit: int = 0) -> dict:
+    async def get_cache(self, cache_key: str, limit: int = 0) -> list[Any] | None | Any:
         """Retrieve cached market data for initial client snapshot.
 
         Clients typically call this before subscribing to a feed to get current state,
