@@ -82,25 +82,34 @@ class LeaderboardAnalyzer(Analyzer):
             # Update leaderboards atomically
             await self._update_leaderboards(data)
 
-            # Throttled publish (only one instance publishes per second)
+            # Always publish per-symbol quote — every instance, every agg event.
+            # The leaderboard snapshots (top 500 fan-out) are throttled; the quote
+            # feed is per-symbol so there is no fan-out concern.
+            symbol = data.get("symbol")
+            quote_result = None
+            if symbol:
+                symbol_data = await self.redis_client.hgetall(f"symbol:{symbol}:data")
+                if symbol_data:
+                    quote_result = MarketDataAnalyzerResult(
+                        data={k: self._convert_value(v) for k, v in symbol_data.items()},
+                        cache_key=f"{MarketDataPubSubKeys.QUOTE.value}:{symbol}",
+                        cache_ttl=MarketDataCacheTTL.QUOTE.value,
+                        publish_key=f"{MarketDataPubSubKeys.QUOTE.value}:{symbol}",
+                    )
+
+            # Throttled leaderboard publish (only one instance publishes per second)
             should_publish = await self._check_publish_throttle()
             if should_publish:
                 results = await self._build_leaderboard_results()
-
-                # Forward enriched per-symbol data as a quote feed for Quote widget
-                symbol = data.get("symbol")
-                if symbol:
-                    symbol_data = await self.redis_client.hgetall(f"symbol:{symbol}:data")
-                    if symbol_data:
-                        results.append(MarketDataAnalyzerResult(
-                            data={k: self._convert_value(v) for k, v in symbol_data.items()},
-                            cache_key=f"{MarketDataPubSubKeys.QUOTE.value}:{symbol}",
-                            cache_ttl=MarketDataCacheTTL.QUOTE.value,
-                            publish_key=f"{MarketDataPubSubKeys.QUOTE.value}:{symbol}",
-                        ))
-
+                if quote_result:
+                    results.append(quote_result)
                 self.published_counter.add(len(results))
                 return results
+
+            # Return just the quote result when not publishing leaderboards
+            if quote_result:
+                self.published_counter.add(1)
+                return [quote_result]
 
             return None
 
