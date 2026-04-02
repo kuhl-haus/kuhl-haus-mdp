@@ -1,11 +1,12 @@
 """Base analyzer and configuration for market data processing.
 
 Provides abstract interface and shared client factories for Redis-backed
-analyzers that consume WebSocket events from Massive.com.
+analyzers that consume WebSocket events from Massive.com and Finlight.
 """
-from dataclasses import dataclass
-from typing import Optional, List
+from dataclasses import dataclass, field
+from typing import Any, Dict, Optional, List
 from kuhl_haus.mdp.data.market_data_analyzer_result import MarketDataAnalyzerResult
+from finlight_client import ApiConfig, FinlightApi
 from massive.rest import RESTClient
 import redis.asyncio as aioredis
 
@@ -14,17 +15,37 @@ import redis.asyncio as aioredis
 class AnalyzerOptions:
     """Configuration for analyzer instances.
 
-    Encapsulates API keys and connection URLs for Massive.com REST API
-    and Redis. Factory methods ensure consistent client instantiation
-    across all analyzer implementations.
+    Encapsulates API keys and connection URLs for the two market data
+    sources (Massive.com and Finlight) and Redis. Factory methods ensure
+    consistent client instantiation across all analyzer implementations.
+
+    Attributes:
+        redis_url: Redis connection URL. Required for all stateful analyzers.
+        massive_api_key: Massive.com REST API key. Required for analyzers
+            that fetch reference data (snapshots, floats, avg volume).
+        finlight_api_key: Finlight REST/WebSocket API key. Required for
+            analyzers that process or query financial news data.
+        kwargs: Arbitrary keyword arguments for subclass-specific
+            configuration. Allows analyzer subclasses to accept additional
+            parameters without modifying this class or breaking existing
+            implementations.
     """
     redis_url: Optional[str] = None
     massive_api_key: Optional[str] = None
+    finlight_api_key: Optional[str] = None
+    kwargs: Dict[str, Any] = field(default_factory=dict)
 
     def new_rest_client(self):
-        """Create Massive.com REST client if API key configured."""
+        """Create Massive.com REST client if API key is configured."""
         if self.massive_api_key:
             return RESTClient(api_key=self.massive_api_key)
+        else:
+            return None
+
+    def new_finlight_client(self):
+        """Create Finlight API client if API key is configured."""
+        if self.finlight_api_key:
+            return FinlightApi(config=ApiConfig(api_key=self.finlight_api_key))
         else:
             return None
 
