@@ -141,6 +141,9 @@ class LeaderboardAnalyzer(Analyzer):
 
         # Calculate metrics
         prev_day_close = snapshot.prev_day.close if snapshot and snapshot.prev_day else close
+        prev_day_open = snapshot.prev_day.open if snapshot and snapshot.prev_day else 0
+        prev_day_high = snapshot.prev_day.high if snapshot and snapshot.prev_day else 0
+        prev_day_low = snapshot.prev_day.low if snapshot and snapshot.prev_day else 0
         prev_day_volume = snapshot.prev_day.volume if snapshot and snapshot.prev_day else volume
         prev_day_vwap = snapshot.prev_day.vwap if snapshot and snapshot.prev_day else vwap
 
@@ -184,6 +187,9 @@ class LeaderboardAnalyzer(Analyzer):
             "average_size": event.get("average_size") or 0,
             "avg_volume": avg_volume or 0,
             "prev_day_close": prev_day_close,
+            "prev_day_open": prev_day_open,
+            "prev_day_high": prev_day_high,
+            "prev_day_low": prev_day_low,
             "prev_day_volume": prev_day_volume,
             "prev_day_vwap": prev_day_vwap,
             "change": change,
