@@ -557,3 +557,67 @@ async def test_fda_analyze_data_with_raw_ticker_expect_cache_list_max(sut):
         if r.publish_key == MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="AAPL")
     )
     assert ticker_result.cache_list_max == FinlightDataCache.NEWS_TICKER_LIST_MAX.value
+
+@pytest.mark.asyncio
+async def test_fda_init_with_no_kwargs_expect_enum_defaults():
+    # Arrange / Act
+    opts = AnalyzerOptions(redis_url="redis://localhost")
+    sut = FinlightDataAnalyzer(opts)
+
+    # Assert — defaults come from enum values
+    assert sut.news_feed_list_max == FinlightDataCache.NEWS_FEED_LIST_MAX.value
+    assert sut.news_ticker_list_max == FinlightDataCache.NEWS_TICKER_LIST_MAX.value
+
+
+@pytest.mark.asyncio
+async def test_fda_init_with_kwargs_overrides_expect_custom_limits():
+    # Arrange / Act
+    opts = AnalyzerOptions(
+        redis_url="redis://localhost",
+        kwargs={"news_feed_list_max": 500, "news_ticker_list_max": 250},
+    )
+    sut = FinlightDataAnalyzer(opts)
+
+    # Assert — kwargs override enum defaults
+    assert sut.news_feed_list_max == 500
+    assert sut.news_ticker_list_max == 250
+
+
+@pytest.mark.asyncio
+async def test_fda_analyze_data_with_kwargs_override_expect_custom_feed_limit():
+    # Arrange
+    opts = AnalyzerOptions(
+        redis_url="redis://localhost",
+        kwargs={"news_feed_list_max": 999},
+    )
+    sut = FinlightDataAnalyzer(opts)
+    article = _raw_article()
+
+    # Act
+    results = await sut.analyze_data(article)
+
+    # Assert — feed result uses overridden limit
+    feed = next(r for r in results if r.publish_key == MarketDataPubSubKeys.NEWS_FEED_LATEST.value)
+    assert feed.cache_list_max == 999
+
+
+@pytest.mark.asyncio
+async def test_fda_analyze_data_with_kwargs_override_expect_custom_ticker_limit():
+    # Arrange
+    opts = AnalyzerOptions(
+        redis_url="redis://localhost",
+        kwargs={"news_ticker_list_max": 42},
+    )
+    sut = FinlightDataAnalyzer(opts)
+    article = _enhanced_article(companies=[_company("AAPL", "XNAS")])
+
+    # Act
+    results = await sut.analyze_data(article)
+
+    # Assert — ticker result uses overridden limit
+    ticker_result = next(
+        r for r in results
+        if r.publish_key == MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="AAPL")
+    )
+    assert ticker_result.cache_list_max == 42
+
