@@ -111,6 +111,20 @@ through a pluggable analyzer, writing results to Redis.
    * - ``MAX_CONCURRENCY``
      - ``500``
      - Maximum concurrent async processing tasks (semaphore limit)
+   * - ``FINLIGHT_API_KEY``
+     - *(empty)*
+     - Finlight API key. Passed to ``AnalyzerOptions`` and forwarded to the
+       analyzer. Required for analyzers that call the Finlight REST API directly.
+   * - ``NEWS_FEED_LIST_MAX``
+     - ``10000``
+     - Maximum number of articles retained in the news feed Redis list cache
+       (``news:feed:latest``). Overrides the ``FinlightDataCache.NEWS_FEED_LIST_MAX``
+       enum default. Increase for deeper history; decrease to bound memory use.
+   * - ``NEWS_TICKER_LIST_MAX``
+     - ``100``
+     - Maximum number of articles retained per ticker Redis list cache
+       (``news:ticker:<TICKER>``). Overrides the ``FinlightDataCache.NEWS_TICKER_LIST_MAX``
+       enum default.
 
 ----
 
