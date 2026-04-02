@@ -35,19 +35,30 @@ def test_ao_init_with_defaults_expect_none_fields():
     # Assert
     assert sut.redis_url is None
     assert sut.massive_api_key is None
+    assert sut.finlight_api_key is None
+    assert sut.kwargs == {}
 
 
 def test_ao_init_with_values_expect_fields_set():
     # Arrange
     url = "redis://host:6379"
     key = "my-key"
+    fl_key = "fl-key"
+    extra = {"timeout": 30, "retries": 3}
 
     # Act
-    sut = AnalyzerOptions(redis_url=url, massive_api_key=key)
+    sut = AnalyzerOptions(
+        redis_url=url,
+        massive_api_key=key,
+        finlight_api_key=fl_key,
+        kwargs=extra,
+    )
 
     # Assert
     assert sut.redis_url == url
     assert sut.massive_api_key == key
+    assert sut.finlight_api_key == fl_key
+    assert sut.kwargs == extra
 
 
 # ── AnalyzerOptions.new_rest_client ──────────────────────────────────
@@ -141,6 +152,71 @@ def test_ao_new_redis_client_with_custom_params_expect_overrides():
     )
     assert result is mock_from_url.return_value
 
+
+
+
+# ── AnalyzerOptions.new_finlight_client ──────────────────────────────
+
+
+def test_ao_new_finlight_client_with_api_key_expect_finlight_client():
+    # Arrange
+    sut = _make_options(finlight_api_key="fl-key")
+
+    # Act
+    with patch(
+        "kuhl_haus.mdp.analyzers.analyzer.FinlightApi"
+    ) as mock_api, patch(
+        "kuhl_haus.mdp.analyzers.analyzer.ApiConfig"
+    ) as mock_cfg:
+        result = sut.new_finlight_client()
+
+    # Assert
+    mock_cfg.assert_called_once_with(api_key="fl-key")
+    mock_api.assert_called_once_with(config=mock_cfg.return_value)
+    assert result is mock_api.return_value
+
+
+def test_ao_new_finlight_client_with_no_key_expect_none():
+    # Arrange
+    sut = _make_options()
+
+    # Act
+    result = sut.new_finlight_client()
+
+    # Assert
+    assert result is None
+
+
+# ── AnalyzerOptions.kwargs ────────────────────────────────────────────
+
+
+def test_ao_kwargs_with_default_expect_empty_dict():
+    # Arrange / Act
+    sut = AnalyzerOptions()
+
+    # Assert
+    assert sut.kwargs == {}
+
+
+def test_ao_kwargs_with_values_expect_dict_stored():
+    # Arrange / Act
+    sut = AnalyzerOptions(kwargs={"timeout": 30, "retries": 3})
+
+    # Assert
+    assert sut.kwargs["timeout"] == 30
+    assert sut.kwargs["retries"] == 3
+
+
+def test_ao_kwargs_instances_are_independent():
+    # Arrange — two instances should not share the same dict
+    a = AnalyzerOptions()
+    b = AnalyzerOptions()
+
+    # Act
+    a.kwargs["foo"] = "bar"
+
+    # Assert
+    assert "foo" not in b.kwargs
 
 # ── Analyzer.__init__ ────────────────────────────────────────────────
 
