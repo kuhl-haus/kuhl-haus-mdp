@@ -39,6 +39,9 @@ def mock_cache():
     cache = AsyncMock()
     snapshot = MagicMock()
     snapshot.prev_day.close = 100.0
+    snapshot.prev_day.open = 98.0
+    snapshot.prev_day.high = 105.0
+    snapshot.prev_day.low = 97.0
     snapshot.prev_day.volume = 50000
     snapshot.prev_day.vwap = 101.0
     cache.get_ticker_snapshot.return_value = snapshot
@@ -280,6 +283,9 @@ async def test_lba_update_leaderboards_with_no_snapshot_expect_fallback(
     pipe.hset.assert_called_once()
     mapping = pipe.hset.call_args[1]["mapping"]
     assert mapping["prev_day_close"] == 50.0
+    assert mapping["prev_day_open"] == 0     # no snapshot — fallback
+    assert mapping["prev_day_high"] == 0     # no snapshot — fallback
+    assert mapping["prev_day_low"] == 0      # no snapshot — fallback
     assert mapping["prev_day_volume"] == 200
 
 
