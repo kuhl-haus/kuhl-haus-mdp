@@ -75,3 +75,4 @@ Additional Resources
 - `Part 3: How to Deploy It <https://oldschool-engineer.dev/infrastructure/2026/01/31/what-i-built-after-quitting-amazon-spoiler-its-a-stock-scanner-part-3.html>`_
 - `Part 4: Evolution from Prototype to Production <https://oldschool-engineer.dev/software%20engineering/2026/02/11/what-i-built-after-quitting-amazon-spoiler-its-a-stock-scanner-part-4.html>`_
 - `Part 5: Wave 1 Complete: Bugs, Bottlenecks, and Breaking 1,000 msg/s <https://oldschool-engineer.dev/software%20engineering/2026/02/23/what-i-built-after-quitting-amazon-spoiler-its-a-stock-scanner-part-5.html>`_
+- `Stock Selection: Why News Matters <https://oldschool-engineer.dev/side%20projects/2026/04/01/stock-selection-why-news-matters.html>`_
