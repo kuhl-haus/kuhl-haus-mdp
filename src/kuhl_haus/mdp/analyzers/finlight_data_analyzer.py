@@ -48,6 +48,14 @@ class FinlightDataAnalyzer(Analyzer):
             re.IGNORECASE,
         )
 
+        # Cache size limits — default to enum values, overridable via AnalyzerOptions.kwargs
+        self.news_feed_list_max: int = options.kwargs.get(
+            "news_feed_list_max", FinlightDataCache.NEWS_FEED_LIST_MAX.value
+        )
+        self.news_ticker_list_max: int = options.kwargs.get(
+            "news_ticker_list_max", FinlightDataCache.NEWS_TICKER_LIST_MAX.value
+        )
+
     async def rehydrate(self):
         """No-op — stateless analyzer; no Redis state to restore."""
         pass
@@ -70,7 +78,7 @@ class FinlightDataAnalyzer(Analyzer):
             cache_key=MarketDataPubSubKeys.NEWS_FEED_LATEST.value,
             cache_ttl=MarketDataCacheTTL.NEWS_FEED_LATEST.value,
             publish_key=MarketDataPubSubKeys.NEWS_FEED_LATEST.value,
-            cache_list_max=FinlightDataCache.NEWS_FEED_LIST_MAX.value,
+            cache_list_max=self.news_feed_list_max,
         )]
 
         # All articles go to the feed regardless of mode
@@ -90,7 +98,7 @@ class FinlightDataAnalyzer(Analyzer):
                 cache_key=MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker=ticker),
                 cache_ttl=MarketDataCacheTTL.NEWS_TICKER.value,
                 publish_key=MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker=ticker),
-                cache_list_max=FinlightDataCache.NEWS_TICKER_LIST_MAX.value,
+                cache_list_max=self.news_ticker_list_max,
             ))
 
         return results
