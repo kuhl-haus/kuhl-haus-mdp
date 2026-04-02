@@ -54,9 +54,25 @@ class FinlightDataProcessor:
         queue_name: str,
         redis_url: str,
         analyzer_class: Any,
-        prefetch_count: int = 100,  # Higher for async throughput
-        max_concurrent_tasks: int = 500,  # Concurrent processing limit
+        analyzer_options: AnalyzerOptions,
+        prefetch_count: int = 100,
+        max_concurrent_tasks: int = 500,
     ):
+        """Initialize the Finlight data processor.
+
+        Args:
+            rabbitmq_url: RabbitMQ connection URL.
+            queue_name: Name of the RabbitMQ queue to consume from (e.g., 'news').
+            redis_url: Redis connection URL used for result caching and pub/sub.
+            analyzer_class: Analyzer subclass to instantiate for each message.
+            analyzer_options: Configuration for the analyzer instance.
+                Supplies API keys (Massive.com, Finlight) and any
+                subclass-specific kwargs to the analyzer.
+            prefetch_count: RabbitMQ prefetch count. Higher values increase
+                throughput at the cost of memory. Defaults to 100.
+            max_concurrent_tasks: Maximum number of messages processed
+                concurrently via asyncio.Semaphore. Defaults to 500.
+        """
         self.rabbitmq_url = rabbitmq_url
         self.queue_name = queue_name
         self.redis_url = redis_url
@@ -72,7 +88,7 @@ class FinlightDataProcessor:
         # Analyzer
         self.analyzer: Analyzer = None
         self.analyzer_class = analyzer_class
-        self.analyzer_options = AnalyzerOptions(redis_url=redis_url)
+        self.analyzer_options = analyzer_options
 
         # Concurrency control
         self.semaphore = asyncio.Semaphore(max_concurrent_tasks)
