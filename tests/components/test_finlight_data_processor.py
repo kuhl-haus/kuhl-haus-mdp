@@ -137,6 +137,59 @@ def test_fdp_init_with_defaults_expect_default_concurrency(
     assert sut.max_concurrent_tasks == 500
 
 
+
+
+def test_fdp_init_with_analyzer_options_expect_options_used(
+    mock_meter, mock_setup_logging, mock_analyzer_class
+):
+    # Arrange
+    from kuhl_haus.mdp.analyzers.analyzer import AnalyzerOptions
+    from kuhl_haus.mdp.components.finlight_data_processor import (
+        FinlightDataProcessor,
+    )
+    opts = AnalyzerOptions(
+        redis_url="redis://custom",
+        massive_api_key="massive-key",
+        finlight_api_key="finlight-key",
+    )
+
+    # Act
+    sut = FinlightDataProcessor(
+        rabbitmq_url="amqp://localhost/",
+        queue_name="news",
+        redis_url="redis://localhost",
+        analyzer_class=mock_analyzer_class,
+        analyzer_options=opts,
+    )
+
+    # Assert — provided AnalyzerOptions instance is used as-is
+    assert sut.analyzer_options is opts
+    assert sut.analyzer_options.massive_api_key == "massive-key"
+    assert sut.analyzer_options.finlight_api_key == "finlight-key"
+
+
+def test_fdp_init_without_analyzer_options_expect_default_constructed(
+    mock_meter, mock_setup_logging, mock_analyzer_class
+):
+    # Arrange / Act
+    from kuhl_haus.mdp.analyzers.analyzer import AnalyzerOptions
+    from kuhl_haus.mdp.components.finlight_data_processor import (
+        FinlightDataProcessor,
+    )
+
+    sut = FinlightDataProcessor(
+        rabbitmq_url="amqp://localhost/",
+        queue_name="news",
+        redis_url="redis://localhost",
+        analyzer_class=mock_analyzer_class,
+    )
+
+    # Assert — default AnalyzerOptions built from redis_url
+    assert isinstance(sut.analyzer_options, AnalyzerOptions)
+    assert sut.analyzer_options.redis_url == "redis://localhost"
+    assert sut.analyzer_options.massive_api_key is None
+    assert sut.analyzer_options.finlight_api_key is None
+
 def test_fdp_init_expect_fdp_metric_prefix(
     mock_meter, mock_setup_logging, mock_analyzer_class
 ):
