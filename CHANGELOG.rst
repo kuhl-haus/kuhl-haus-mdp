@@ -1,9 +1,88 @@
 =========
 Changelog
 =========
+Version 0.3.12 (2026-04-02)
+===========================
+
+- `2dd3361 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/2dd3361>`_ feat(FinlightDataAnalyzer): make cache list limits configurable via AnalyzerOptions.kwargs (#58)
+
+  NEWS_FEED_LIST_MAX and NEWS_TICKER_LIST_MAX enum values remain the defaults.
+
+  Both can be overridden at runtime by passing news_feed_list_max and/or
+
+  news_ticker_list_max in AnalyzerOptions.kwargs.
+
+  This allows fdp_server.py to expose these limits as environment variables
+
+  without requiring code changes.
+
+  4 new tests:
+
+  - Default values match enum constants when no kwargs provided
+
+  - Custom limits accepted via kwargs
+
+  - Feed and ticker results use overridden limits when provided
+
+- `c3a0702 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/c3a0702>`_ feat(FinlightDataProcessor): accept AnalyzerOptions as a required parameter (#57)
+
+  Adds required analyzer_options: AnalyzerOptions parameter to
+
+  FinlightDataProcessor.__init__(), positioned after analyzer_class so it
+
+  naturally follows its collaborating class.
+
+  Callers must now explicitly supply an AnalyzerOptions instance, enabling
+
+  them to provide Massive.com and Finlight API keys and/or subclass-specific
+
+  kwargs to the analyzer without modifying the processor.
+
+  Also adds a docstring to __init__ documenting all parameters.
+
+  2 tests updated/added:
+
+  - Explicit AnalyzerOptions instance is used as-is
+
+  - Existing tests updated to pass required parameter
+
+- `07e3f93 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/07e3f93>`_ feat(AnalyzerOptions): add finlight_api_key and kwargs fields (#56)
+
+  finlight_api_key: Optional[str]
+
+  Provides Finlight REST/WebSocket API access to analyzer subclasses,
+
+  symmetric with the existing massive_api_key. Includes new_finlight_client()
+
+  factory method returning a FinlightApi instance when the key is set.
+
+  kwargs: Dict[str, Any] (defaults to empty dict)
+
+  Escape hatch for subclass-specific configuration that does not belong
+
+  in AnalyzerOptions itself. Allows new per-analyzer parameters without
+
+  modifying the base class or breaking existing implementations.
+
+  Tests:
+
+  - Default values for both new fields
+
+  - Constructor with explicit values
+
+  - new_finlight_client() returns FinlightApi when key is set
+
+  - new_finlight_client() returns None when key is absent
+
+  - kwargs default is an empty dict
+
+  - kwargs instances are independent (field(default_factory=dict))
+
+
 Version 0.3.11 (2026-04-02)
 ===========================
 
+- `df5e1ba <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/df5e1ba>`_ Version 0.3.11 (2026-04-02)
 - `b57edd4 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/b57edd4>`_ feat(LeaderboardAnalyzer): add prev_day open/high/low to symbol metadata (#55)
 
   Extract snapshot.prev_day.open/high/low and include them in the symbol
