@@ -8,6 +8,7 @@ from aio_pika.abc import AbstractIncomingMessage
 from kuhl_haus.mdp.data.market_data_analyzer_result import (
     MarketDataAnalyzerResult,
 )
+from kuhl_haus.mdp.analyzers.analyzer import AnalyzerOptions
 from kuhl_haus.mdp.exceptions.data_analysis_exception import (
     DataAnalysisException,
 )
@@ -54,6 +55,7 @@ def sut(mock_meter, mock_setup_logging, mock_analyzer_class):
         queue_name="news",
         redis_url="redis://localhost",
         analyzer_class=mock_analyzer_class,
+        analyzer_options=AnalyzerOptions(redis_url="redis://localhost"),
         prefetch_count=50,
         max_concurrent_tasks=100,
     )
@@ -70,11 +72,13 @@ def test_fdp_init_with_valid_params_expect_attrs_set(
         FinlightDataProcessor,
     )
 
+    opts = AnalyzerOptions(redis_url="redis://localhost")
     sut = FinlightDataProcessor(
         rabbitmq_url="amqp://localhost/",
         queue_name="news",
         redis_url="redis://localhost",
         analyzer_class=mock_analyzer_class,
+        analyzer_options=opts,
         prefetch_count=10,
         max_concurrent_tasks=20,
     )
@@ -111,6 +115,7 @@ def test_fdp_init_with_no_massive_api_key_expect_no_attr(
         queue_name="news",
         redis_url="redis://localhost",
         analyzer_class=mock_analyzer_class,
+        analyzer_options=AnalyzerOptions(redis_url="redis://localhost"),
     )
 
     # Assert — no massive_api_key attribute on FDP
@@ -130,11 +135,42 @@ def test_fdp_init_with_defaults_expect_default_concurrency(
         queue_name="news",
         redis_url="redis://localhost",
         analyzer_class=mock_analyzer_class,
+        analyzer_options=AnalyzerOptions(redis_url="redis://localhost"),
     )
 
     # Assert
     assert sut.prefetch_count == 100
     assert sut.max_concurrent_tasks == 500
+
+
+
+
+def test_fdp_init_with_analyzer_options_expect_options_used(
+    mock_meter, mock_setup_logging, mock_analyzer_class
+):
+    # Arrange
+    from kuhl_haus.mdp.components.finlight_data_processor import (
+        FinlightDataProcessor,
+    )
+    opts = AnalyzerOptions(
+        redis_url="redis://custom",
+        massive_api_key="massive-key",
+        finlight_api_key="finlight-key",
+    )
+
+    # Act
+    sut = FinlightDataProcessor(
+        rabbitmq_url="amqp://localhost/",
+        queue_name="news",
+        redis_url="redis://localhost",
+        analyzer_class=mock_analyzer_class,
+        analyzer_options=opts,
+    )
+
+    # Assert — provided AnalyzerOptions instance is used as-is
+    assert sut.analyzer_options is opts
+    assert sut.analyzer_options.massive_api_key == "massive-key"
+    assert sut.analyzer_options.finlight_api_key == "finlight-key"
 
 
 def test_fdp_init_expect_fdp_metric_prefix(
@@ -150,6 +186,7 @@ def test_fdp_init_expect_fdp_metric_prefix(
         queue_name="news",
         redis_url="redis://localhost",
         analyzer_class=mock_analyzer_class,
+        analyzer_options=AnalyzerOptions(redis_url="redis://localhost"),
     )
 
     # Assert — all counters use "fdp." prefix
