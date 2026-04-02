@@ -262,7 +262,18 @@ class FinlightDataProcessor:
         pipe = self.redis_client.pipeline(transaction=False)
         if analyzer_result.cache_key:
             if analyzer_result.cache_list_max is not None:
-                # Rolling list: prepend + trim to max + optional TTL
+                # Rolling list: prepend + trim to max + optional TTL.
+                # Guard against WRONGTYPE: if the key was previously stored as a string
+                # (written before list-mode caching was introduced), delete it first so
+                # lpush doesn't raise. Type check is async before the pipeline.
+                key_type = await self.redis_client.type(analyzer_result.cache_key)
+                key_type_str = key_type.decode() if isinstance(key_type, bytes) else key_type
+                if key_type_str not in ("list", "none"):
+                    await self.redis_client.delete(analyzer_result.cache_key)
+                    self.logger.warning(
+                        f"Deleted wrong-type key {analyzer_result.cache_key!r} "
+                        f"(was {key_type_str!r}, expected list)"
+                    )
                 pipe.lpush(analyzer_result.cache_key, result_json)
                 pipe.ltrim(analyzer_result.cache_key, 0, analyzer_result.cache_list_max - 1)
                 if analyzer_result.cache_ttl and analyzer_result.cache_ttl > 0:

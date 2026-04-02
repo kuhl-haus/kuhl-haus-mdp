@@ -836,6 +836,7 @@ async def test_fdp_cache_result_with_list_max_and_ttl_expect_lpush_ltrim_expire(
     pipe.execute = AsyncMock()
     mock_redis = MagicMock()
     mock_redis.pipeline.return_value = pipe
+    mock_redis.type = AsyncMock(return_value="none")  # new key, no type mismatch
     sut.redis_client = mock_redis
     result = MarketDataAnalyzerResult(
         data={"title": "Breaking news"},
@@ -866,6 +867,7 @@ async def test_fdp_cache_result_with_list_max_and_zero_ttl_expect_no_expire(sut)
     pipe.execute = AsyncMock()
     mock_redis = MagicMock()
     mock_redis.pipeline.return_value = pipe
+    mock_redis.type = AsyncMock(return_value="none")
     sut.redis_client = mock_redis
     result = MarketDataAnalyzerResult(
         data={"title": "Ticker news"},
@@ -885,3 +887,58 @@ async def test_fdp_cache_result_with_list_max_and_zero_ttl_expect_no_expire(sut)
     pipe.expire.assert_not_called()
     pipe.set.assert_not_called()
     pipe.setex.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_fdp_cache_result_with_string_key_expect_delete_then_lpush(sut):
+    # Arrange — key exists as a string (written before list-mode caching was introduced)
+    pipe = MagicMock()
+    pipe.execute = AsyncMock()
+    mock_redis = MagicMock()
+    mock_redis.pipeline.return_value = pipe
+    mock_redis.type = AsyncMock(return_value="string")  # wrong type
+    mock_redis.delete = AsyncMock()
+    sut.redis_client = mock_redis
+    result = MarketDataAnalyzerResult(
+        data={"ticker": "META"},
+        cache_key="news:ticker:META",
+        cache_ttl=3600,
+        publish_key="news:ticker:META",
+        cache_list_max=100,
+    )
+
+    # Act
+    await sut._cache_result(result)
+
+    # Assert — wrong-type key deleted before lpush
+    mock_redis.delete.assert_awaited_once_with("news:ticker:META")
+    expected_json = json.dumps({"ticker": "META"})
+    pipe.lpush.assert_called_once_with("news:ticker:META", expected_json)
+    pipe.ltrim.assert_called_once_with("news:ticker:META", 0, 99)
+    pipe.expire.assert_called_once_with("news:ticker:META", 3600)
+
+
+@pytest.mark.asyncio
+async def test_fdp_cache_result_with_list_key_expect_no_delete(sut):
+    # Arrange — key already exists as a list (correct type, no DEL needed)
+    pipe = MagicMock()
+    pipe.execute = AsyncMock()
+    mock_redis = MagicMock()
+    mock_redis.pipeline.return_value = pipe
+    mock_redis.type = AsyncMock(return_value="list")
+    mock_redis.delete = AsyncMock()
+    sut.redis_client = mock_redis
+    result = MarketDataAnalyzerResult(
+        data={"ticker": "META"},
+        cache_key="news:ticker:META",
+        cache_ttl=3600,
+        publish_key="news:ticker:META",
+        cache_list_max=100,
+    )
+
+    # Act
+    await sut._cache_result(result)
+
+    # Assert — no delete for correct type
+    mock_redis.delete.assert_not_awaited()
+    pipe.lpush.assert_called_once()
+
