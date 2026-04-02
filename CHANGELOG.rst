@@ -1,9 +1,28 @@
 =========
 Changelog
 =========
+Version 0.3.11 (2026-04-02)
+===========================
+
+- `b57edd4 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/b57edd4>`_ feat(LeaderboardAnalyzer): add prev_day open/high/low to symbol metadata (#55)
+
+  Extract snapshot.prev_day.open/high/low and include them in the symbol
+
+  metadata hash alongside the existing prev_day_close/volume/vwap fields.
+
+  Falls back to 0 when snapshot is unavailable (same pattern as existing fields).
+
+  Closes #54
+
+- `312bdf0 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/312bdf0>`_ Update typing and return type of get_cache
+
+  Add Any to typing imports and update WidgetDataService.get_cache return annotation from dict to a union (list[Any] | None | Any) to better reflect the variety of cached payloads returned for initial client snapshots. This clarifies expected types for callers and tooling without changing runtime behavior.
+
+
 Version 0.3.10 (2026-03-31)
 ===========================
 
+- `8b6e71c <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/8b6e71c>`_ Version 0.3.10 (2026-03-31)
 - `07732f4 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/07732f4>`_ fix(lba): publish quote:{symbol} on every agg, not just on leaderboard publish (#52)
 
   The quote result was inside the should_publish branch, so only the
