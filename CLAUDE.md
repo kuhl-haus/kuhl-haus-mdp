@@ -118,3 +118,13 @@ Built with Sphinx + Furo theme. Hosted on Read the Docs.
 ```
 
 API reference is auto-generated from docstrings. See `docs/` for RST source.
+
+
+## Bug Workflow — Test First
+
+When a bug is reported, **do not start by fixing it**.
+
+1. **Write a failing test** that reproduces the bug first
+2. Confirm the test fails (proving the bug exists)
+3. Then fix the bug and prove it with a passing test
+
