@@ -571,14 +571,15 @@ async def test_lba_analyze_data_with_publish_expect_results(sut):
     # Arrange
     data = {"symbol": "AAPL", "close": 150.0}
     leaderboard_results = [MagicMock(spec=MarketDataAnalyzerResult)]
-    symbol_data = {"symbol": "AAPL", "close": "150.0", "pct_change": "1.5"}
-    sut.redis_client.hgetall = AsyncMock(return_value=symbol_data)
+    # _update_leaderboards now returns the mapping directly (no hgetall)
+    mapping = {"symbol": "AAPL", "close": 150.0, "pct_change": 1.5}
     with patch.object(
         sut, "_check_day_boundary", new_callable=AsyncMock
     ), patch.object(
         sut, "_check_market_open_reset", new_callable=AsyncMock
     ), patch.object(
-        sut, "_update_leaderboards", new_callable=AsyncMock
+        sut, "_update_leaderboards", new_callable=AsyncMock,
+        return_value=mapping
     ), patch.object(
         sut, "_check_publish_throttle", new_callable=AsyncMock,
         return_value=True
@@ -603,14 +604,15 @@ async def test_lba_analyze_data_with_publish_expect_results(sut):
 async def test_lba_analyze_data_with_no_publish_expect_quote_only(sut):
     # Arrange: no leaderboard publish, but quote result should still be returned
     data = {"symbol": "AAPL", "close": 150.0}
-    symbol_data = {"symbol": "AAPL", "close": "150.0", "pct_change": "1.5"}
-    sut.redis_client.hgetall = AsyncMock(return_value=symbol_data)
+    # _update_leaderboards returns mapping directly (no hgetall)
+    mapping = {"symbol": "AAPL", "close": 150.0, "pct_change": 1.5}
     with patch.object(
         sut, "_check_day_boundary", new_callable=AsyncMock
     ), patch.object(
         sut, "_check_market_open_reset", new_callable=AsyncMock
     ), patch.object(
-        sut, "_update_leaderboards", new_callable=AsyncMock
+        sut, "_update_leaderboards", new_callable=AsyncMock,
+        return_value=mapping
     ), patch.object(
         sut, "_check_publish_throttle", new_callable=AsyncMock,
         return_value=False
@@ -746,3 +748,184 @@ async def test_lba_market_boundary_race_with_concurrent_resets_expect_one_wins(
     # Assert — pipeline only executed for the first caller
     assert first_pipeline_calls == 1
     assert second_pipeline_calls == first_pipeline_calls  # no additional execute
+
+
+# ------------------------------------------------------------------
+# Issue #62 — eliminate redundant hgetall for quote publication
+# ------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_lba_update_leaderboards_with_valid_event_expect_mapping_returned(
+    sut, mock_redis, mock_cache
+):
+    """_update_leaderboards must return the mapping dict it writes to Redis.
+
+    This proves the fix: the caller can use the returned dict instead of
+    doing a redundant hgetall round-trip.
+    """
+    # Arrange
+    mock_redis.get.return_value = "100.0"
+    event = {
+        "symbol": "AAPL",
+        "accumulated_volume": 500000,
+        "close": 110.0,
+        "volume": 10000,
+        "vwap": 109.0,
+        "open": 105.0,
+        "high": 112.0,
+        "low": 104.0,
+        "end_timestamp": 1700000000000,
+    }
+
+    # Act
+    result = await sut._update_leaderboards(event)
+
+    # Assert — must return the mapping, not None
+    assert result is not None
+    assert isinstance(result, dict)
+    assert result["symbol"] == "AAPL"
+    assert result["close"] == 110.0
+    assert result["accumulated_volume"] == 500000
+
+
+@pytest.mark.asyncio
+async def test_lba_update_leaderboards_with_no_symbol_expect_none_returned(
+    sut, mock_redis
+):
+    """_update_leaderboards must return None when there is no symbol (early exit)."""
+    # Arrange
+    event = {"close": 100.0}
+
+    # Act
+    result = await sut._update_leaderboards(event)
+
+    # Assert
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_lba_update_leaderboards_with_pipe_error_expect_none_returned(
+    sut, mock_redis, mock_cache
+):
+    """_update_leaderboards must return None when pipeline execution fails."""
+    # Arrange
+    mock_redis.get.return_value = "100.0"
+    pipe = mock_redis.pipeline.return_value
+    pipe.execute.side_effect = Exception("Redis error")
+    event = {
+        "symbol": "FAIL",
+        "accumulated_volume": 100,
+        "close": 10.0,
+        "volume": 50,
+        "vwap": 9.5,
+    }
+
+    # Act
+    result = await sut._update_leaderboards(event)
+
+    # Assert
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_lba_analyze_data_with_symbol_expect_no_hgetall(sut):
+    """analyze_data must NOT call redis hgetall to build the quote result.
+
+    The mapping returned by _update_leaderboards contains all the data
+    needed. Any hgetall call is the redundant round-trip we are eliminating.
+    """
+    # Arrange
+    data = {"symbol": "AAPL", "close": 150.0}
+    mapping = {
+        "symbol": "AAPL",
+        "close": 150.0,
+        "pct_change": 1.5,
+        "accumulated_volume": 100000,
+    }
+    sut.redis_client.hgetall = AsyncMock(return_value={})
+
+    with patch.object(
+        sut, "_check_day_boundary", new_callable=AsyncMock
+    ), patch.object(
+        sut, "_check_market_open_reset", new_callable=AsyncMock
+    ), patch.object(
+        sut, "_update_leaderboards", new_callable=AsyncMock,
+        return_value=mapping
+    ), patch.object(
+        sut, "_check_publish_throttle", new_callable=AsyncMock,
+        return_value=False
+    ):
+        # Act
+        result = await sut.analyze_data(data)
+
+    # Assert — hgetall was never called
+    sut.redis_client.hgetall.assert_not_awaited()
+
+    # Assert — quote result was built from mapping
+    assert result is not None
+    assert len(result) == 1
+    assert result[0].publish_key == "quote:AAPL"
+    assert result[0].data["symbol"] == "AAPL"
+    assert result[0].data["close"] == 150.0
+
+
+@pytest.mark.asyncio
+async def test_lba_analyze_data_with_no_mapping_expect_no_quote(sut):
+    """analyze_data must not emit a quote result when _update_leaderboards returns None."""
+    # Arrange
+    data = {"symbol": "AAPL", "close": 150.0}
+
+    with patch.object(
+        sut, "_check_day_boundary", new_callable=AsyncMock
+    ), patch.object(
+        sut, "_check_market_open_reset", new_callable=AsyncMock
+    ), patch.object(
+        sut, "_update_leaderboards", new_callable=AsyncMock,
+        return_value=None
+    ), patch.object(
+        sut, "_check_publish_throttle", new_callable=AsyncMock,
+        return_value=False
+    ):
+        # Act
+        result = await sut.analyze_data(data)
+
+    # Assert — no quote result, no leaderboard results
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_lba_analyze_data_with_publish_and_mapping_expect_no_hgetall(sut):
+    """During a leaderboard publish cycle, quote is still sourced from mapping not hgetall."""
+    # Arrange
+    data = {"symbol": "TSLA", "close": 250.0}
+    mapping = {"symbol": "TSLA", "close": 250.0, "pct_change": 3.0}
+    leaderboard_results = [MagicMock(spec=MarketDataAnalyzerResult)]
+    sut.redis_client.hgetall = AsyncMock(return_value={})
+
+    with patch.object(
+        sut, "_check_day_boundary", new_callable=AsyncMock
+    ), patch.object(
+        sut, "_check_market_open_reset", new_callable=AsyncMock
+    ), patch.object(
+        sut, "_update_leaderboards", new_callable=AsyncMock,
+        return_value=mapping
+    ), patch.object(
+        sut, "_check_publish_throttle", new_callable=AsyncMock,
+        return_value=True
+    ), patch.object(
+        sut, "_build_leaderboard_results", new_callable=AsyncMock,
+        return_value=leaderboard_results
+    ):
+        # Act
+        result = await sut.analyze_data(data)
+
+    # Assert — hgetall never called
+    sut.redis_client.hgetall.assert_not_awaited()
+
+    # Assert — leaderboard + quote returned
+    assert result is not None
+    assert len(result) == 2
+    quote = result[-1]
+    assert quote.publish_key == "quote:TSLA"
+    assert quote.data["close"] == 250.0
