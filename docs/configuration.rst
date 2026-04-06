@@ -125,6 +125,15 @@ through a pluggable analyzer, writing results to Redis.
      - Maximum number of articles retained per ticker Redis list cache
        (``news:ticker:<TICKER>``). Overrides the ``FinlightDataCache.NEWS_TICKER_LIST_MAX``
        enum default.
+   * - ``NEWS_FEED_CACHE_TTL``
+     - ``86400`` (1 day)
+     - Redis TTL in seconds for the news feed list cache (``news:feed:latest``).
+       Overrides the ``MarketDataCacheTTL.NEWS_FEED_LATEST`` enum default.
+   * - ``NEWS_TICKER_CACHE_TTL``
+     - ``259200`` (3 days)
+     - Redis TTL in seconds for per-ticker news list caches
+       (``news:ticker:<TICKER>``). Overrides the ``MarketDataCacheTTL.NEWS_TICKER``
+       enum default.
 
 ----
 

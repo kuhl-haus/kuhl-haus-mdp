@@ -56,6 +56,14 @@ class FinlightDataAnalyzer(Analyzer):
             "news_ticker_list_max", FinlightDataCache.NEWS_TICKER_LIST_MAX.value
         )
 
+        # Cache TTLs — default to enum values, overridable via AnalyzerOptions.kwargs
+        self.news_feed_cache_ttl: int = options.kwargs.get(
+            "news_feed_cache_ttl", MarketDataCacheTTL.NEWS_FEED_LATEST.value
+        )
+        self.news_ticker_cache_ttl: int = options.kwargs.get(
+            "news_ticker_cache_ttl", MarketDataCacheTTL.NEWS_TICKER.value
+        )
+
     async def rehydrate(self):
         """No-op — stateless analyzer; no Redis state to restore."""
         pass
@@ -76,7 +84,7 @@ class FinlightDataAnalyzer(Analyzer):
         results: List[MarketDataAnalyzerResult] = [MarketDataAnalyzerResult(
             data=data,
             cache_key=MarketDataPubSubKeys.NEWS_FEED_LATEST.value,
-            cache_ttl=MarketDataCacheTTL.NEWS_FEED_LATEST.value,
+            cache_ttl=self.news_feed_cache_ttl,
             publish_key=MarketDataPubSubKeys.NEWS_FEED_LATEST.value,
             cache_list_max=self.news_feed_list_max,
         )]
@@ -96,7 +104,7 @@ class FinlightDataAnalyzer(Analyzer):
             results.append(MarketDataAnalyzerResult(
                 data=data,
                 cache_key=MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker=ticker),
-                cache_ttl=MarketDataCacheTTL.NEWS_TICKER.value,
+                cache_ttl=self.news_ticker_cache_ttl,
                 publish_key=MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker=ticker),
                 cache_list_max=self.news_ticker_list_max,
             ))
