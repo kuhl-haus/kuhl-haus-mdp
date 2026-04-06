@@ -621,3 +621,134 @@ async def test_fda_analyze_data_with_kwargs_override_expect_custom_ticker_limit(
     )
     assert ticker_result.cache_list_max == 42
 
+
+
+# ── news_feed_cache_ttl / news_ticker_cache_ttl (issue kuhl-haus-project-roadmap#1) ─
+
+
+@pytest.mark.asyncio
+async def test_fda_init_with_no_kwargs_expect_ttl_enum_defaults():
+    """news_feed_cache_ttl and news_ticker_cache_ttl default to enum values."""
+    # Arrange / Act
+    opts = AnalyzerOptions(redis_url="redis://localhost")
+    sut = FinlightDataAnalyzer(opts)
+
+    # Assert
+    assert sut.news_feed_cache_ttl == MarketDataCacheTTL.NEWS_FEED_LATEST.value
+    assert sut.news_ticker_cache_ttl == MarketDataCacheTTL.NEWS_TICKER.value
+
+
+@pytest.mark.asyncio
+async def test_fda_init_with_ttl_kwargs_expect_custom_ttls():
+    """kwargs override takes effect for both TTL attributes."""
+    # Arrange / Act
+    opts = AnalyzerOptions(
+        redis_url="redis://localhost",
+        kwargs={"news_feed_cache_ttl": 3600, "news_ticker_cache_ttl": 7200},
+    )
+    sut = FinlightDataAnalyzer(opts)
+
+    # Assert
+    assert sut.news_feed_cache_ttl == 3600
+    assert sut.news_ticker_cache_ttl == 7200
+
+
+@pytest.mark.asyncio
+async def test_fda_analyze_data_with_default_feed_ttl_expect_enum_value():
+    """Feed result cache_ttl uses MarketDataCacheTTL.NEWS_FEED_LATEST by default."""
+    # Arrange
+    opts = AnalyzerOptions(redis_url="redis://localhost")
+    sut = FinlightDataAnalyzer(opts)
+    article = _raw_article()
+
+    # Act
+    results = await sut.analyze_data(article)
+
+    # Assert
+    feed = next(r for r in results if r.publish_key == MarketDataPubSubKeys.NEWS_FEED_LATEST.value)
+    assert feed.cache_ttl == MarketDataCacheTTL.NEWS_FEED_LATEST.value
+
+
+@pytest.mark.asyncio
+async def test_fda_analyze_data_with_custom_feed_ttl_expect_override_used():
+    """Feed result cache_ttl uses the kwarg-overridden value."""
+    # Arrange
+    custom_ttl = 3600
+    opts = AnalyzerOptions(
+        redis_url="redis://localhost",
+        kwargs={"news_feed_cache_ttl": custom_ttl},
+    )
+    sut = FinlightDataAnalyzer(opts)
+    article = _raw_article()
+
+    # Act
+    results = await sut.analyze_data(article)
+
+    # Assert
+    feed = next(r for r in results if r.publish_key == MarketDataPubSubKeys.NEWS_FEED_LATEST.value)
+    assert feed.cache_ttl == custom_ttl
+
+
+@pytest.mark.asyncio
+async def test_fda_analyze_data_with_default_ticker_ttl_expect_enum_value():
+    """Ticker result cache_ttl uses MarketDataCacheTTL.NEWS_TICKER by default."""
+    # Arrange
+    opts = AnalyzerOptions(redis_url="redis://localhost")
+    sut = FinlightDataAnalyzer(opts)
+    article = _enhanced_article(companies=[_company("AAPL", "XNAS")])
+
+    # Act
+    results = await sut.analyze_data(article)
+
+    # Assert
+    ticker = next(
+        r for r in results
+        if r.publish_key == MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="AAPL")
+    )
+    assert ticker.cache_ttl == MarketDataCacheTTL.NEWS_TICKER.value
+
+
+@pytest.mark.asyncio
+async def test_fda_analyze_data_with_custom_ticker_ttl_expect_override_used():
+    """Ticker result cache_ttl uses the kwarg-overridden value."""
+    # Arrange
+    custom_ttl = 7200
+    opts = AnalyzerOptions(
+        redis_url="redis://localhost",
+        kwargs={"news_ticker_cache_ttl": custom_ttl},
+    )
+    sut = FinlightDataAnalyzer(opts)
+    article = _enhanced_article(companies=[_company("AAPL", "XNAS")])
+
+    # Act
+    results = await sut.analyze_data(article)
+
+    # Assert
+    ticker = next(
+        r for r in results
+        if r.publish_key == MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="AAPL")
+    )
+    assert ticker.cache_ttl == custom_ttl
+
+
+@pytest.mark.asyncio
+async def test_fda_analyze_data_with_custom_ticker_ttl_expect_raw_ticker_override_used():
+    """Raw-mode ticker result also uses the kwarg-overridden TTL."""
+    # Arrange
+    custom_ttl = 1800
+    opts = AnalyzerOptions(
+        redis_url="redis://localhost",
+        kwargs={"news_ticker_cache_ttl": custom_ttl},
+    )
+    sut = FinlightDataAnalyzer(opts)
+    article = _raw_article(title="Apple (Nasdaq: AAPL) beats estimates")
+
+    # Act
+    results = await sut.analyze_data(article)
+
+    # Assert
+    ticker = next(
+        r for r in results
+        if r.publish_key == MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="AAPL")
+    )
+    assert ticker.cache_ttl == custom_ttl
