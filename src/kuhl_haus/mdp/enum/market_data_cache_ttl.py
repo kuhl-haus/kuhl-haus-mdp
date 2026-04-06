@@ -11,10 +11,12 @@ from kuhl_haus.mdp.enum.constants import (
     ONE_DAY,
     ONE_HOUR,
     ONE_MINUTE,
+    SEVEN_DAYS,
     SIX_HOURS,
     THIRTY_SECONDS,
     THREE_DAYS,
     TWELVE_HOURS,
+    TWO_DAYS,
 )
 
 
@@ -66,5 +68,5 @@ class MarketDataCacheTTL(Enum):
     TOP_GAPPERS_SCANNER = THREE_DAYS
 
     # Finlight news caches
-    NEWS_FEED_LATEST = ONE_DAY
-    NEWS_TICKER = THREE_DAYS
+    NEWS_FEED_LATEST = TWO_DAYS
+    NEWS_TICKER = SEVEN_DAYS
