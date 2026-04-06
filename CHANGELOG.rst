@@ -1,9 +1,57 @@
 =========
 Changelog
 =========
+Version 0.3.14 (2026-04-06)
+===========================
+
+- `b840b29 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/b840b29>`_ feat(FinlightDataAnalyzer): configurable cache TTLs via kwargs (#64)
+
+  * test(FinlightDataAnalyzer): failing tests for configurable cache TTLs
+
+  Tests that FAIL against the current implementation:
+
+  - test_fda_init_with_no_kwargs_expect_ttl_enum_defaults
+
+  - test_fda_init_with_ttl_kwargs_expect_custom_ttls
+
+  - test_fda_analyze_data_with_custom_feed_ttl_expect_override_used
+
+  - test_fda_analyze_data_with_custom_ticker_ttl_expect_override_used
+
+  - test_fda_analyze_data_with_custom_ticker_ttl_expect_raw_ticker_override_used
+
+  refs kuhl-haus/kuhl-haus-project-roadmap#1
+
+  * feat(FinlightDataAnalyzer): configurable cache TTLs via AnalyzerOptions.kwargs
+
+  Add news_feed_cache_ttl and news_ticker_cache_ttl attributes following
+
+  the same kwargs pattern as news_feed_list_max / news_ticker_list_max.
+
+  Both default to MarketDataCacheTTL enum values (unchanged behavior):
+
+  - news_feed_cache_ttl: MarketDataCacheTTL.NEWS_FEED_LATEST (1 day)
+
+  - news_ticker_cache_ttl: MarketDataCacheTTL.NEWS_TICKER (3 days)
+
+  docs/configuration.rst updated with NEWS_FEED_CACHE_TTL and
+
+  NEWS_TICKER_CACHE_TTL env var entries for the FDP server.
+
+  All 5 failing tests now pass. 634/634 suite green.
+
+  refs kuhl-haus/kuhl-haus-project-roadmap#1
+
+- `33250e0 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/33250e0>`_ Increase client-facing cache TTLs
+- `9e640ec <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/9e640ec>`_ Increase news cache TTLs to 2 and 7 days
+
+  Extend cache durations for news-related entries: change NEWS_FEED_LATEST from ONE_DAY to TWO_DAYS and NEWS_TICKER from THREE_DAYS to SEVEN_DAYS.
+
+
 Version 0.3.13 (2026-04-06)
 ===========================
 
+- `7bb5d76 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/7bb5d76>`_ Version 0.3.13 (2026-04-06)
 - `4318781 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/4318781>`_ perf(LeaderboardAnalyzer): eliminate redundant hgetall for quote publication (#63)
 
   * test(LeaderboardAnalyzer): failing tests for issue #62 — eliminate redundant hgetall
