@@ -1,9 +1,68 @@
 =========
 Changelog
 =========
+Version 0.3.13 (2026-04-06)
+===========================
+
+- `4318781 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/4318781>`_ perf(LeaderboardAnalyzer): eliminate redundant hgetall for quote publication (#63)
+
+  * test(LeaderboardAnalyzer): failing tests for issue #62 — eliminate redundant hgetall
+
+  Tests that FAIL against the current implementation:
+
+  - test_lba_update_leaderboards_with_valid_event_expect_mapping_returned
+
+  - test_lba_update_leaderboards_with_no_symbol_expect_none_returned
+
+  - test_lba_update_leaderboards_with_pipe_error_expect_none_returned
+
+  - test_lba_analyze_data_with_symbol_expect_no_hgetall
+
+  - test_lba_analyze_data_with_no_mapping_expect_no_quote
+
+  - test_lba_analyze_data_with_publish_and_mapping_expect_no_hgetall
+
+  Two existing tests updated to reflect the new _update_leaderboards contract.
+
+  refs #62
+
+  * perf(LeaderboardAnalyzer): eliminate redundant hgetall for quote publication
+
+  _update_leaderboards now returns Optional[dict] — the mapping it already
+
+  has in memory. analyze_data uses that return value directly to build the
+
+  quote result, eliminating one hgetall round-trip per agg event per symbol.
+
+  Returns None on early exit (no symbol) or pipeline error.
+
+  No behavior change to leaderboard publishing or throttle logic.
+
+  All 6 failing tests now pass. 627/627 suite green.
+
+  refs #62
+
+- `46803c6 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/46803c6>`_ docs(CLAUDE): add bug workflow — test first directive (#61)
+- `3e66aeb <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/3e66aeb>`_ Add 'Stock Selection: Why News Matters' link
+
+  Add a new entry to the Additional Resources section in README.rst linking to the 'Stock Selection: Why News Matters' blog post. This exposes a newly published article as a reference for users.
+
+- `4946a23 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/4946a23>`_ Added FDL and FDP to C4 diagram
+- `64a53a7 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/64a53a7>`_ docs(configuration): add FDP env vars for Finlight API key and cache limits (#59)
+
+  Documents three new environment variables in the FDP configuration table:
+
+  - FINLIGHT_API_KEY: Finlight API key forwarded to AnalyzerOptions
+
+  - NEWS_FEED_LIST_MAX: override for news feed Redis list size (default 10000)
+
+  - NEWS_TICKER_LIST_MAX: override for per-ticker Redis list size (default 100)
+
+
 Version 0.3.12 (2026-04-02)
 ===========================
 
+- `65579da <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/65579da>`_ Version 0.3.12 (2026-04-02)
 - `2dd3361 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/2dd3361>`_ feat(FinlightDataAnalyzer): make cache list limits configurable via AnalyzerOptions.kwargs (#58)
 
   NEWS_FEED_LIST_MAX and NEWS_TICKER_LIST_MAX enum values remain the defaults.
