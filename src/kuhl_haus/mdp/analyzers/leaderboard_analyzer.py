@@ -79,23 +79,24 @@ class LeaderboardAnalyzer(Analyzer):
             await self._check_day_boundary()
             await self._check_market_open_reset()
 
-            # Update leaderboards atomically
-            await self._update_leaderboards(data)
+            # Update leaderboards atomically; returned mapping used for quote result
+            symbol_data = await self._update_leaderboards(data)
 
             # Always publish per-symbol quote — every instance, every agg event.
             # The leaderboard snapshots (top 500 fan-out) are throttled; the quote
             # feed is per-symbol so there is no fan-out concern.
+            #
+            # _update_leaderboards returns the mapping it just wrote to Redis so we
+            # can build the quote result without a redundant hgetall round-trip.
             symbol = data.get("symbol")
             quote_result = None
-            if symbol:
-                symbol_data = await self.redis_client.hgetall(f"symbol:{symbol}:data")
-                if symbol_data:
-                    quote_result = MarketDataAnalyzerResult(
-                        data={k: self._convert_value(v) for k, v in symbol_data.items()},
-                        cache_key=f"{MarketDataPubSubKeys.QUOTE.value}:{symbol}",
-                        cache_ttl=MarketDataCacheTTL.QUOTE.value,
-                        publish_key=f"{MarketDataPubSubKeys.QUOTE.value}:{symbol}",
-                    )
+            if symbol_data:
+                quote_result = MarketDataAnalyzerResult(
+                    data=symbol_data,
+                    cache_key=f"{MarketDataPubSubKeys.QUOTE.value}:{symbol}",
+                    cache_ttl=MarketDataCacheTTL.QUOTE.value,
+                    publish_key=f"{MarketDataPubSubKeys.QUOTE.value}:{symbol}",
+                )
 
             # Throttled leaderboard publish (only one instance publishes per second)
             should_publish = await self._check_publish_throttle()
@@ -118,16 +119,19 @@ class LeaderboardAnalyzer(Analyzer):
             raise DataAnalysisException(f"Error processing {data.get('symbol', 'unknown symbol')}", e)
 
     @tracer.start_as_current_span("lba._update_leaderboards")
-    async def _update_leaderboards(self, event: dict):
+    async def _update_leaderboards(self, event: dict) -> Optional[dict]:
         """Update Redis sorted sets and symbol metadata atomically.
 
         Fetches external metadata (snapshot, avg volume, free float) via
         MarketDataCache, calculates derived metrics (pct_change, relative_vol),
         and batches updates in a single pipeline. Trims sorted sets to top 500.
+
+        Returns the mapping dict written to Redis so the caller can build a quote
+        result without a redundant hgetall round-trip.
         """
         symbol = event.get("symbol")
         if not symbol:
-            return
+            return None
 
         accumulated_volume = event.get("accumulated_volume", 0)
         close = event.get("close", 0)
@@ -207,6 +211,9 @@ class LeaderboardAnalyzer(Analyzer):
         except Exception as e:
             self.logger.error(f"mapping: {mapping}")
             self.logger.error(f"Error updating leaderboards for {symbol}: {e}")
+            return None
+
+        return mapping
 
     @tracer.start_as_current_span("lba._build_leaderboard_results")
     async def _build_leaderboard_results(self, limit: int = 500) -> List[MarketDataAnalyzerResult]:
