@@ -8,6 +8,7 @@ from enum import Enum
 from kuhl_haus.mdp.enum.constants import (
     EIGHT_HOURS,
     FIVE_MINUTES,
+    FOUR_DAYS,
     ONE_DAY,
     ONE_HOUR,
     ONE_MINUTE,
@@ -59,13 +60,13 @@ class MarketDataCacheTTL(Enum):
     TOP_TRADES_ALL_SYMBOLS_CACHE_TTL = ONE_MINUTE
 
     # Quote feed cache
-    QUOTE = THREE_DAYS  # Stale data > no data; timestamp in payload shows freshness
+    QUOTE = FOUR_DAYS  # Stale data > no data; timestamp in payload shows freshness
 
     # Scanner caches
     TOP_STOCKS_SCANNER = EIGHT_HOURS
-    TOP_VOLUME_SCANNER = THREE_DAYS
-    TOP_GAINERS_SCANNER = THREE_DAYS
-    TOP_GAPPERS_SCANNER = THREE_DAYS
+    TOP_VOLUME_SCANNER = FOUR_DAYS
+    TOP_GAINERS_SCANNER = FOUR_DAYS
+    TOP_GAPPERS_SCANNER = FOUR_DAYS
 
     # Finlight news caches
     NEWS_FEED_LATEST = TWO_DAYS
