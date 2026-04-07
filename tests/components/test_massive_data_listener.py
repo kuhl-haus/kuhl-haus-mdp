@@ -440,63 +440,73 @@ async def test_mdl_async_task_with_fatal_error_expect_stop_called(
         mock_stop.assert_awaited_once()
 
 
-# ── is_market_open + MDL resilience (issue #66) ────────────────────────────────
+# ── market_is_open + MDL resilience (issue #66) ────────────────────────────────
 
 
-def test_mdl_is_market_open_with_open_market_expect_true(sut, mock_rest_client):
-    """is_market_open() returns True when market status is not CLOSED."""
+@pytest.mark.asyncio
+async def test_mdl_market_is_open_with_open_market_expect_true(sut, mock_rest_client):
+    """market_is_open() returns True when market status is not CLOSED."""
     # Arrange
     market_status = MagicMock(spec=MarketStatus)
     market_status.market = "OPEN"
     mock_rest_client.return_value.get_market_status.return_value = market_status
 
     # Act
-    result = sut.is_market_open()
+    result = await sut.market_is_open()
 
     # Assert
     assert result is True
 
 
-def test_mdl_is_market_open_with_closed_market_expect_false(sut, mock_rest_client):
-    """is_market_open() returns False when market is CLOSED."""
+@pytest.mark.asyncio
+async def test_mdl_market_is_open_with_closed_market_expect_false(sut, mock_rest_client):
+    """market_is_open() returns False when market is CLOSED."""
     # Arrange
     market_status = MagicMock(spec=MarketStatus)
     market_status.market = MarketStatusValue.CLOSED.value
     mock_rest_client.return_value.get_market_status.return_value = market_status
 
     # Act
-    result = sut.is_market_open()
+    result = await sut.market_is_open()
 
     # Assert
     assert result is False
 
 
-def test_mdl_is_market_open_with_none_market_expect_false(sut, mock_rest_client):
-    """is_market_open() returns False when market status is None."""
+@pytest.mark.asyncio
+async def test_mdl_market_is_open_with_none_market_expect_false(sut, mock_rest_client):
+    """market_is_open() returns False when market status is None."""
     # Arrange
     market_status = MagicMock(spec=MarketStatus)
     market_status.market = None
     mock_rest_client.return_value.get_market_status.return_value = market_status
 
     # Act
-    result = sut.is_market_open()
+    result = await sut.market_is_open()
 
     # Assert
     assert result is False
 
 
-def test_mdl_is_market_open_with_dns_error_expect_false(sut, mock_rest_client):
-    """is_market_open() returns False (does not raise) on network failure."""
-    # Arrange
+@pytest.mark.asyncio
+async def test_mdl_market_is_open_with_dns_error_expect_raise_after_retries(sut, mock_rest_client):
+    """market_is_open() raises after exhausting max_reconnects retries.
+
+    The caller (async_task outer except) catches this, marks healthy=False,
+    and calls stop() so k8s can kill the pod.
+    """
+    # Arrange — always fail, exhaust all retries
+    sut.max_reconnects = 2
     mock_rest_client.return_value.get_market_status.side_effect = Exception(
         "HTTPSConnectionPool: Max retries exceeded (NameResolutionError)"
     )
 
-    # Act
-    result = sut.is_market_open()
+    # Act / Assert — must raise after max_reconnects attempts
+    with pytest.raises(Exception, match="Max retries exceeded"):
+        await sut.market_is_open()
 
-    # Assert — must not raise; returns False so caller can retry
-    assert result is False
+    # Assert — called exactly max_reconnects times
+    assert mock_rest_client.return_value.get_market_status.call_count == sut.max_reconnects
 
 
 @pytest.mark.asyncio

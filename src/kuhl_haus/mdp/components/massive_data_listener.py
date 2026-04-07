@@ -178,6 +178,35 @@ class MassiveDataListener:
         except Exception as e:
             self.logger.error(f"Error restarting WebSocket client: {e}")
 
+    async def market_is_open(self) -> bool:
+        """Check market status via REST API with exponential backoff.
+
+        Retries up to max_reconnects times on transient network failures
+        (DNS errors, timeouts, etc.). Returns False on all failures so the
+        caller can decide whether to retry or give up.
+
+        Returns:
+            True if market is open, False if closed or on any exception.
+        """
+        delay = 1
+        for attempt in range(1, (self.max_reconnects or 1) + 1):
+            try:
+                market_status: MarketStatus = self.rest_client.get_market_status()
+                return (
+                    market_status.market is not None
+                    and market_status.market != MarketStatusValue.CLOSED.value
+                )
+            except Exception as e:
+                if attempt >= (self.max_reconnects or 1):
+                    raise
+                self.logger.warning(
+                    f"get_market_status() failed (attempt {attempt}/{self.max_reconnects}): "
+                    f"{e} — retrying in {delay}s"
+                )
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, 60)
+        return False  # unreachable but satisfies type checker
+
     async def async_task(self):
         """Connect to Massive WebSocket and handle disconnections.
 
@@ -201,15 +230,7 @@ class MassiveDataListener:
             self.logger.info("Disconnected from market data provider...")
             pending_restart = True
             while pending_restart:
-                market_status: MarketStatus = (
-                    self.rest_client.get_market_status()
-                )
-                market_open: bool = (
-                    market_status.market is not None
-                    and market_status.market != MarketStatusValue.CLOSED.value
-                )
-
-                if market_open:
+                if await self.market_is_open():
                     self.connection_status["reconnects"] += 1
                     self.logger.info(
                         f"Reconnection attempt "
@@ -218,10 +239,7 @@ class MassiveDataListener:
                     await self.start()
                     pending_restart = False
                 else:
-                    self.logger.info(
-                        f"Market status is ({market_status.market}), "
-                        f"sleeping..."
-                    )
+                    self.logger.info("Market is closed, sleeping...")
                     await asyncio.sleep(60)
         except Exception as e:
             self.connection_status["healthy"] = False
