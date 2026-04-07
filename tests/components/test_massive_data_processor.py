@@ -48,12 +48,14 @@ def mock_analyzer_class():
 
 @pytest.fixture
 def sut(mock_meter, mock_setup_logging, mock_analyzer_class):
+    from kuhl_haus.mdp.analyzers.analyzer import AnalyzerOptions
+    opts = AnalyzerOptions(redis_url="redis://mdc:6379/0", massive_api_key="test_key")
     return MassiveDataProcessor(
         rabbitmq_url="amqp://guest:guest@localhost/",
         queue_name="test_queue",
-        redis_url="redis://localhost",
-        massive_api_key="test_key",
+        redis_url="redis://wdc:6379/1",
         analyzer_class=mock_analyzer_class,
+        analyzer_options=opts,
         prefetch_count=50,
         max_concurrent_tasks=100,
     )
@@ -66,12 +68,14 @@ def test_mdp_init_with_valid_params_expect_attrs_set(
     mock_meter, mock_setup_logging, mock_analyzer_class
 ):
     # Arrange / Act
+    from kuhl_haus.mdp.analyzers.analyzer import AnalyzerOptions
+    opts = AnalyzerOptions(redis_url="redis://mdc:6379/0", massive_api_key="key1")
     sut = MassiveDataProcessor(
         rabbitmq_url="amqp://localhost/",
         queue_name="q1",
-        redis_url="redis://localhost",
-        massive_api_key="key1",
+        redis_url="redis://wdc:6379/1",
         analyzer_class=mock_analyzer_class,
+        analyzer_options=opts,
         prefetch_count=10,
         max_concurrent_tasks=20,
     )
@@ -79,8 +83,8 @@ def test_mdp_init_with_valid_params_expect_attrs_set(
     # Assert
     assert sut.rabbitmq_url == "amqp://localhost/"
     assert sut.queue_name == "q1"
-    assert sut.redis_url == "redis://localhost"
-    assert sut.massive_api_key == "key1"
+    assert sut.redis_url == "redis://wdc:6379/1"
+    assert sut.analyzer_options.massive_api_key == "key1"
     assert sut.prefetch_count == 10
     assert sut.max_concurrent_tasks == 20
     assert sut.processed == 0
@@ -100,12 +104,14 @@ def test_mdp_init_with_defaults_expect_default_concurrency(
     mock_meter, mock_setup_logging, mock_analyzer_class
 ):
     # Arrange / Act
+    from kuhl_haus.mdp.analyzers.analyzer import AnalyzerOptions
+    opts = AnalyzerOptions(redis_url="redis://mdc:6379/0", massive_api_key="key1")
     sut = MassiveDataProcessor(
         rabbitmq_url="amqp://localhost/",
         queue_name="q1",
-        redis_url="redis://localhost",
-        massive_api_key="key1",
+        redis_url="redis://wdc:6379/1",
         analyzer_class=mock_analyzer_class,
+        analyzer_options=opts,
     )
 
     # Assert
