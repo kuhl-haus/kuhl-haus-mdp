@@ -54,15 +54,14 @@ class MassiveDataProcessor:
         rabbitmq_url: str,
         queue_name: str,
         redis_url: str,
-        massive_api_key: str,
         analyzer_class: Any,
+        analyzer_options: AnalyzerOptions,
         prefetch_count: int = 100,  # Higher for async throughput
         max_concurrent_tasks: int = 500,  # Concurrent processing limit
     ):
         self.rabbitmq_url = rabbitmq_url
         self.queue_name = queue_name
         self.redis_url = redis_url
-        self.massive_api_key = massive_api_key
         self.prefetch_count = prefetch_count
         self.max_concurrent_tasks = max_concurrent_tasks
 
@@ -75,7 +74,7 @@ class MassiveDataProcessor:
         # Analyzer
         self.analyzer: Analyzer = None
         self.analyzer_class = analyzer_class
-        self.analyzer_options = AnalyzerOptions(redis_url=redis_url, massive_api_key=massive_api_key)
+        self.analyzer_options = analyzer_options
 
         # Concurrency control
         self.semaphore = asyncio.Semaphore(max_concurrent_tasks)
