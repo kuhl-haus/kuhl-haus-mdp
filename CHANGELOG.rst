@@ -1,9 +1,74 @@
 =========
 Changelog
 =========
+Version 0.3.15 (2026-04-07)
+===========================
+
+- `a9b19a6 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/a9b19a6>`_ fix(MDL): add is_market_open() + exponential backoff for transient DNS failures (#67)
+
+  * test(MDL): failing tests for is_market_open(), exponential backoff, and max_reconnects retry limit
+
+  Tests that FAIL against the current implementation:
+
+  - test_mdl_is_market_open_with_open_market_expect_true
+
+  - test_mdl_is_market_open_with_closed_market_expect_false
+
+  - test_mdl_is_market_open_with_none_market_expect_false
+
+  - test_mdl_is_market_open_with_dns_error_expect_false
+
+  - test_mdl_async_task_with_transient_dns_error_expect_retry_not_fatal
+
+  - test_mdl_async_task_with_max_retries_exhausted_expect_fatal
+
+  (asserts get_market_status called exactly max_reconnects times before giving up)
+
+  Reuses max_reconnects as the retry limit — no new constructor param.
+
+  refs #66
+
+  * fix(MDL): add market_is_open() with exponential backoff and max_reconnects retry limit
+
+  Extracts get_market_status() call into market_is_open() -> bool with:
+
+  - Exponential backoff: 1s → 2 → 4 → 8 → 16 → 32 → 60s cap
+
+  - Retries up to max_reconnects times (reuses existing param, no API change)
+
+  - Re-raises on exhaustion so the outer except fires: healthy=False,
+
+  stop() called, k8s liveness probe kills the pod
+
+  async_task reconnect loop now calls await market_is_open() — flat,
+
+  readable, no nesting.
+
+  Transient DNS failures (blip < max_reconnects) are retried silently.
+
+  Persistent failures exhaust retries and fail fast via the fatal handler.
+
+  All 6 failing tests now pass. 640/640 suite green.
+
+  refs #66
+
+- `91dee10 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/91dee10>`_ Adjust connection healthy flag handling
+
+  Do not mark connection as unhealthy when performing a reconnection attempt; only set connection_status['healthy'] = False on unhandled exceptions. Move the healthy flag update into the exception handler and update tests accordingly (expect healthy True during reconnection attempts, and healthy False on stop/fatal error cases).
+
+- `15009d7 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/15009d7>`_ docs: fix NEWS_FEED_CACHE_TTL and NEWS_TICKER_CACHE_TTL default values (#65)
+
+  NEWS_FEED_LATEST = TWO_DAYS = 172800 (not 86400)
+
+  NEWS_TICKER = SEVEN_DAYS = 604800 (not 259200)
+
+  Tom increased both TTLs today; documentation was using stale values.
+
+
 Version 0.3.14 (2026-04-06)
 ===========================
 
+- `4a7c6d4 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/4a7c6d4>`_ Version 0.3.14 (2026-04-06)
 - `b840b29 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/b840b29>`_ feat(FinlightDataAnalyzer): configurable cache TTLs via kwargs (#64)
 
   * test(FinlightDataAnalyzer): failing tests for configurable cache TTLs
