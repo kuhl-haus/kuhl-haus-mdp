@@ -438,3 +438,132 @@ async def test_mdl_async_task_with_fatal_error_expect_stop_called(
         # Assert
         assert sut.connection_status["healthy"] is False
         mock_stop.assert_awaited_once()
+
+
+# ── is_market_open + MDL resilience (issue #66) ────────────────────────────────
+
+
+def test_mdl_is_market_open_with_open_market_expect_true(sut, mock_rest_client):
+    """is_market_open() returns True when market status is not CLOSED."""
+    # Arrange
+    market_status = MagicMock(spec=MarketStatus)
+    market_status.market = "OPEN"
+    mock_rest_client.return_value.get_market_status.return_value = market_status
+
+    # Act
+    result = sut.is_market_open()
+
+    # Assert
+    assert result is True
+
+
+def test_mdl_is_market_open_with_closed_market_expect_false(sut, mock_rest_client):
+    """is_market_open() returns False when market is CLOSED."""
+    # Arrange
+    market_status = MagicMock(spec=MarketStatus)
+    market_status.market = MarketStatusValue.CLOSED.value
+    mock_rest_client.return_value.get_market_status.return_value = market_status
+
+    # Act
+    result = sut.is_market_open()
+
+    # Assert
+    assert result is False
+
+
+def test_mdl_is_market_open_with_none_market_expect_false(sut, mock_rest_client):
+    """is_market_open() returns False when market status is None."""
+    # Arrange
+    market_status = MagicMock(spec=MarketStatus)
+    market_status.market = None
+    mock_rest_client.return_value.get_market_status.return_value = market_status
+
+    # Act
+    result = sut.is_market_open()
+
+    # Assert
+    assert result is False
+
+
+def test_mdl_is_market_open_with_dns_error_expect_false(sut, mock_rest_client):
+    """is_market_open() returns False (does not raise) on network failure."""
+    # Arrange
+    mock_rest_client.return_value.get_market_status.side_effect = Exception(
+        "HTTPSConnectionPool: Max retries exceeded (NameResolutionError)"
+    )
+
+    # Act
+    result = sut.is_market_open()
+
+    # Assert — must not raise; returns False so caller can retry
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_mdl_async_task_with_transient_dns_error_expect_retry_not_fatal(
+    sut, mock_ws_client, mock_rest_client
+):
+    """Transient get_market_status() failures must not kill the reconnect loop.
+
+    The MDL should retry with exponential backoff and recover when the
+    call eventually succeeds, rather than propagating to the fatal handler.
+    """
+    # Arrange
+    sut.ws_connection = mock_ws_client.return_value
+
+    market_status_open = MagicMock(spec=MarketStatus)
+    market_status_open.market = "OPEN"
+
+    # First two calls fail (DNS), third succeeds (open)
+    mock_rest_client.return_value.get_market_status.side_effect = [
+        Exception("DNS failure"),
+        Exception("DNS failure"),
+        market_status_open,
+        MagicMock(market=MarketStatusValue.CLOSED.value),  # exit loop
+    ]
+
+    with patch("asyncio.gather", new_callable=AsyncMock) as mock_gather, \
+         patch.object(sut, "start", new_callable=AsyncMock) as mock_start, \
+         patch("asyncio.sleep", new_callable=AsyncMock):
+        # Act
+        await sut.async_task()
+
+    # Assert — start was called after recovery (not fatal)
+    mock_start.assert_awaited_once()
+    # Assert — MDL is still healthy after transient errors
+    assert sut.connection_status["healthy"] is True
+    # Clean up
+    args, _ = mock_gather.await_args
+    await args[0]
+
+
+
+@pytest.mark.asyncio
+async def test_mdl_async_task_with_max_retries_exhausted_expect_fatal(
+    sut, mock_ws_client, mock_rest_client
+):
+    """When get_market_status() fails max_reconnects times, the error must propagate
+    to the fatal handler — healthy=False, stop() called, pod becomes unhealthy.
+
+    Critically: it must retry exactly max_reconnects times before giving up,
+    NOT fail immediately on the first error (which is the current broken behavior).
+    """
+    # Arrange
+    sut.ws_connection = mock_ws_client.return_value
+    sut.max_reconnects = 3  # reuse max_reconnects as the retry limit
+    mock_rest_client.return_value.get_market_status.side_effect = Exception("DNS failure")
+
+    with patch("asyncio.gather", new_callable=AsyncMock) as mock_gather, \
+         patch.object(sut, "stop", new_callable=AsyncMock) as mock_stop, \
+         patch("asyncio.sleep", new_callable=AsyncMock):
+        # Act
+        await sut.async_task()
+
+    # Assert — stop was called and pod marked unhealthy
+    mock_stop.assert_awaited_once()
+    assert sut.connection_status["healthy"] is False
+    # Assert — get_market_status was called exactly max_reconnects times before giving up
+    assert mock_rest_client.return_value.get_market_status.call_count == sut.max_reconnects
+    # Clean up
+    args, _ = mock_gather.await_args
+    await args[0]
