@@ -210,7 +210,6 @@ class MassiveDataListener:
                 )
 
                 if market_open:
-                    self.connection_status["healthy"] = False
                     self.connection_status["reconnects"] += 1
                     self.logger.info(
                         f"Reconnection attempt "
@@ -225,6 +224,7 @@ class MassiveDataListener:
                     )
                     await asyncio.sleep(60)
         except Exception as e:
+            self.connection_status["healthy"] = False
             self.logger.error(
                 f"Unhandled exception thrown: {e}",
                 exc_info=True,

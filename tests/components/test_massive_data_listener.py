@@ -183,6 +183,7 @@ async def test_mdl_stop_with_exception_expect_error_logged_and_state_reset(
 
     # Assert
     assert sut.connection_status["connected"] is False
+    assert sut.connection_status["healthy"] is False
     assert sut.ws_connection is None
     assert sut.ws_coroutine is None
     assert "Cancel Error" in caplog.text
@@ -383,7 +384,7 @@ async def test_mdl_async_task_with_recon_expect_recon_attempted(
         # Assert
         mock_start.assert_awaited_once()
         assert sut.connection_status["reconnects"] == 1
-        assert sut.connection_status["healthy"] is False
+        assert sut.connection_status["healthy"] is True
         # Clean up awaited coroutines from gather
         args, _ = mock_gather.await_args
         await args[0]
@@ -435,4 +436,5 @@ async def test_mdl_async_task_with_fatal_error_expect_stop_called(
         await sut.async_task()
 
         # Assert
+        assert sut.connection_status["healthy"] is False
         mock_stop.assert_awaited_once()
