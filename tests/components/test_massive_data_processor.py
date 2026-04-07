@@ -700,3 +700,99 @@ async def test_mdp_stop_with_no_conns_expect_no_errors(
     assert sut.running is False
 
 
+
+
+# ── Issue #68: accept AnalyzerOptions as constructor param ─────────────────────
+
+
+def test_mdp_init_with_analyzer_options_expect_used(
+    mock_meter, mock_setup_logging, mock_analyzer_class
+):
+    """MassiveDataProcessor must accept analyzer_options as a constructor param
+    and use it directly instead of constructing AnalyzerOptions internally."""
+    from kuhl_haus.mdp.analyzers.analyzer import AnalyzerOptions
+
+    # Arrange
+    opts = AnalyzerOptions(redis_url="redis://mdc:6379/0", massive_api_key="mdc-key")
+
+    # Act
+    sut = MassiveDataProcessor(
+        rabbitmq_url="amqp://localhost/",
+        queue_name="q1",
+        redis_url="redis://wdc:6379/1",
+        analyzer_class=mock_analyzer_class,
+        analyzer_options=opts,
+    )
+
+    # Assert — analyzer_options is the one we passed (MDC), not internally constructed
+    assert sut.analyzer_options is opts
+    assert sut.analyzer_options.redis_url == "redis://mdc:6379/0"
+    # WDC redis_url is separate
+    assert sut.redis_url == "redis://wdc:6379/1"
+
+
+def test_mdp_init_with_analyzer_options_expect_no_massive_api_key_param(
+    mock_meter, mock_setup_logging, mock_analyzer_class
+):
+    """massive_api_key must NOT be a top-level constructor param; it lives in AnalyzerOptions."""
+    from kuhl_haus.mdp.analyzers.analyzer import AnalyzerOptions
+    import inspect
+
+    sig = inspect.signature(MassiveDataProcessor.__init__)
+    assert "massive_api_key" not in sig.parameters, (
+        "massive_api_key should be in AnalyzerOptions, not MassiveDataProcessor.__init__"
+    )
+    assert "analyzer_options" in sig.parameters
+
+
+def test_mdp_init_with_analyzer_options_expect_analyzer_class_before_options(
+    mock_meter, mock_setup_logging, mock_analyzer_class
+):
+    """Parameter order must be: redis_url, analyzer_class, analyzer_options."""
+    import inspect
+
+    sig = inspect.signature(MassiveDataProcessor.__init__)
+    params = list(sig.parameters.keys())
+    redis_idx = params.index("redis_url")
+    cls_idx = params.index("analyzer_class")
+    opts_idx = params.index("analyzer_options")
+    assert redis_idx < cls_idx < opts_idx, (
+        f"Expected redis_url < analyzer_class < analyzer_options, got positions "
+        f"{redis_idx} < {cls_idx} < {opts_idx}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_mdp_start_uses_analyzer_options_for_analyzer_instantiation(
+    mock_meter, mock_setup_logging, mock_analyzer_class
+):
+    """On start(), the analyzer must be instantiated with the provided analyzer_options."""
+    from kuhl_haus.mdp.analyzers.analyzer import AnalyzerOptions
+
+    opts = AnalyzerOptions(redis_url="redis://mdc:6379/0", massive_api_key="mdc-key")
+    sut = MassiveDataProcessor(
+        rabbitmq_url="amqp://localhost/",
+        queue_name="q",
+        redis_url="redis://wdc:6379/1",
+        analyzer_class=mock_analyzer_class,
+        analyzer_options=opts,
+    )
+
+    mock_queue = AsyncMock()
+    mock_queue.consume = AsyncMock()
+
+    with patch.object(sut, "connect", new_callable=AsyncMock), \
+         patch.object(sut, "stop", new_callable=AsyncMock), \
+         patch("asyncio.sleep", side_effect=[None, asyncio.CancelledError()]):
+        sut.mdc_connected = True
+        sut.mdq_connected = True
+        sut.rmq_channel = MagicMock()
+        sut.rmq_channel.get_queue = AsyncMock(return_value=mock_queue)
+
+        try:
+            await sut.start()
+        except asyncio.CancelledError:
+            pass
+
+    # Assert — analyzer instantiated with our analyzer_options
+    mock_analyzer_class.assert_called_once_with(options=opts)
