@@ -733,3 +733,76 @@ async def test_mds_process_msg_with_analyzer_exception_expect_continues(
     assert sut.errors == 1
     assert sut.processed == 1
     assert sut.published_results == 1
+
+
+# ── Issue #69: accept AnalyzerOptions as constructor param ─────────────────────
+
+
+def test_mds_init_with_analyzer_options_expect_used():
+    """MarketDataScanner must accept analyzer_options as a constructor param
+    and use it instead of storing massive_api_key flat."""
+    from kuhl_haus.mdp.analyzers.analyzer import AnalyzerOptions
+    from kuhl_haus.mdp.components.market_data_scanner import MarketDataScanner
+
+    opts = AnalyzerOptions(redis_url="redis://mdc:6379/0", massive_api_key="mdc-key")
+    sut = MarketDataScanner(
+        redis_url="redis://wdc:6379/1",
+        subscriptions=["scanners:*"],
+        analyzer_class=MagicMock(),
+        analyzer_options=opts,
+    )
+
+    assert sut.analyzer_options is opts
+    assert sut.analyzer_options.massive_api_key == "mdc-key"
+    assert sut.redis_url == "redis://wdc:6379/1"
+
+
+def test_mds_init_with_analyzer_options_expect_no_massive_api_key_param():
+    """massive_api_key must NOT be a top-level constructor param; it lives in AnalyzerOptions."""
+    import inspect
+    from kuhl_haus.mdp.components.market_data_scanner import MarketDataScanner
+
+    sig = inspect.signature(MarketDataScanner.__init__)
+    assert "massive_api_key" not in sig.parameters
+    assert "analyzer_options" in sig.parameters
+
+
+def test_mds_init_with_analyzer_options_expect_correct_param_order():
+    """Parameter order: redis_url, subscriptions, analyzer_class, analyzer_options."""
+    import inspect
+    from kuhl_haus.mdp.components.market_data_scanner import MarketDataScanner
+
+    sig = inspect.signature(MarketDataScanner.__init__)
+    params = list(sig.parameters.keys())
+    redis_idx = params.index("redis_url")
+    subs_idx = params.index("subscriptions")
+    cls_idx = params.index("analyzer_class")
+    opts_idx = params.index("analyzer_options")
+    assert redis_idx < subs_idx < cls_idx < opts_idx
+
+
+@pytest.mark.asyncio
+async def test_mds_connect_uses_analyzer_options_for_rest_client():
+    """connect() must build RESTClient from analyzer_options.massive_api_key (MDC),
+    not from a flat massive_api_key param."""
+    from kuhl_haus.mdp.analyzers.analyzer import AnalyzerOptions
+    from kuhl_haus.mdp.components.market_data_scanner import MarketDataScanner
+
+    opts = AnalyzerOptions(redis_url="redis://mdc:6379/0", massive_api_key="mdc-key")
+    sut = MarketDataScanner(
+        redis_url="redis://wdc:6379/1",
+        subscriptions=["scanners:*"],
+        analyzer_class=MagicMock(),
+        analyzer_options=opts,
+    )
+
+    mock_redis = AsyncMock()
+    mock_redis.ping = AsyncMock()
+
+    with patch("kuhl_haus.mdp.components.market_data_scanner.aioredis.from_url", return_value=mock_redis), \
+         patch("kuhl_haus.mdp.components.market_data_scanner.RESTClient") as mock_rest, \
+         patch("kuhl_haus.mdp.components.market_data_scanner.MarketDataCache"):
+        await sut.connect()
+
+    # RESTClient must be instantiated with MDC api key
+    mock_rest.assert_called_once_with(api_key="mdc-key")
