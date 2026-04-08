@@ -20,10 +20,8 @@ from kuhl_haus.mdp.analyzers.analyzer import Analyzer, AnalyzerOptions
 from kuhl_haus.mdp.components.market_data_cache import MarketDataCache
 from kuhl_haus.mdp.data.market_data_analyzer_result import MarketDataAnalyzerResult
 from kuhl_haus.mdp.data.top_stocks_cache_item import TopStocksCacheItem
-from kuhl_haus.mdp.enum.market_data_cache_keys import MarketDataCacheKeys
-from kuhl_haus.mdp.enum.market_data_cache_ttl import MarketDataCacheTTL
-from kuhl_haus.mdp.enum.market_data_pubsub_keys import MarketDataPubSubKeys
-
+from kuhl_haus.mdp.enum.widget_data_cache_keys import WidgetDataCacheKeys
+from kuhl_haus.mdp.enum.widget_data_cache_ttl import WidgetDataCacheTTL
 
 class TopStocksAnalyzer(Analyzer):
     """In-memory leaderboard analyzer (single-instance).
@@ -44,7 +42,7 @@ class TopStocksAnalyzer(Analyzer):
             rest_client=self.rest_client,
             redis_client=self.redis_client,
         )
-        self.cache_key = MarketDataCacheKeys.TOP_STOCKS_SCANNER.value
+        self.cache_key = WidgetDataCacheKeys.TOP_STOCKS_SCANNER.value
         self.logger = logging.getLogger(__name__)
         self.cache_item = TopStocksCacheItem()
         self.last_update_time = 0
@@ -126,25 +124,25 @@ class TopStocksAnalyzer(Analyzer):
             MarketDataAnalyzerResult(
                 data=self.cache_item.to_dict(),
                 cache_key=self.cache_key,
-                cache_ttl=MarketDataCacheTTL.TOP_STOCKS_SCANNER.value,
+                cache_ttl=WidgetDataCacheTTL.TOP_STOCKS_SCANNER.value,
             ),
             MarketDataAnalyzerResult(
                 data=self.cache_item.top_volume(500),
-                cache_key=MarketDataPubSubKeys.TOP_VOLUME_SCANNER.value,
-                cache_ttl=MarketDataCacheTTL.TOP_VOLUME_SCANNER.value,
-                publish_key=MarketDataPubSubKeys.TOP_VOLUME_SCANNER.value,
+                cache_key=WidgetDataCacheKeys.TOP_VOLUME_SCANNER.value,
+                cache_ttl=WidgetDataCacheTTL.TOP_VOLUME_SCANNER.value,
+                publish_key=WidgetDataCacheKeys.TOP_VOLUME_SCANNER.value,
             ),
             MarketDataAnalyzerResult(
                 data=self.cache_item.top_gainers(500),
-                cache_key=MarketDataPubSubKeys.TOP_GAINERS_SCANNER.value,
-                cache_ttl=MarketDataCacheTTL.TOP_GAINERS_SCANNER.value,
-                publish_key=MarketDataPubSubKeys.TOP_GAINERS_SCANNER.value,
+                cache_key=WidgetDataCacheKeys.TOP_GAINERS_SCANNER.value,
+                cache_ttl=WidgetDataCacheTTL.TOP_GAINERS_SCANNER.value,
+                publish_key=WidgetDataCacheKeys.TOP_GAINERS_SCANNER.value,
             ),
             MarketDataAnalyzerResult(
                 data=self.cache_item.top_gappers(500),
-                cache_key=MarketDataPubSubKeys.TOP_GAPPERS_SCANNER.value,
-                cache_ttl=MarketDataCacheTTL.TOP_GAPPERS_SCANNER.value,
-                publish_key=MarketDataPubSubKeys.TOP_GAPPERS_SCANNER.value,
+                cache_key=WidgetDataCacheKeys.TOP_GAPPERS_SCANNER.value,
+                cache_ttl=WidgetDataCacheTTL.TOP_GAPPERS_SCANNER.value,
+                publish_key=WidgetDataCacheKeys.TOP_GAPPERS_SCANNER.value,
             )
         ]
 
