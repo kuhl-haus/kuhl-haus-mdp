@@ -22,7 +22,7 @@ Data Plane Components
 **Finlight Data Processor (FDP)**
   Async RabbitMQ consumer processing Finlight news articles through pluggable analyzers and writing results to Redis.
 
-**Market Data Listener (MDL)**
+**Massive Data Listener (MDL)**
   WebSocket client connecting to Massive.com, routing events to appropriate queues with minimal processing overhead.
 
 **Market Data Queues (MDQ)**
@@ -102,7 +102,7 @@ Code Libraries
 
 - **FinlightDataProcessor** (`components/finlight_data_processor.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.components.html#module-kuhl_haus.mdp.components.finlight_data_processor>`_) - Async RabbitMQ consumer with semaphore-based concurrency. Deserializes JSON article payloads directly (no WebSocketMessageSerde) and delegates to pluggable analyzers.
 
-Market Data Listener (MDL)
+Massive Data Listener (MDL)
 ---------------------------
 
 The MDL performs minimal processing on the messages. MDL inspects the message type for selecting the appropriate serialization method and destination queue. MDL implementations vary by market data provider — each provider gets its own Listener class (for example, a news-specific listener would be a separate implementation).
