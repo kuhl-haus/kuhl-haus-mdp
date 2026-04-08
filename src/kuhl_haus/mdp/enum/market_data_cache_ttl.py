@@ -7,8 +7,11 @@ longer for reference data.
 
 For WDC-facing TTLs (scanner results, quote feed, news feeds), use
 :class:`~kuhl_haus.mdp.enum.widget_data_cache_ttl.WidgetDataCacheTTL` instead.
-The following entries are deprecated as of v0.4.0 and will be removed in the
+
+The following members are deprecated as of v0.4.0 and will be removed in the
 next minor release:
+
+WDC entries (moved to WidgetDataCacheTTL):
 
 - ``QUOTE`` → :attr:`~kuhl_haus.mdp.enum.widget_data_cache_ttl.WidgetDataCacheTTL.QUOTE`
 - ``TOP_TRADES_WIDGET_CACHE_TTL`` → :attr:`~kuhl_haus.mdp.enum.widget_data_cache_ttl.WidgetDataCacheTTL.TOP_TRADES_WIDGET_CACHE_TTL`
@@ -19,6 +22,13 @@ next minor release:
 - ``TOP_GAPPERS_SCANNER`` → :attr:`~kuhl_haus.mdp.enum.widget_data_cache_ttl.WidgetDataCacheTTL.TOP_GAPPERS_SCANNER`
 - ``NEWS_FEED_LATEST`` → :attr:`~kuhl_haus.mdp.enum.widget_data_cache_ttl.WidgetDataCacheTTL.NEWS_FEED_LATEST`
 - ``NEWS_TICKER`` → :attr:`~kuhl_haus.mdp.enum.widget_data_cache_ttl.WidgetDataCacheTTL.NEWS_TICKER`
+
+No active usages found (dead code):
+
+- ``NEGATIVE_CACHE_THROTTLE``
+- ``LEADERBOARD_TOP_VOLUME``
+- ``LEADERBOARD_TOP_GAPPERS``
+- ``LEADERBOARD_TOP_GAINERS``
 """
 import warnings
 from enum import Enum
@@ -48,9 +58,9 @@ class MarketDataCacheTTL(Enum):
 
     .. deprecated::
         The following members are deprecated as of v0.4.0 and will be removed in
-        the next minor release. Use the corresponding
-        :class:`~kuhl_haus.mdp.enum.widget_data_cache_ttl.WidgetDataCacheTTL`
-        members instead:
+        the next minor release.
+
+        WDC entries — use :class:`~kuhl_haus.mdp.enum.widget_data_cache_ttl.WidgetDataCacheTTL` instead:
 
         - ``QUOTE``
         - ``TOP_TRADES_WIDGET_CACHE_TTL``
@@ -61,9 +71,17 @@ class MarketDataCacheTTL(Enum):
         - ``TOP_GAPPERS_SCANNER``
         - ``NEWS_FEED_LATEST``
         - ``NEWS_TICKER``
+
+        No active usages found (dead code):
+
+        - ``NEGATIVE_CACHE_THROTTLE``
+        - ``LEADERBOARD_TOP_VOLUME``
+        - ``LEADERBOARD_TOP_GAPPERS``
+        - ``LEADERBOARD_TOP_GAINERS``
     """
-    # Negative Cache TTLs
+    # @deprecated — no active usages
     NEGATIVE_CACHE_THROTTLE = ONE_MINUTE
+
     NEGATIVE_CACHE_SESSION = SIX_HOURS
 
     # Raw market data caches
@@ -83,8 +101,12 @@ class MarketDataCacheTTL(Enum):
 
     # Leaderboard caches
     LEADERBOARD_ANALYZER = ONE_HOUR
+
+    # @deprecated — no active usages
     LEADERBOARD_TOP_VOLUME = THREE_DAYS
+    # @deprecated — no active usages
     LEADERBOARD_TOP_GAPPERS = THREE_DAYS
+    # @deprecated — no active usages
     LEADERBOARD_TOP_GAINERS = THREE_DAYS
 
     # Top Trades caches
@@ -130,6 +152,10 @@ def _warn_deprecated_member(name: str) -> None:
 
 
 _DEPRECATED_TTL_MEMBERS = frozenset({
+    "NEGATIVE_CACHE_THROTTLE",
+    "LEADERBOARD_TOP_VOLUME",
+    "LEADERBOARD_TOP_GAPPERS",
+    "LEADERBOARD_TOP_GAINERS",
     "TOP_TRADES_WIDGET_CACHE_TTL",
     "TOP_TRADES_ALL_SYMBOLS_CACHE_TTL",
     "QUOTE",
