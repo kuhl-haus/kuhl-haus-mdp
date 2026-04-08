@@ -1,9 +1,130 @@
 =========
 Changelog
 =========
+Version 0.4.0 (2026-04-07)
+==========================
+
+- `ac7c24c <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/ac7c24c>`_ feat: introduce WidgetDataCacheKeys and WidgetDataCacheTTL enums (WDC/MDC enum split) (#73)
+
+  * test(enums): failing tests for WidgetDataCacheKeys and WidgetDataCacheTTL
+
+  19 tests that FAIL against the current implementation:
+
+  - WidgetDataCacheKeys enum does not exist yet
+
+  - WidgetDataCacheTTL enum does not exist yet
+
+  - All analyzer files still import MarketDataPubSubKeys, not WidgetDataCacheKeys
+
+  refs #70
+
+  * feat: introduce WidgetDataCacheKeys and WidgetDataCacheTTL enums
+
+  New enums:
+
+  - WidgetDataCacheKeys: all WDC-facing keys (replaces MarketDataPubSubKeys
+
+  + WDC entries from MarketDataCacheKeys)
+
+  - WidgetDataCacheTTL: all WDC-facing TTLs (split from MarketDataCacheTTL)
+
+  MarketDataPubSubKeys kept for backward compat (external consumers).
+
+  MDC entries remain in MarketDataCacheKeys / MarketDataCacheTTL.
+
+  Updated analyzers:
+
+  - LeaderboardAnalyzer: WidgetDataCacheKeys/TTL for QUOTE + scanner results
+
+  - FinlightDataAnalyzer: WidgetDataCacheKeys/TTL for news feeds
+
+  - TopStocksAnalyzer: WidgetDataCacheKeys/TTL for scanner results
+
+  - TopTradesAnalyzer: WidgetDataCacheKeys/TTL for widget cache keys/TTLs
+
+  (retains MarketDataCacheKeys/TTL for internal MDC keys)
+
+  All 19 failing tests now pass. 667/667 suite green.
+
+  refs #70
+
+- `fe71685 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/fe71685>`_ feat(MarketDataScanner): accept AnalyzerOptions as constructor param (WDC/MDC split) (#72)
+
+  * test(MarketDataScanner): failing tests for AnalyzerOptions constructor param
+
+  Tests that FAIL against the current implementation:
+
+  - test_mds_init_with_analyzer_options_expect_used
+
+  - test_mds_init_with_analyzer_options_expect_no_massive_api_key_param
+
+  - test_mds_init_with_analyzer_options_expect_correct_param_order
+
+  - test_mds_connect_uses_analyzer_options_for_rest_client
+
+  refs #69
+
+  * feat(MarketDataScanner): accept AnalyzerOptions as constructor param; remove self.mdc
+
+  - Removes massive_api_key as a top-level constructor param
+
+  - Removes self.mdc (MarketDataCache) and RESTClient — only used for incorrect
+
+  cache=self.mdc analyzer instantiation pattern
+
+  - Analyzer now instantiated with options=self.analyzer_options (correct pattern)
+
+  - redis_url is now the WDC connection for result storage
+
+  - connect() simplified: only establishes WDC Redis connection
+
+  New signature: __init__(redis_url, subscriptions, analyzer_class, analyzer_options)
+
+  All 4 failing tests now pass. 648/648 suite green.
+
+  refs #69
+
+- `dee82a3 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/dee82a3>`_ feat(MassiveDataProcessor): accept AnalyzerOptions as constructor param (WDC/MDC split) (#71)
+
+  * test(MassiveDataProcessor): failing tests for AnalyzerOptions constructor param
+
+  Tests that FAIL against the current implementation:
+
+  - test_mdp_init_with_analyzer_options_expect_used
+
+  - test_mdp_init_with_analyzer_options_expect_no_massive_api_key_param
+
+  - test_mdp_init_with_analyzer_options_expect_analyzer_class_before_options
+
+  - test_mdp_start_uses_analyzer_options_for_analyzer_instantiation
+
+  refs #68
+
+  * feat(MassiveDataProcessor): accept AnalyzerOptions as constructor param
+
+  Removes massive_api_key as a top-level constructor param. Callers must
+
+  now pass a pre-built AnalyzerOptions instance (MDC connection + api key).
+
+  The redis_url param remains but now represents the WDC connection for
+
+  result storage.
+
+  New signature: __init__(rabbitmq_url, queue_name, redis_url,
+
+  analyzer_class, analyzer_options, ...)
+
+  Matches the pattern established by FinlightDataProcessor.
+
+  All 4 failing tests now pass. 644/644 suite green.
+
+  refs #68
+
+
 Version 0.3.15 (2026-04-07)
 ===========================
 
+- `9943d54 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/9943d54>`_ Version 0.3.15 (2026-04-07)
 - `a9b19a6 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/a9b19a6>`_ fix(MDL): add is_market_open() + exponential backoff for transient DNS failures (#67)
 
   * test(MDL): failing tests for is_market_open(), exponential backoff, and max_reconnects retry limit
