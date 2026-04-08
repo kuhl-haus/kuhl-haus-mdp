@@ -1,9 +1,7 @@
 """Redis pub/sub consumer that analyzes market data and publishes derived results.
 
-Subscribes to raw market data channels in Redis, delegates analysis to pluggable
-Analyzer implementations, and publishes aggregated results back to Redis for
-real-time WebSocket delivery. Designed for single-analyzer workflows where
-incoming data maps to one output stream (e.g., leaderboard calculations).
+Scans post-processed market data using pluggable analyzers performing secondary processes such as:
+event correlation, alert generation, trend analysis, pattern recognition, etc.
 """
 import asyncio
 import json
@@ -20,10 +18,10 @@ from kuhl_haus.mdp.data.market_data_analyzer_result import MarketDataAnalyzerRes
 class MarketDataScanner:
     """Process Redis pub/sub market data through pluggable analyzers.
 
-    Listens to Redis channels for raw market data (trades, quotes, halts), passes
-    messages through an Analyzer subclass, then caches results and publishes them
-    back to Redis. Unlike MassiveDataProcessor (RabbitMQ-based), this component
-    works entirely within Redis for simpler deployments or single-analyzer use cases.
+    Listens to Redis channels and passes messages through an Analyzer subclass,
+    then caches results and publishes them back to Redis. Unlike RabbitMQ-fed processors,
+    this component works entirely within Redis as a processor of enriched market data for
+    event correlation, alert generation, trend analysis, pattern recognition, etc.
 
     Pattern/wildcard subscriptions are supported; rehydration from cache happens
     on startup to recover analyzer state after restarts.
