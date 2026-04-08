@@ -7,6 +7,7 @@ import pytest
 from kuhl_haus.mdp.components.market_data_scanner import (
     MarketDataScanner,
 )
+from kuhl_haus.mdp.analyzers.analyzer import AnalyzerOptions
 from kuhl_haus.mdp.data.market_data_analyzer_result import (
     MarketDataAnalyzerResult,
 )
@@ -54,10 +55,10 @@ def _make_scanner(subscriptions=None):
         mock_redis.pipeline.return_value = AsyncMock()
 
         scanner = MarketDataScanner(
-            redis_url="redis://localhost",
-            massive_api_key="test-key",
+            redis_url="redis://wdc:6379/1",
             subscriptions=subscriptions,
             analyzer_class=MagicMock,
+            analyzer_options=AnalyzerOptions(redis_url="redis://mdc:6379/0", massive_api_key="test-key"),
         )
     return scanner
 
@@ -96,17 +97,13 @@ def mock_analyzer():
 def sut(mock_redis, mock_analyzer):
     with patch(
         "kuhl_haus.mdp.components.market_data_scanner.aioredis"
-    ) as mock_aioredis, patch(
-        "kuhl_haus.mdp.components.market_data_scanner.RESTClient"
-    ), patch(
-        "kuhl_haus.mdp.components.market_data_scanner.MarketDataCache"
-    ):
+    ) as mock_aioredis:
         mock_aioredis.from_url.return_value = mock_redis
         scanner = MarketDataScanner(
-            redis_url="redis://localhost",
-            massive_api_key="test-key",
+            redis_url="redis://wdc:6379/1",
             subscriptions=["feed:agg:*", "feed:trades"],
             analyzer_class=MagicMock(return_value=mock_analyzer),
+            analyzer_options=AnalyzerOptions(redis_url="redis://mdc:6379/0", massive_api_key="test-key"),
         )
     return scanner
 
@@ -119,8 +116,8 @@ def test_mds_init_with_valid_params_expect_defaults():
     sut = _make_scanner(["feed:agg:*", "feed:trades"])
 
     # Assert
-    assert sut.redis_url == "redis://localhost"
-    assert sut.massive_api_key == "test-key"
+    assert sut.redis_url == "redis://wdc:6379/1"
+    assert sut.analyzer_options.massive_api_key == "test-key"
     assert sut.subscriptions == ["feed:agg:*", "feed:trades"]
     assert sut.mdc_connected is False
     assert sut.running is False
@@ -139,11 +136,7 @@ async def test_mds_connect_with_fresh_conn_expect_connected(
     # Arrange
     with patch(
         "kuhl_haus.mdp.components.market_data_scanner.aioredis"
-    ) as mock_aioredis, patch(
-        "kuhl_haus.mdp.components.market_data_scanner.RESTClient"
-    ), patch(
-        "kuhl_haus.mdp.components.market_data_scanner.MarketDataCache"
-    ):
+    ) as mock_aioredis:
         mock_aioredis.from_url.return_value = mock_redis
 
         # Act
@@ -176,11 +169,7 @@ async def test_mds_connect_with_force_expect_reconnect(
     sut.mdc_connected = True
     with patch(
         "kuhl_haus.mdp.components.market_data_scanner.aioredis"
-    ) as mock_aioredis, patch(
-        "kuhl_haus.mdp.components.market_data_scanner.RESTClient"
-    ), patch(
-        "kuhl_haus.mdp.components.market_data_scanner.MarketDataCache"
-    ):
+    ) as mock_aioredis:
         mock_aioredis.from_url.return_value = mock_redis
 
         # Act
@@ -271,7 +260,7 @@ async def test_mds_stop_with_active_conns_expect_cleanup(
 
     # Assert
     mock_task.cancel.assert_called_once()
-    mock_mdc.close.assert_awaited_once()
+    # mdc removed from MarketDataScanner — no mdc.close expected
     mock_pubsub.punsubscribe.assert_awaited_once_with("feed:agg:*")
     mock_pubsub.unsubscribe.assert_awaited_once_with("feed:trades")
     mock_pubsub.close.assert_awaited_once()
@@ -280,14 +269,12 @@ async def test_mds_stop_with_active_conns_expect_cleanup(
     assert sut.pubsub_client is None
     assert sut.redis_client is None
     assert sut._pubsub_task is None
-    assert sut.mdc is None
 
 
 @pytest.mark.asyncio
 async def test_mds_stop_with_no_conns_expect_no_errors(sut):
     # Arrange
     sut._pubsub_task = None
-    sut.mdc = None
     sut.pubsub_client = None
     sut.redis_client = None
 
@@ -632,7 +619,6 @@ async def test_mds_stop_with_cancelled_task_expect_clean_shutdown(
     # Arrange — pubsub task raises CancelledError during await
     mock_task = _FakeTaskCancelled()
     sut._pubsub_task = mock_task
-    sut.mdc = None
     sut.pubsub_client = None
     sut.redis_client = None
 
@@ -733,3 +719,74 @@ async def test_mds_process_msg_with_analyzer_exception_expect_continues(
     assert sut.errors == 1
     assert sut.processed == 1
     assert sut.published_results == 1
+
+
+# ── Issue #69: accept AnalyzerOptions as constructor param ─────────────────────
+
+
+def test_mds_init_with_analyzer_options_expect_used():
+    """MarketDataScanner must accept analyzer_options as a constructor param
+    and use it instead of storing massive_api_key flat."""
+    from kuhl_haus.mdp.analyzers.analyzer import AnalyzerOptions
+    from kuhl_haus.mdp.components.market_data_scanner import MarketDataScanner
+
+    opts = AnalyzerOptions(redis_url="redis://mdc:6379/0", massive_api_key="mdc-key")
+    sut = MarketDataScanner(
+        redis_url="redis://wdc:6379/1",
+        subscriptions=["scanners:*"],
+        analyzer_class=MagicMock(),
+        analyzer_options=opts,
+    )
+
+    assert sut.analyzer_options is opts
+    assert sut.analyzer_options.massive_api_key == "mdc-key"
+    assert sut.redis_url == "redis://wdc:6379/1"
+
+
+def test_mds_init_with_analyzer_options_expect_no_massive_api_key_param():
+    """massive_api_key must NOT be a top-level constructor param; it lives in AnalyzerOptions."""
+    import inspect
+    from kuhl_haus.mdp.components.market_data_scanner import MarketDataScanner
+
+    sig = inspect.signature(MarketDataScanner.__init__)
+    assert "massive_api_key" not in sig.parameters
+    assert "analyzer_options" in sig.parameters
+
+
+def test_mds_init_with_analyzer_options_expect_correct_param_order():
+    """Parameter order: redis_url, subscriptions, analyzer_class, analyzer_options."""
+    import inspect
+    from kuhl_haus.mdp.components.market_data_scanner import MarketDataScanner
+
+    sig = inspect.signature(MarketDataScanner.__init__)
+    params = list(sig.parameters.keys())
+    redis_idx = params.index("redis_url")
+    subs_idx = params.index("subscriptions")
+    cls_idx = params.index("analyzer_class")
+    opts_idx = params.index("analyzer_options")
+    assert redis_idx < subs_idx < cls_idx < opts_idx
+
+
+@pytest.mark.asyncio
+async def test_mds_connect_uses_analyzer_options_for_rest_client():
+    """analyzer_options is stored and available after connect() for analyzer instantiation."""
+    from kuhl_haus.mdp.analyzers.analyzer import AnalyzerOptions
+    from kuhl_haus.mdp.components.market_data_scanner import MarketDataScanner
+
+    opts = AnalyzerOptions(redis_url="redis://mdc:6379/0", massive_api_key="mdc-key")
+    sut = MarketDataScanner(
+        redis_url="redis://wdc:6379/1",
+        subscriptions=["scanners:*"],
+        analyzer_class=MagicMock(),
+        analyzer_options=opts,
+    )
+
+    mock_redis = AsyncMock()
+    mock_redis.ping = AsyncMock()
+
+    with patch("kuhl_haus.mdp.components.market_data_scanner.aioredis.from_url", return_value=mock_redis):
+        await sut.connect()
+
+    # analyzer_options preserved — massive_api_key accessible for analyzer instantiation
+    assert sut.analyzer_options.massive_api_key == "mdc-key"
+    assert sut.mdc_connected is True
