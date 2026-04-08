@@ -14,12 +14,13 @@ from kuhl_haus.mdp.components.market_data_cache import MarketDataCache
 from kuhl_haus.mdp.data.market_data_analyzer_result import MarketDataAnalyzerResult
 from kuhl_haus.mdp.enum.market_data_cache_keys import MarketDataCacheKeys
 from kuhl_haus.mdp.enum.market_data_cache_ttl import MarketDataCacheTTL
-from kuhl_haus.mdp.enum.market_data_pubsub_keys import MarketDataPubSubKeys
+from kuhl_haus.mdp.enum.widget_data_cache_keys import WidgetDataCacheKeys
+from kuhl_haus.mdp.enum.widget_data_cache_ttl import WidgetDataCacheTTL
+
 from kuhl_haus.mdp.exceptions.data_analysis_exception import DataAnalysisException
 from kuhl_haus.mdp.helpers.observability import get_tracer, get_meter
 
 tracer = get_tracer(__name__)
-
 
 class LeaderboardAnalyzer(Analyzer):
     """Redis-backed leaderboard analyzer using Sorted Sets.
@@ -93,9 +94,9 @@ class LeaderboardAnalyzer(Analyzer):
             if symbol_data:
                 quote_result = MarketDataAnalyzerResult(
                     data=symbol_data,
-                    cache_key=f"{MarketDataPubSubKeys.QUOTE.value}:{symbol}",
-                    cache_ttl=MarketDataCacheTTL.QUOTE.value,
-                    publish_key=f"{MarketDataPubSubKeys.QUOTE.value}:{symbol}",
+                    cache_key=f"{WidgetDataCacheKeys.QUOTE.value}:{symbol}",
+                    cache_ttl=WidgetDataCacheTTL.QUOTE.value,
+                    publish_key=f"{WidgetDataCacheKeys.QUOTE.value}:{symbol}",
                 )
 
             # Throttled leaderboard publish (only one instance publishes per second)
@@ -236,27 +237,27 @@ class LeaderboardAnalyzer(Analyzer):
         if leaderboards["top_volume"]:
             results.append(MarketDataAnalyzerResult(
                 data=leaderboards["top_volume"],
-                cache_key=MarketDataPubSubKeys.TOP_VOLUME_SCANNER.value,
-                cache_ttl=MarketDataCacheTTL.TOP_VOLUME_SCANNER.value,
-                publish_key=MarketDataPubSubKeys.TOP_VOLUME_SCANNER.value,
+                cache_key=WidgetDataCacheKeys.TOP_VOLUME_SCANNER.value,
+                cache_ttl=WidgetDataCacheTTL.TOP_VOLUME_SCANNER.value,
+                publish_key=WidgetDataCacheKeys.TOP_VOLUME_SCANNER.value,
             ))
 
         # Top Gappers
         if leaderboards["top_gappers"]:
             results.append(MarketDataAnalyzerResult(
                 data=leaderboards["top_gappers"],
-                cache_key=MarketDataPubSubKeys.TOP_GAPPERS_SCANNER.value,
-                cache_ttl=MarketDataCacheTTL.TOP_GAPPERS_SCANNER.value,
-                publish_key=MarketDataPubSubKeys.TOP_GAPPERS_SCANNER.value,
+                cache_key=WidgetDataCacheKeys.TOP_GAPPERS_SCANNER.value,
+                cache_ttl=WidgetDataCacheTTL.TOP_GAPPERS_SCANNER.value,
+                publish_key=WidgetDataCacheKeys.TOP_GAPPERS_SCANNER.value,
             ))
 
         # Top Gainers
         if leaderboards["top_gainers"]:
             results.append(MarketDataAnalyzerResult(
                 data=leaderboards["top_gainers"],
-                cache_key=MarketDataPubSubKeys.TOP_GAINERS_SCANNER.value,
-                cache_ttl=MarketDataCacheTTL.TOP_GAINERS_SCANNER.value,
-                publish_key=MarketDataPubSubKeys.TOP_GAINERS_SCANNER.value,
+                cache_key=WidgetDataCacheKeys.TOP_GAINERS_SCANNER.value,
+                cache_ttl=WidgetDataCacheTTL.TOP_GAINERS_SCANNER.value,
+                publish_key=WidgetDataCacheKeys.TOP_GAINERS_SCANNER.value,
 
             ))
 

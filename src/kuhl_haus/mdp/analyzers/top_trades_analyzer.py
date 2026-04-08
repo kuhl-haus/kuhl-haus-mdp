@@ -14,11 +14,12 @@ from kuhl_haus.mdp.analyzers.analyzer import Analyzer, AnalyzerOptions
 from kuhl_haus.mdp.components.market_data_cache import MarketDataCache
 from kuhl_haus.mdp.data.market_data_analyzer_result import MarketDataAnalyzerResult
 from kuhl_haus.mdp.enum.market_data_cache_keys import MarketDataCacheKeys
+from kuhl_haus.mdp.enum.widget_data_cache_keys import WidgetDataCacheKeys
 from kuhl_haus.mdp.enum.market_data_cache_ttl import MarketDataCacheTTL
+from kuhl_haus.mdp.enum.widget_data_cache_ttl import WidgetDataCacheTTL
 from kuhl_haus.mdp.helpers.observability import get_tracer, get_meter
 
 tracer = get_tracer(__name__)
-
 
 class TopTradesAnalyzer(Analyzer):
     """Redis-backed trade analyzer using Lists for time-series data.
@@ -38,10 +39,10 @@ class TopTradesAnalyzer(Analyzer):
     PUBLISH_THROTTLE_KEY = MarketDataCacheKeys.TOP_TRADES_LAST_PUBLISH_KEY.value
     TRADE_TTL = MarketDataCacheTTL.TOP_TRADES_TRADE_TTL.value
 
-    TOP_TRADES_ALL_SYMBOLS_CACHE_KEY = MarketDataCacheKeys.TOP_TRADES_ALL_SYMBOLS_CACHE_KEY.value
+    TOP_TRADES_ALL_SYMBOLS_CACHE_KEY = WidgetDataCacheKeys.TOP_TRADES_ALL_SYMBOLS_CACHE_KEY.value
     TOP_TRADES_ALL_SYMBOLS_CACHE_TTL = MarketDataCacheTTL.TOP_TRADES_ALL_SYMBOLS_CACHE_TTL.value
 
-    TOP_TRADES_WIDGET_CACHE_KEY = MarketDataCacheKeys.TOP_TRADES_WIDGET_CACHE_KEY.value
+    TOP_TRADES_WIDGET_CACHE_KEY = WidgetDataCacheKeys.TOP_TRADES_WIDGET_CACHE_KEY.value
     TOP_TRADES_WIDGET_CACHE_TTL = MarketDataCacheTTL.TOP_TRADES_WIDGET_CACHE_TTL.value
 
     # Configuration

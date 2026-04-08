@@ -4,9 +4,9 @@ Processes articles from the Finlight WebSocket feed (via FinlightDataProcessor)
 and publishes them to Redis for real-time distribution to WDS clients.
 
 Publishing strategy:
-- All articles → MarketDataPubSubKeys.NEWS_FEED_LATEST (news:feed:latest)
-- Enhanced articles → MarketDataPubSubKeys.NEWS_TICKER per US-listed company
-- Raw articles → MarketDataPubSubKeys.NEWS_TICKER for tickers parsed from title/summary
+- All articles → WidgetDataCacheKeys.NEWS_FEED_LATEST (news:feed:latest)
+- Enhanced articles → WidgetDataCacheKeys.NEWS_TICKER per US-listed company
+- Raw articles → WidgetDataCacheKeys.NEWS_TICKER for tickers parsed from title/summary
 
 US exchange codes (MIC):
 - XNYS → NYSE
@@ -19,10 +19,10 @@ from typing import Optional, List
 
 from kuhl_haus.mdp.analyzers.analyzer import Analyzer, AnalyzerOptions
 from kuhl_haus.mdp.data.market_data_analyzer_result import MarketDataAnalyzerResult
-from kuhl_haus.mdp.enum.market_data_cache_ttl import MarketDataCacheTTL
-from kuhl_haus.mdp.enum.market_data_pubsub_keys import MarketDataPubSubKeys
-from kuhl_haus.mdp.enum.finlight_data_cache import FinlightDataCache
+from kuhl_haus.mdp.enum.widget_data_cache_keys import WidgetDataCacheKeys
+from kuhl_haus.mdp.enum.widget_data_cache_ttl import WidgetDataCacheTTL
 
+from kuhl_haus.mdp.enum.finlight_data_cache import FinlightDataCache
 
 class FinlightDataAnalyzer(Analyzer):
     """Stateless analyzer that routes Finlight news articles to Redis pub/sub.
@@ -58,10 +58,10 @@ class FinlightDataAnalyzer(Analyzer):
 
         # Cache TTLs — default to enum values, overridable via AnalyzerOptions.kwargs
         self.news_feed_cache_ttl: int = options.kwargs.get(
-            "news_feed_cache_ttl", MarketDataCacheTTL.NEWS_FEED_LATEST.value
+            "news_feed_cache_ttl", WidgetDataCacheTTL.NEWS_FEED_LATEST.value
         )
         self.news_ticker_cache_ttl: int = options.kwargs.get(
-            "news_ticker_cache_ttl", MarketDataCacheTTL.NEWS_TICKER.value
+            "news_ticker_cache_ttl", WidgetDataCacheTTL.NEWS_TICKER.value
         )
 
     async def rehydrate(self):
@@ -83,9 +83,9 @@ class FinlightDataAnalyzer(Analyzer):
 
         results: List[MarketDataAnalyzerResult] = [MarketDataAnalyzerResult(
             data=data,
-            cache_key=MarketDataPubSubKeys.NEWS_FEED_LATEST.value,
+            cache_key=WidgetDataCacheKeys.NEWS_FEED_LATEST.value,
             cache_ttl=self.news_feed_cache_ttl,
-            publish_key=MarketDataPubSubKeys.NEWS_FEED_LATEST.value,
+            publish_key=WidgetDataCacheKeys.NEWS_FEED_LATEST.value,
             cache_list_max=self.news_feed_list_max,
         )]
 
@@ -103,9 +103,9 @@ class FinlightDataAnalyzer(Analyzer):
         for ticker in tickers:
             results.append(MarketDataAnalyzerResult(
                 data=data,
-                cache_key=MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker=ticker),
+                cache_key=WidgetDataCacheKeys.NEWS_TICKER.value.format(ticker=ticker),
                 cache_ttl=self.news_ticker_cache_ttl,
-                publish_key=MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker=ticker),
+                publish_key=WidgetDataCacheKeys.NEWS_TICKER.value.format(ticker=ticker),
                 cache_list_max=self.news_ticker_list_max,
             ))
 
