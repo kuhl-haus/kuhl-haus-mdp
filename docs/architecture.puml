@@ -44,10 +44,10 @@ package "Data Plane" #E8F4F8 {
     }
 
     database "Market Data Cache (MDC)" as MDC #F5A623
+    database "Widget Data Cache (WDC)" as WDC #E67E22
 
     package "Widget Data Service (WDS)" #DDDDDD {
         component "WidgetDataService" as Widget
-        component "MarketDataCache Client" as CacheClient
     }
 }
 
@@ -81,11 +81,12 @@ Router --> TopTrades : trade events
 Router --> TopStocks : legacy path
 Scanner --> Leaderboard : scan leaderboards
 Scanner --> TopTrades : scan trades
-Processor -[#blue,thickness=3]-> MDC : cache + pub/sub
-FDProcessor -[#blue,thickness=3]-> MDC : cache + pub/sub
+Processor -[#orange,thickness=3]-> MDC : analyzer cache (internal)
+Processor -[#blue,thickness=3]-> WDC : widget results + pub/sub
+FDProcessor -[#orange,thickness=3]-> MDC : analyzer cache (internal)
+FDProcessor -[#blue,thickness=3]-> WDC : widget results + pub/sub
 
-MDC -[#blue,thickness=3]-> Widget : Redis pub/sub
-Widget --> CacheClient : load snapshots
+WDC -[#blue,thickness=3]-> Widget : Redis pub/sub
 Widget -[#green,thickness=3]-> Clients : WebSocket streaming
 
 SCP .[#purple,dashed].> Widget : manage/monitor
@@ -115,11 +116,21 @@ note right of MDQ
 end note
 
 note right of MDC
-  Redis
-  In-memory cache
+  Market Data Cache (MDC)
+  Redis db 0
+  Internal analyzer state
+  Leaderboards, snapshots,
+  float, avg volume, tickers
   TTL policies (5s-24h)
-  Atomic operations
-  Pub/Sub messaging
+end note
+
+note right of WDC
+  Widget Data Cache (WDC)
+  Redis db 1
+  Client-facing results
+  Scanner feeds, quote feed,
+  news feeds, top trades
+  Pub/Sub to WDS
 end note
 
 note bottom of Processor
