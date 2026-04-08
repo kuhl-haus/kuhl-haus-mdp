@@ -105,7 +105,7 @@ Code Libraries
 Market Data Listener (MDL)
 ---------------------------
 
-The MDL performs minimal processing on the messages. MDL inspects the message type for selecting the appropriate serialization method and destination queue. MDL implementations may vary as new MDS become available (for example, news).
+The MDL performs minimal processing on the messages. MDL inspects the message type for selecting the appropriate serialization method and destination queue. MDL implementations vary by market data provider — each provider gets its own Listener class (for example, a news-specific listener would be a separate implementation).
 
 MDL runs as a container and scales independently of other components. The MDL should not be accessible outside the data plane local network.
 
