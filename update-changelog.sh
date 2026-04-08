@@ -31,7 +31,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-repo_url=$(git remote get-url origin | sed 's/\.git$//' | sed 's|git@github\.com:|https://github.com/|')
+repo_url=$(git remote get-url origin | sed 's/\.git$//' | sed 's|git@github\.com:|https://github.com/|' | sed 's|https://[^@]*@github\.com/|https://github.com/|')
 
 outfile="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/CHANGELOG.rst"
 
