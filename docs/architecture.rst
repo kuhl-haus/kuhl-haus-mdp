@@ -31,8 +31,14 @@ Data Plane Components
 **Market Data Processor (MDP)**
   Horizontally-scalable event processors with semaphore-based concurrency (500 concurrent tasks), delegating to pluggable analyzers.
 
+**Market Data Scanner (MDS)**
+  Redis pub/sub consumer that performs secondary analysis on enriched market data — event correlation, alert generation, trend analysis, and pattern recognition — through pluggable analyzers.
+
 **Market Data Cache (MDC)**
-  Redis-backed cache layer with TTL policies (5s-24h), atomic operations, and pub/sub distribution.
+  Internal Redis store for analyzer state with TTL policies (5s-24h), atomic operations, and pub/sub distribution. Separate from WDC.
+
+**Widget Data Cache (WDC)**
+  Client-facing Redis store for widget-ready results (scanner feeds, quotes, news) with TTL policies optimized for UI consumption. Separate from MDC.
 
 **Widget Data Service (WDS)**
   WebSocket-to-Redis bridge providing real-time streaming to client applications with fan-out pattern.
@@ -53,7 +59,7 @@ Deployment Model
 
 The platform deploys to Kubernetes with independent scaling per component:
 
-- **Data plane**: Internal network only (MDL, MDQ, MDP, MDC)
+- **Data plane**: Internal network only (MDL, MDQ, MDP, MDS, MDC, WDC)
 - **Client interface**: Exposed to client networks (WDS)
 - **Control plane**: External access (SCP)
 
@@ -149,7 +155,6 @@ Code Libraries
 ~~~~~~~~~~~~~~
 
 - **MassiveDataProcessor** (`components/massive_data_processor.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.components.html#module-kuhl_haus.mdp.components.massive_data_processor>`_) - RabbitMQ consumer with semaphore-based concurrency control for high-throughput scenarios (1,000+ events/sec)
-- **MarketDataScanner** (`components/market_data_scanner.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.components.html#module-kuhl_haus.mdp.components.market_data_scanner>`_) - Redis pub/sub consumer with pluggable analyzer pattern for sequential message processing
 - **Analyzers** (`analyzers/ <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.analyzers.html>`_)
 
   - **MassiveDataAnalyzer** (`massive_data_analyzer.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.analyzers.html#module-kuhl_haus.mdp.analyzers.massive_data_analyzer>`_) - Stateless event router dispatching by event type
@@ -160,14 +165,41 @@ Code Libraries
 - **MarketDataAnalyzerResult** (`data/market_data_analyzer_result.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.data.html#module-kuhl_haus.mdp.data.market_data_analyzer_result>`_) - Result envelope for analyzer output with cache/publish metadata
 - **ProcessManager** (`helpers/process_manager.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.helpers.html#module-kuhl_haus.mdp.helpers.process_manager>`_) - Multiprocess orchestration for async workers with OpenTelemetry context propagation
 
+Market Data Scanner (MDS)
+--------------------------
+
+The MDS performs secondary analysis on enriched market data already processed and published by MDPs. Unlike the MDP (which consumes raw RabbitMQ streams), the MDS subscribes directly to Redis pub/sub channels to receive post-processed data. This makes the MDS a Redis-only component, suited for secondary processing tasks such as event correlation, alert generation, trend analysis, and pattern recognition.
+
+The MDS:
+
+- Subscribes to Redis pub/sub channels (including wildcard/pattern subscriptions)
+- Rehydrates analyzer state from the WDC cache on startup
+- Delegates messages to a pluggable Analyzer subclass
+- Writes results back to the Widget Data Cache (WDC) and publishes notifications
+
+MDS instances run as containers and scale independently of other components. The MDS should not be accessible outside the data plane local network.
+
+Code Libraries
+~~~~~~~~~~~~~~
+
+- **MarketDataScanner** (`components/market_data_scanner.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.components.html#module-kuhl_haus.mdp.components.market_data_scanner>`_) - Redis pub/sub consumer with pluggable analyzer pattern. Handles pattern/wildcard subscriptions, exponential-backoff idle polling (1s→60s cap), auto-restart on connection errors, and sequential message processing
+- **Analyzers** (`analyzers/ <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.analyzers.html>`_)
+
+  - **FinlightDataAnalyzer** (`finlight_data_analyzer.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.analyzers.html#module-kuhl_haus.mdp.analyzers.finlight_data_analyzer>`_) - Maintains capped news feed lists (``news:feed:latest``, ``news:ticker:{symbol}``) in WDC with configurable TTLs
+
+- **MarketDataAnalyzerResult** (`data/market_data_analyzer_result.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.data.html#module-kuhl_haus.mdp.data.market_data_analyzer_result>`_) - Result envelope for analyzer output with cache/publish metadata
+- **AnalyzerOptions** (`analyzers/analyzer.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.analyzers.html#module-kuhl_haus.mdp.analyzers.analyzer>`_) - Shared configuration container (``redis_url``, ``finlight_api_key``, ``massive_api_key``, ``kwargs`` escape hatch for subclass-specific config)
+- **WidgetDataCacheKeys** enum (`enum/widget_data_cache_keys.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.enum.html#module-kuhl_haus.mdp.enum.widget_data_cache_keys>`_) - WDC Redis key and channel name constants for all MDS-published data
+- **WidgetDataCacheTTL** enum (`enum/widget_data_cache_ttl.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.enum.html#module-kuhl_haus.mdp.enum.widget_data_cache_ttl>`_) - TTL values for WDC entries (quotes: 4 days, scanners: 4 days, news feed: 2 days, news ticker: 7 days)
+
 Market Data Cache (MDC)
 ------------------------
 
-**Purpose:** In-memory data store for serialized processed market data.
+**Purpose:** Internal Redis store for analyzer state and intermediate market data produced by MDP analyzers.
 
 - **Cache Type:** In-memory persistent or with TTL
 - **Queue Type:** pub/sub
-- **Technology:** Redis
+- **Technology:** Redis (separate instance from WDC)
 
 The MDC should not be accessible outside the data plane local network.
 
@@ -177,7 +209,26 @@ Code Libraries
 - **MarketDataCache** (`components/market_data_cache.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.components.html#module-kuhl_haus.mdp.components.market_data_cache>`_) - Redis cache-aside layer for Massive.com API with TTL policies, negative caching, and specialized metric methods (snapshot, avg volume, free float)
 - **MarketDataCacheKeys** enum (`enum/market_data_cache_keys.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.enum.html#module-kuhl_haus.mdp.enum.market_data_cache_keys>`_) - Internal Redis cache key patterns and templates
 - **MarketDataCacheTTL** enum (`enum/market_data_cache_ttl.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.enum.html#module-kuhl_haus.mdp.enum.market_data_cache_ttl>`_) - TTL values balancing freshness vs. API quotas vs. memory pressure (5s for trades, 24h for reference data)
-- **MarketDataPubSubKeys** enum (`enum/market_data_pubsub_keys.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.enum.html#module-kuhl_haus.mdp.enum.market_data_pubsub_keys>`_) - Redis pub/sub channel names for external consumption
+- **MarketDataPubSubKeys** enum (`enum/market_data_pubsub_keys.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.enum.html#module-kuhl_haus.mdp.enum.market_data_pubsub_keys>`_) - Redis pub/sub channel names (kept for backward compatibility; prefer ``WidgetDataCacheKeys`` for new work)
+
+Widget Data Cache (WDC)
+------------------------
+
+**Purpose:** Client-facing Redis store for widget-ready results produced by Analyzers and consumed by the Widget Data Service.
+
+- **Cache Type:** In-memory with TTL
+- **Queue Type:** pub/sub
+- **Technology:** Redis (separate instance from MDC)
+
+The WDC holds scanner feeds, quote feeds, and news feeds — all data that flows directly to UI widgets via WDS. Separating WDC from MDC isolates client-facing load from internal analyzer state.
+
+The WDC should not be accessible outside the data plane local network.
+
+Code Libraries
+~~~~~~~~~~~~~~
+
+- **WidgetDataCacheKeys** enum (`enum/widget_data_cache_keys.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.enum.html#module-kuhl_haus.mdp.enum.widget_data_cache_keys>`_) - Redis key and channel name constants for all WDC entries (scanner channels, quote feed, news feeds, top trades widget cache). Replaces ``MarketDataPubSubKeys`` for new work.
+- **WidgetDataCacheTTL** enum (`enum/widget_data_cache_ttl.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.enum.html#module-kuhl_haus.mdp.enum.widget_data_cache_ttl>`_) - TTL values for all WDC entries (quotes: 4 days, scanners: 4 days, news feed: 2 days, news ticker: 7 days)
 
 Widget Data Service (WDS)
 --------------------------
@@ -194,6 +245,7 @@ Code Libraries
 
 - **WidgetDataService** (`components/widget_data_service.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.components.html#module-kuhl_haus.mdp.components.widget_data_service>`_) - WebSocket-to-Redis bridge with fan-out pattern, lazy task initialization, wildcard subscription support, and lock-protected subscription management
 - **MarketDataCache** (`components/market_data_cache.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.components.html#module-kuhl_haus.mdp.components.market_data_cache>`_) - Snapshot retrieval for initial state before streaming
+- **WidgetDataCacheKeys** enum (`enum/widget_data_cache_keys.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.enum.html#module-kuhl_haus.mdp.enum.widget_data_cache_keys>`_) - WDC channel names WDS subscribes to for forwarding results to clients
 
 Service Control Plane (SCP)
 ----------------------------

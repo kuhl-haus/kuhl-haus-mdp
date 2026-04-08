@@ -65,8 +65,8 @@ def test_widget_data_cache_ttl_module_exists():
 
 def test_widget_data_cache_ttl_has_quote():
     from kuhl_haus.mdp.enum.widget_data_cache_ttl import WidgetDataCacheTTL
-    from kuhl_haus.mdp.enum.market_data_cache_ttl import MarketDataCacheTTL
-    assert WidgetDataCacheTTL.QUOTE.value == MarketDataCacheTTL.QUOTE.value
+    from kuhl_haus.mdp.enum.constants import FOUR_DAYS
+    assert WidgetDataCacheTTL.QUOTE.value == FOUR_DAYS
 
 
 def test_widget_data_cache_ttl_has_scanner_ttls():
