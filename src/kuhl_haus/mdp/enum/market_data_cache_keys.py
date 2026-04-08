@@ -3,7 +3,8 @@
 Defines all cache key templates used within MDP for storing raw WebSocket data,
 computed analytics, and rate-limiting state. Keys support pattern matching for
 bulk operations (e.g., TOP_TRADES_RECENT_SCAN for multi-symbol cleanup).
-These are internal keys; pub/sub channel names are in MarketDataPubSubKeys.
+These are internal MDC keys. For WDC-facing pub/sub and cache keys, use
+:class:`~kuhl_haus.mdp.enum.widget_data_cache_keys.WidgetDataCacheKeys`.
 """
 from enum import Enum
 
@@ -16,7 +17,10 @@ class MarketDataCacheKeys(Enum):
     Internal cache keys for MDP components. Includes both concrete keys and
     string templates with placeholders (e.g., {symbol}, {date}) for dynamic
     instantiation. Pattern-based keys ending in '*' enable SCAN operations for
-    bulk cleanup and inspection. Separate from pub/sub channel names.
+    bulk cleanup and inspection.
+
+    For WDC-facing pub/sub and cache keys (scanner channels, quote feed, news feeds),
+    use :class:`~kuhl_haus.mdp.enum.widget_data_cache_keys.WidgetDataCacheKeys` instead.
     """
 
     # MARKET DATA FEEDS
