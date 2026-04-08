@@ -99,9 +99,12 @@ through a pluggable analyzer, writing results to Redis.
    * - ``RABBITMQ_URL``
      - ``amqp://mdq:mdq@localhost:5672/``
      - RabbitMQ connection URL (AMQP)
-   * - ``REDIS_URL``
+   * - ``MDC_REDIS_URL``
      - ``redis://mdc:mdc@localhost:6379/0``
-     - Redis connection URL
+     - Market Data Cache Redis URL. Used by Analyzers via ``AnalyzerOptions``.
+   * - ``WDC_REDIS_URL``
+     - ``redis://mdc:mdc@localhost:6379/1``
+     - Widget Data Cache Redis URL. Used by Processors to store analyzer results.
    * - ``FDP_QUEUE_NAME``
      - ``news``
      - RabbitMQ queue to consume from
@@ -186,9 +189,6 @@ to per-type RabbitMQ queues.
    * - ``MDQ_PUBLISHER_CONFIRMS``
      - ``true``
      - Enable RabbitMQ publisher confirms (``true`` / ``false``)
-   * - ``REDIS_URL``
-     - ``redis://mdc:mdc@localhost:6379/0``
-     - Redis connection URL
    * - ``MDL_AUTO_START_ENABLED``
      - ``false``
      - Automatically connect to Massive.com on startup. When ``false``, use the ``/start`` endpoint.
@@ -216,9 +216,12 @@ multiple RabbitMQ queues and writing results to Redis.
    * - ``RABBITMQ_URL``
      - ``amqp://mdq:mdq@localhost:5672/``
      - RabbitMQ connection URL (AMQP)
-   * - ``REDIS_URL``
+   * - ``MDC_REDIS_URL``
      - ``redis://mdc:mdc@localhost:6379/0``
-     - Redis connection URL
+     - Market Data Cache Redis URL. Used by Analyzers via ``AnalyzerOptions``.
+   * - ``WDC_REDIS_URL``
+     - ``redis://mdc:mdc@localhost:6379/1``
+     - Widget Data Cache Redis URL. Used by Processors to store analyzer results.
    * - ``PARALLELISM``
      - ``10``
      - Number of parallel processor workers per queue type
@@ -252,9 +255,12 @@ analyzers sequentially.
    * - ``RABBITMQ_URL``
      - ``amqp://mdq:mdq@localhost:5672/``
      - RabbitMQ connection URL (AMQP)
-   * - ``REDIS_URL``
+   * - ``MDC_REDIS_URL``
      - ``redis://mdc:mdc@localhost:6379/0``
-     - Redis connection URL
+     - Market Data Cache Redis URL. Used by Analyzers via ``AnalyzerOptions``.
+   * - ``WDC_REDIS_URL``
+     - ``redis://mdc:mdc@localhost:6379/1``
+     - Widget Data Cache Redis URL. Used by Processors to store analyzer results.
    * - ``PARALLELISM``
      - ``1``
      - Number of parallel processor workers
@@ -281,9 +287,10 @@ The WDS bridges Redis pub/sub to client WebSocket connections with fan-out.
    * - Variable
      - Default
      - Description
-   * - ``REDIS_URL``
-     - ``redis://localhost:6379/0``
-     - Redis connection URL
+   * - ``WDC_REDIS_URL``
+     - ``redis://mdc:mdc@localhost:6379/1``
+     - Widget Data Cache Redis URL. Read by WDS to deliver scanner results and
+       quote feeds to connected WebSocket clients.
    * - ``AUTH_ENABLED``
      - ``false``
      - Enable API key authentication for WebSocket connections
