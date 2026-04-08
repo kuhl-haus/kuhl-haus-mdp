@@ -5,6 +5,9 @@
     minor release. Use :class:`~kuhl_haus.mdp.enum.widget_data_cache_keys.WidgetDataCacheKeys`
     instead, which consolidates all WDC-facing pub/sub and cache keys.
 
+    Exception: ``NEWS_FEED_LATEST`` and ``NEWS_TICKER`` are still referenced in
+    tests and will be migrated in the same release.
+
 Channel keys published by the market data processor for downstream consumers.
 Widget Data Service subscribes to these channels to receive scanner results
 and push them to frontend clients via WebSocket.
@@ -30,6 +33,9 @@ class MarketDataPubSubKeys(Enum):
         next minor release. Use
         :class:`~kuhl_haus.mdp.enum.widget_data_cache_keys.WidgetDataCacheKeys` instead.
 
+        Exception: ``NEWS_FEED_LATEST`` and ``NEWS_TICKER`` are still referenced in
+        tests and will be migrated in the same release.
+
     Published by MDP analyzers after processing real-time market data. Widget
     Data Service subscribes to forward results to frontend clients. Multiple
     time windows available for Top Trades to support different UI refresh rates.
@@ -48,6 +54,6 @@ class MarketDataPubSubKeys(Enum):
     TOP_GAPPERS_SCANNER = f'scanners:{MarketDataScannerNames.TOP_GAPPERS.value}'
     TOP_VOLUME_SCANNER = f'scanners:{MarketDataScannerNames.TOP_VOLUME.value}'
 
-    # Finlight news feeds
+    # Finlight news feeds — still referenced in tests, migrating in next release
     NEWS_FEED_LATEST = 'news:feed:latest'
     NEWS_TICKER = 'news:ticker:{ticker}'

@@ -9,26 +9,16 @@ For WDC-facing TTLs (scanner results, quote feed, news feeds), use
 :class:`~kuhl_haus.mdp.enum.widget_data_cache_ttl.WidgetDataCacheTTL` instead.
 
 The following members are deprecated as of v0.4.0 and will be removed in the
-next minor release:
-
-WDC entries (moved to WidgetDataCacheTTL):
-
-- ``QUOTE`` → :attr:`~kuhl_haus.mdp.enum.widget_data_cache_ttl.WidgetDataCacheTTL.QUOTE`
-- ``TOP_TRADES_WIDGET_CACHE_TTL`` → :attr:`~kuhl_haus.mdp.enum.widget_data_cache_ttl.WidgetDataCacheTTL.TOP_TRADES_WIDGET_CACHE_TTL`
-- ``TOP_TRADES_ALL_SYMBOLS_CACHE_TTL`` → :attr:`~kuhl_haus.mdp.enum.widget_data_cache_ttl.WidgetDataCacheTTL.TOP_TRADES_ALL_SYMBOLS_CACHE_TTL`
-- ``TOP_STOCKS_SCANNER`` → :attr:`~kuhl_haus.mdp.enum.widget_data_cache_ttl.WidgetDataCacheTTL.TOP_STOCKS_SCANNER`
-- ``TOP_VOLUME_SCANNER`` → :attr:`~kuhl_haus.mdp.enum.widget_data_cache_ttl.WidgetDataCacheTTL.TOP_VOLUME_SCANNER`
-- ``TOP_GAINERS_SCANNER`` → :attr:`~kuhl_haus.mdp.enum.widget_data_cache_ttl.WidgetDataCacheTTL.TOP_GAINERS_SCANNER`
-- ``TOP_GAPPERS_SCANNER`` → :attr:`~kuhl_haus.mdp.enum.widget_data_cache_ttl.WidgetDataCacheTTL.TOP_GAPPERS_SCANNER`
-- ``NEWS_FEED_LATEST`` → :attr:`~kuhl_haus.mdp.enum.widget_data_cache_ttl.WidgetDataCacheTTL.NEWS_FEED_LATEST`
-- ``NEWS_TICKER`` → :attr:`~kuhl_haus.mdp.enum.widget_data_cache_ttl.WidgetDataCacheTTL.NEWS_TICKER`
-
-No active usages found (dead code):
+next minor release (no active usages found in src/, tests/, or mdp-servers):
 
 - ``NEGATIVE_CACHE_THROTTLE``
 - ``LEADERBOARD_TOP_VOLUME``
 - ``LEADERBOARD_TOP_GAPPERS``
 - ``LEADERBOARD_TOP_GAINERS``
+- ``TOP_STOCKS_SCANNER`` → :attr:`~kuhl_haus.mdp.enum.widget_data_cache_ttl.WidgetDataCacheTTL.TOP_STOCKS_SCANNER`
+- ``TOP_VOLUME_SCANNER`` → :attr:`~kuhl_haus.mdp.enum.widget_data_cache_ttl.WidgetDataCacheTTL.TOP_VOLUME_SCANNER`
+- ``TOP_GAINERS_SCANNER`` → :attr:`~kuhl_haus.mdp.enum.widget_data_cache_ttl.WidgetDataCacheTTL.TOP_GAINERS_SCANNER`
+- ``TOP_GAPPERS_SCANNER`` → :attr:`~kuhl_haus.mdp.enum.widget_data_cache_ttl.WidgetDataCacheTTL.TOP_GAPPERS_SCANNER`
 """
 import warnings
 from enum import Enum
@@ -58,26 +48,16 @@ class MarketDataCacheTTL(Enum):
 
     .. deprecated::
         The following members are deprecated as of v0.4.0 and will be removed in
-        the next minor release.
-
-        WDC entries — use :class:`~kuhl_haus.mdp.enum.widget_data_cache_ttl.WidgetDataCacheTTL` instead:
-
-        - ``QUOTE``
-        - ``TOP_TRADES_WIDGET_CACHE_TTL``
-        - ``TOP_TRADES_ALL_SYMBOLS_CACHE_TTL``
-        - ``TOP_STOCKS_SCANNER``
-        - ``TOP_VOLUME_SCANNER``
-        - ``TOP_GAINERS_SCANNER``
-        - ``TOP_GAPPERS_SCANNER``
-        - ``NEWS_FEED_LATEST``
-        - ``NEWS_TICKER``
-
-        No active usages found (dead code):
+        the next minor release (no active usages found):
 
         - ``NEGATIVE_CACHE_THROTTLE``
         - ``LEADERBOARD_TOP_VOLUME``
         - ``LEADERBOARD_TOP_GAPPERS``
         - ``LEADERBOARD_TOP_GAINERS``
+        - ``TOP_STOCKS_SCANNER`` → use ``WidgetDataCacheTTL.TOP_STOCKS_SCANNER``
+        - ``TOP_VOLUME_SCANNER`` → use ``WidgetDataCacheTTL.TOP_VOLUME_SCANNER``
+        - ``TOP_GAINERS_SCANNER`` → use ``WidgetDataCacheTTL.TOP_GAINERS_SCANNER``
+        - ``TOP_GAPPERS_SCANNER`` → use ``WidgetDataCacheTTL.TOP_GAPPERS_SCANNER``
     """
     # @deprecated — no active usages
     NEGATIVE_CACHE_THROTTLE = ONE_MINUTE
@@ -111,34 +91,26 @@ class MarketDataCacheTTL(Enum):
 
     # Top Trades caches
     TOP_TRADES_TRADE_TTL = FIVE_MINUTES
-
-    # --- Deprecated WDC entries (use WidgetDataCacheTTL) ---
-
-    # @deprecated Use WidgetDataCacheTTL.TOP_TRADES_WIDGET_CACHE_TTL
     TOP_TRADES_WIDGET_CACHE_TTL = ONE_MINUTE
-
-    # @deprecated Use WidgetDataCacheTTL.TOP_TRADES_ALL_SYMBOLS_CACHE_TTL
     TOP_TRADES_ALL_SYMBOLS_CACHE_TTL = ONE_MINUTE
 
-    # @deprecated Use WidgetDataCacheTTL.QUOTE
-    QUOTE = FOUR_DAYS
+    # Quote feed cache
+    QUOTE = FOUR_DAYS  # Stale data > no data; timestamp in payload shows freshness
 
-    # @deprecated Use WidgetDataCacheTTL.TOP_STOCKS_SCANNER
+    # @deprecated — no active usages; use WidgetDataCacheTTL.TOP_STOCKS_SCANNER
     TOP_STOCKS_SCANNER = EIGHT_HOURS
 
-    # @deprecated Use WidgetDataCacheTTL.TOP_VOLUME_SCANNER
+    # @deprecated — no active usages; use WidgetDataCacheTTL.TOP_VOLUME_SCANNER
     TOP_VOLUME_SCANNER = FOUR_DAYS
 
-    # @deprecated Use WidgetDataCacheTTL.TOP_GAINERS_SCANNER
+    # @deprecated — no active usages; use WidgetDataCacheTTL.TOP_GAINERS_SCANNER
     TOP_GAINERS_SCANNER = FOUR_DAYS
 
-    # @deprecated Use WidgetDataCacheTTL.TOP_GAPPERS_SCANNER
+    # @deprecated — no active usages; use WidgetDataCacheTTL.TOP_GAPPERS_SCANNER
     TOP_GAPPERS_SCANNER = FOUR_DAYS
 
-    # @deprecated Use WidgetDataCacheTTL.NEWS_FEED_LATEST
+    # Finlight news caches
     NEWS_FEED_LATEST = TWO_DAYS
-
-    # @deprecated Use WidgetDataCacheTTL.NEWS_TICKER
     NEWS_TICKER = SEVEN_DAYS
 
 
@@ -156,15 +128,10 @@ _DEPRECATED_TTL_MEMBERS = frozenset({
     "LEADERBOARD_TOP_VOLUME",
     "LEADERBOARD_TOP_GAPPERS",
     "LEADERBOARD_TOP_GAINERS",
-    "TOP_TRADES_WIDGET_CACHE_TTL",
-    "TOP_TRADES_ALL_SYMBOLS_CACHE_TTL",
-    "QUOTE",
     "TOP_STOCKS_SCANNER",
     "TOP_VOLUME_SCANNER",
     "TOP_GAINERS_SCANNER",
     "TOP_GAPPERS_SCANNER",
-    "NEWS_FEED_LATEST",
-    "NEWS_TICKER",
 })
 
 
