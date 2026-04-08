@@ -40,7 +40,7 @@ jobs:
 
     # Tests
     - name: Run tests with coverage
-      run: pdm run pytest --cov=kuhl_haus.mdp --cov-report=html --cov-report=xml tests -v
+      run: pdm run pytest --cov=kuhl_haus.mdp --cov-report=html --cov-report=xml --cov-fail-under=98 tests -v
     - name: Upload coverage report
       uses: actions/upload-artifact@v4
       with:
