@@ -9,8 +9,8 @@ from unittest.mock import MagicMock
 
 from kuhl_haus.mdp.analyzers.finlight_data_analyzer import FinlightDataAnalyzer
 from kuhl_haus.mdp.enum.finlight_data_cache import FinlightDataCache
-from kuhl_haus.mdp.enum.market_data_pubsub_keys import MarketDataPubSubKeys
-from kuhl_haus.mdp.enum.market_data_cache_ttl import MarketDataCacheTTL
+from kuhl_haus.mdp.enum.widget_data_cache_keys import WidgetDataCacheKeys
+from kuhl_haus.mdp.enum.widget_data_cache_ttl import WidgetDataCacheTTL
 from kuhl_haus.mdp.analyzers.analyzer import AnalyzerOptions
 from kuhl_haus.mdp.data.market_data_analyzer_result import MarketDataAnalyzerResult
 
@@ -114,7 +114,7 @@ async def test_fda_analyze_data_with_any_article_expect_feed_published(sut):
 
     # Assert
     assert results is not None
-    feed_results = [r for r in results if r.publish_key == MarketDataPubSubKeys.NEWS_FEED_LATEST.value]
+    feed_results = [r for r in results if r.publish_key == WidgetDataCacheKeys.NEWS_FEED_LATEST.value]
     assert len(feed_results) == 1
 
 
@@ -127,8 +127,8 @@ async def test_fda_analyze_data_with_feed_result_expect_correct_cache_key(sut):
     results = await sut.analyze_data(article)
 
     # Assert
-    feed = next(r for r in results if r.publish_key == MarketDataPubSubKeys.NEWS_FEED_LATEST.value)
-    assert feed.cache_key == MarketDataPubSubKeys.NEWS_FEED_LATEST.value
+    feed = next(r for r in results if r.publish_key == WidgetDataCacheKeys.NEWS_FEED_LATEST.value)
+    assert feed.cache_key == WidgetDataCacheKeys.NEWS_FEED_LATEST.value
     assert feed.data is article
 
 
@@ -141,8 +141,8 @@ async def test_fda_analyze_data_with_feed_result_expect_zero_ttl(sut):
     results = await sut.analyze_data(article)
 
     # Assert
-    feed = next(r for r in results if r.publish_key == MarketDataPubSubKeys.NEWS_FEED_LATEST.value)
-    assert feed.cache_ttl == MarketDataCacheTTL.NEWS_FEED_LATEST.value
+    feed = next(r for r in results if r.publish_key == WidgetDataCacheKeys.NEWS_FEED_LATEST.value)
+    assert feed.cache_ttl == WidgetDataCacheTTL.NEWS_FEED_LATEST.value
 
 
 # ---------------------------------------------------------------------------
@@ -153,7 +153,7 @@ async def test_fda_analyze_data_with_feed_result_expect_zero_ttl(sut):
 async def test_fda_analyze_data_with_enhanced_nasdaq_company_expect_ticker_published(sut):
     # Arrange
     article = _enhanced_article(companies=[_company("ATOS", "XNAS")])
-    publish_key = MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="ATOS")
+    publish_key = WidgetDataCacheKeys.NEWS_TICKER.value.format(ticker="ATOS")
 
     # Act
     results = await sut.analyze_data(article)
@@ -174,7 +174,7 @@ async def test_fda_analyze_data_with_enhanced_nyse_company_expect_ticker_publish
     results = await sut.analyze_data(article)
 
     # Assert
-    assert any(r.publish_key == MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="GM") for r in results)
+    assert any(r.publish_key == WidgetDataCacheKeys.NEWS_TICKER.value.format(ticker="GM") for r in results)
 
 
 @pytest.mark.asyncio
@@ -186,7 +186,7 @@ async def test_fda_analyze_data_with_enhanced_amex_company_expect_ticker_publish
     results = await sut.analyze_data(article)
 
     # Assert
-    assert any(r.publish_key == MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="XYZ") for r in results)
+    assert any(r.publish_key == WidgetDataCacheKeys.NEWS_TICKER.value.format(ticker="XYZ") for r in results)
 
 
 @pytest.mark.asyncio
@@ -214,8 +214,8 @@ async def test_fda_analyze_data_with_enhanced_mixed_exchanges_expect_only_us_tic
 
     # Assert
     ticker_keys = [r.publish_key for r in results if r.publish_key and r.publish_key.startswith("news:ticker:")]
-    assert MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="MSFT") in ticker_keys
-    assert MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="STLAP") not in ticker_keys
+    assert WidgetDataCacheKeys.NEWS_TICKER.value.format(ticker="MSFT") in ticker_keys
+    assert WidgetDataCacheKeys.NEWS_TICKER.value.format(ticker="STLAP") not in ticker_keys
 
 
 @pytest.mark.asyncio
@@ -231,8 +231,8 @@ async def test_fda_analyze_data_with_enhanced_multiple_us_companies_expect_all_p
 
     # Assert
     ticker_keys = {r.publish_key for r in results if r.publish_key and r.publish_key.startswith("news:ticker:")}
-    assert MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="JPM") in ticker_keys
-    assert MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="META") in ticker_keys
+    assert WidgetDataCacheKeys.NEWS_TICKER.value.format(ticker="JPM") in ticker_keys
+    assert WidgetDataCacheKeys.NEWS_TICKER.value.format(ticker="META") in ticker_keys
 
 
 @pytest.mark.asyncio
@@ -245,7 +245,7 @@ async def test_fda_analyze_data_with_enhanced_empty_companies_expect_feed_only(s
 
     # Assert — falls through to raw mode; no tickers in text either
     assert len(results) == 1
-    assert results[0].publish_key == MarketDataPubSubKeys.NEWS_FEED_LATEST.value
+    assert results[0].publish_key == WidgetDataCacheKeys.NEWS_FEED_LATEST.value
 
 
 @pytest.mark.asyncio
@@ -276,7 +276,7 @@ async def test_fda_analyze_data_with_raw_nasdaq_ticker_in_title_expect_published
     results = await sut.analyze_data(article)
 
     # Assert
-    assert any(r.publish_key == MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="ATOS") for r in results)
+    assert any(r.publish_key == WidgetDataCacheKeys.NEWS_TICKER.value.format(ticker="ATOS") for r in results)
 
 
 @pytest.mark.asyncio
@@ -291,7 +291,7 @@ async def test_fda_analyze_data_with_raw_nyse_ticker_in_summary_expect_published
     results = await sut.analyze_data(article)
 
     # Assert
-    assert any(r.publish_key == MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="FUBO") for r in results)
+    assert any(r.publish_key == WidgetDataCacheKeys.NEWS_TICKER.value.format(ticker="FUBO") for r in results)
 
 
 @pytest.mark.asyncio
@@ -303,7 +303,7 @@ async def test_fda_analyze_data_with_raw_ticker_no_space_expect_published(sut):
     results = await sut.analyze_data(article)
 
     # Assert
-    assert any(r.publish_key == MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="GM") for r in results)
+    assert any(r.publish_key == WidgetDataCacheKeys.NEWS_TICKER.value.format(ticker="GM") for r in results)
 
 
 @pytest.mark.asyncio
@@ -319,8 +319,8 @@ async def test_fda_analyze_data_with_raw_multiple_tickers_expect_all_published(s
 
     # Assert
     keys = {r.publish_key for r in results}
-    assert MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="MSFT") in keys
-    assert MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="AAPL") in keys
+    assert WidgetDataCacheKeys.NEWS_TICKER.value.format(ticker="MSFT") in keys
+    assert WidgetDataCacheKeys.NEWS_TICKER.value.format(ticker="AAPL") in keys
 
 
 @pytest.mark.asyncio
@@ -333,14 +333,14 @@ async def test_fda_analyze_data_with_raw_no_tickers_expect_feed_only(sut):
 
     # Assert
     assert len(results) == 1
-    assert results[0].publish_key == MarketDataPubSubKeys.NEWS_FEED_LATEST.value
+    assert results[0].publish_key == WidgetDataCacheKeys.NEWS_FEED_LATEST.value
 
 
 @pytest.mark.asyncio
 async def test_fda_analyze_data_with_raw_ticker_cache_key_is_none(sut):
     # Arrange
     article = _raw_article(title="Chewy (Nasdaq: CHWY) beats estimates")
-    publish_key = MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="CHWY")
+    publish_key = WidgetDataCacheKeys.NEWS_TICKER.value.format(ticker="CHWY")
 
     # Act
     results = await sut.analyze_data(article)
@@ -491,7 +491,7 @@ async def test_fda_analyze_data_with_feed_result_expect_cache_list_max(sut):
     results = await sut.analyze_data(article)
 
     # Assert
-    feed = next(r for r in results if r.publish_key == MarketDataPubSubKeys.NEWS_FEED_LATEST.value)
+    feed = next(r for r in results if r.publish_key == WidgetDataCacheKeys.NEWS_FEED_LATEST.value)
     assert feed.cache_list_max == FinlightDataCache.NEWS_FEED_LIST_MAX.value
 
 
@@ -506,9 +506,9 @@ async def test_fda_analyze_data_with_enhanced_ticker_expect_cache_key_set(sut):
     # Assert
     ticker_result = next(
         r for r in results
-        if r.publish_key == MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="AAPL")
+        if r.publish_key == WidgetDataCacheKeys.NEWS_TICKER.value.format(ticker="AAPL")
     )
-    assert ticker_result.cache_key == MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="AAPL")
+    assert ticker_result.cache_key == WidgetDataCacheKeys.NEWS_TICKER.value.format(ticker="AAPL")
 
 
 @pytest.mark.asyncio
@@ -522,7 +522,7 @@ async def test_fda_analyze_data_with_enhanced_ticker_expect_cache_list_max(sut):
     # Assert
     ticker_result = next(
         r for r in results
-        if r.publish_key == MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="AAPL")
+        if r.publish_key == WidgetDataCacheKeys.NEWS_TICKER.value.format(ticker="AAPL")
     )
     assert ticker_result.cache_list_max == FinlightDataCache.NEWS_TICKER_LIST_MAX.value
 
@@ -538,9 +538,9 @@ async def test_fda_analyze_data_with_raw_ticker_expect_cache_key_set(sut):
     # Assert
     ticker_result = next(
         r for r in results
-        if r.publish_key == MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="AAPL")
+        if r.publish_key == WidgetDataCacheKeys.NEWS_TICKER.value.format(ticker="AAPL")
     )
-    assert ticker_result.cache_key == MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="AAPL")
+    assert ticker_result.cache_key == WidgetDataCacheKeys.NEWS_TICKER.value.format(ticker="AAPL")
 
 
 @pytest.mark.asyncio
@@ -554,7 +554,7 @@ async def test_fda_analyze_data_with_raw_ticker_expect_cache_list_max(sut):
     # Assert
     ticker_result = next(
         r for r in results
-        if r.publish_key == MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="AAPL")
+        if r.publish_key == WidgetDataCacheKeys.NEWS_TICKER.value.format(ticker="AAPL")
     )
     assert ticker_result.cache_list_max == FinlightDataCache.NEWS_TICKER_LIST_MAX.value
 
@@ -597,7 +597,7 @@ async def test_fda_analyze_data_with_kwargs_override_expect_custom_feed_limit():
     results = await sut.analyze_data(article)
 
     # Assert — feed result uses overridden limit
-    feed = next(r for r in results if r.publish_key == MarketDataPubSubKeys.NEWS_FEED_LATEST.value)
+    feed = next(r for r in results if r.publish_key == WidgetDataCacheKeys.NEWS_FEED_LATEST.value)
     assert feed.cache_list_max == 999
 
 
@@ -617,7 +617,7 @@ async def test_fda_analyze_data_with_kwargs_override_expect_custom_ticker_limit(
     # Assert — ticker result uses overridden limit
     ticker_result = next(
         r for r in results
-        if r.publish_key == MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="AAPL")
+        if r.publish_key == WidgetDataCacheKeys.NEWS_TICKER.value.format(ticker="AAPL")
     )
     assert ticker_result.cache_list_max == 42
 
@@ -634,8 +634,8 @@ async def test_fda_init_with_no_kwargs_expect_ttl_enum_defaults():
     sut = FinlightDataAnalyzer(opts)
 
     # Assert
-    assert sut.news_feed_cache_ttl == MarketDataCacheTTL.NEWS_FEED_LATEST.value
-    assert sut.news_ticker_cache_ttl == MarketDataCacheTTL.NEWS_TICKER.value
+    assert sut.news_feed_cache_ttl == WidgetDataCacheTTL.NEWS_FEED_LATEST.value
+    assert sut.news_ticker_cache_ttl == WidgetDataCacheTTL.NEWS_TICKER.value
 
 
 @pytest.mark.asyncio
@@ -655,7 +655,7 @@ async def test_fda_init_with_ttl_kwargs_expect_custom_ttls():
 
 @pytest.mark.asyncio
 async def test_fda_analyze_data_with_default_feed_ttl_expect_enum_value():
-    """Feed result cache_ttl uses MarketDataCacheTTL.NEWS_FEED_LATEST by default."""
+    """Feed result cache_ttl uses WidgetDataCacheTTL.NEWS_FEED_LATEST by default."""
     # Arrange
     opts = AnalyzerOptions(redis_url="redis://localhost")
     sut = FinlightDataAnalyzer(opts)
@@ -665,8 +665,8 @@ async def test_fda_analyze_data_with_default_feed_ttl_expect_enum_value():
     results = await sut.analyze_data(article)
 
     # Assert
-    feed = next(r for r in results if r.publish_key == MarketDataPubSubKeys.NEWS_FEED_LATEST.value)
-    assert feed.cache_ttl == MarketDataCacheTTL.NEWS_FEED_LATEST.value
+    feed = next(r for r in results if r.publish_key == WidgetDataCacheKeys.NEWS_FEED_LATEST.value)
+    assert feed.cache_ttl == WidgetDataCacheTTL.NEWS_FEED_LATEST.value
 
 
 @pytest.mark.asyncio
@@ -685,13 +685,13 @@ async def test_fda_analyze_data_with_custom_feed_ttl_expect_override_used():
     results = await sut.analyze_data(article)
 
     # Assert
-    feed = next(r for r in results if r.publish_key == MarketDataPubSubKeys.NEWS_FEED_LATEST.value)
+    feed = next(r for r in results if r.publish_key == WidgetDataCacheKeys.NEWS_FEED_LATEST.value)
     assert feed.cache_ttl == custom_ttl
 
 
 @pytest.mark.asyncio
 async def test_fda_analyze_data_with_default_ticker_ttl_expect_enum_value():
-    """Ticker result cache_ttl uses MarketDataCacheTTL.NEWS_TICKER by default."""
+    """Ticker result cache_ttl uses WidgetDataCacheTTL.NEWS_TICKER by default."""
     # Arrange
     opts = AnalyzerOptions(redis_url="redis://localhost")
     sut = FinlightDataAnalyzer(opts)
@@ -703,9 +703,9 @@ async def test_fda_analyze_data_with_default_ticker_ttl_expect_enum_value():
     # Assert
     ticker = next(
         r for r in results
-        if r.publish_key == MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="AAPL")
+        if r.publish_key == WidgetDataCacheKeys.NEWS_TICKER.value.format(ticker="AAPL")
     )
-    assert ticker.cache_ttl == MarketDataCacheTTL.NEWS_TICKER.value
+    assert ticker.cache_ttl == WidgetDataCacheTTL.NEWS_TICKER.value
 
 
 @pytest.mark.asyncio
@@ -726,7 +726,7 @@ async def test_fda_analyze_data_with_custom_ticker_ttl_expect_override_used():
     # Assert
     ticker = next(
         r for r in results
-        if r.publish_key == MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="AAPL")
+        if r.publish_key == WidgetDataCacheKeys.NEWS_TICKER.value.format(ticker="AAPL")
     )
     assert ticker.cache_ttl == custom_ttl
 
@@ -749,6 +749,6 @@ async def test_fda_analyze_data_with_custom_ticker_ttl_expect_raw_ticker_overrid
     # Assert
     ticker = next(
         r for r in results
-        if r.publish_key == MarketDataPubSubKeys.NEWS_TICKER.value.format(ticker="AAPL")
+        if r.publish_key == WidgetDataCacheKeys.NEWS_TICKER.value.format(ticker="AAPL")
     )
     assert ticker.cache_ttl == custom_ttl
