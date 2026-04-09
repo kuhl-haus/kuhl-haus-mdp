@@ -5,10 +5,8 @@ combining real-time session high/low tracking with reference data (overview,
 short interest, short volume, splits) fetched via a three-tier cache
 (memory → Redis → REST API).
 
-Session windows (Eastern Time):
-- Pre-market:     04:00–09:30
-- Regular:        09:30–16:00
-- After-hours:    16:00–20:00
+Session detection uses the Massive ``get_market_status()`` API (60-second
+in-memory cache) so exchange holidays and early closes are handled correctly.
 """
 import json
 import logging
@@ -263,6 +261,10 @@ class EnhancedQuoteAnalyzer(Analyzer):
         """
         et_now = datetime.now(timezone.utc).astimezone(ZoneInfo("America/New_York"))
 
+        # Time-of-day is intentional here — this is a reset *trigger* that fires
+        # during the 9:30 AM ET window, not a session classifier. Exchange holidays
+        # are not a concern: if the market is closed the leaderboard data is stale
+        # anyway, and an extra pre-market clear on a holiday is harmless.
         if not (et_now.hour == 9 and 30 <= et_now.minute < 31):
             return
 
