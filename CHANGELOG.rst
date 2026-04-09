@@ -1,8 +1,296 @@
 =========
 Changelog
 =========
+Version 0.4.1 (2026-04-09)
+==========================
+
+- `6b9388c <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/6b9388c>`_ feat: EnhancedQuoteAnalyzer — session HOD/LOD tracking + enrichment via MDS (#83)
+
+  * test: add failing tests for EnhancedQuoteAnalyzer (refs #82)
+
+  - Add ENHANCED_QUOTE to WidgetDataCacheKeys and WidgetDataCacheTTL enums
+
+  - Write comprehensive tests for session HOD/LOD tracking (pre-market,
+
+  regular, after-hours, outside windows), boundary resets (4 AM ET day
+
+  boundary and 9:30 AM ET market open), and three-tier enrichment cache
+
+  (memory → Redis → API) for overview, short interest, short volume, and
+
+  splits data
+
+  - Tests cover full payload construction, None-safety, and missing symbol
+
+  guard
+
+  * feat: implement EnhancedQuoteAnalyzer (refs #82)
+
+  Adds EnhancedQuoteAnalyzer with:
+
+  - Session HOD/LOD tracking for pre-market (04:00–09:30 ET), regular
+
+  (09:30–16:00 ET), and after-hours (16:00–20:00 ET) using in-memory
+
+  dicts keyed by symbol; millisecond start_timestamp converted to ET
+
+  - Day boundary reset at 4 AM ET via Lua atomic check-and-set on
+
+  enhanced_quote:day_boundary; clears all six session dicts
+
+  - Market open reset at 9:30 AM ET via SET NX; clears only pre-market
+
+  dicts so regular-session tracking starts fresh
+
+  - Three-tier enrichment cache (memory → Redis WDC → REST API) for
+
+  ticker overview (30-day TTL), short interest (14-day), short volume
+
+  (24h), and splits (24h)
+
+  - Full payload: all raw quote fields plus session H/L plus enrichment
+
+  fields; published to enhanced_quote:{symbol} with 7-day TTL
+
+  - Fix test: use high/low values that preserve pre-populated HOD/LOD
+
+  when the incoming event does not exceed existing extremes
+
+  * fix: replace time-of-day session detection with market_status API call (refs #82)
+
+  * docs: fix stale session-window comments in EnhancedQuoteAnalyzer (refs #82)
+
+  - Remove time-window list from module docstring (session now uses market_status API)
+
+  - Add comment in _check_market_open_reset explaining why time-of-day is intentional
+
+  for the reset trigger (not session detection)
+
+- `cf3db99 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/cf3db99>`_ ci: enforce 98% minimum coverage in publish-to-pypi workflow (#81)
+
+  Adds --cov-fail-under=98 to the pytest invocation. Build will fail
+
+  if coverage drops below 98% before a release tag can be published.
+
+- `40c3e78 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/40c3e78>`_ Rename MDL to Massive Data Listener
+
+  Update docs/architecture.rst to replace 'Market Data Listener (MDL)' with 'Massive Data Listener (MDL)' in two places to reflect the Massive.com provider naming. Documentation-only change; no code behavior affected.
+
+- `e701794 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/e701794>`_ docs: fix stale MDS (Market Data Source) reference in MDL section (#79)
+
+  MDS now refers exclusively to Market Data Scanner. The old usage in the
+
+  MDL description referred to a legacy internal term 'Market Data Source'
+
+  which was never adopted. Clarified that MDL implementations are
+
+  provider-specific Listener classes.
+
+- `fbbf2bb <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/fbbf2bb>`_ docs: add MDS component + WDC section; update enum refs for v0.4.0 (#78)
+
+  * docs: add MDS component + WDC section; update enum refs for v0.4.0
+
+  - Add Market Data Scanner (MDS) to Components Summary and Component Descriptions
+
+  - Brief description in summary; full description with code libraries
+
+  - MarketDataScanner, FinlightDataAnalyzer, AnalyzerOptions, WidgetDataCacheKeys, WidgetDataCacheTTL
+
+  - Add Widget Data Cache (WDC) to Components Summary and Component Descriptions
+
+  - WidgetDataCacheKeys and WidgetDataCacheTTL as primary enums
+
+  - Update MDC description: 'internal' store, separate Redis instance from WDC
+
+  - MarketDataPubSubKeys: note kept for backward compat; prefer WidgetDataCacheKeys for new work
+
+  - Remove MarketDataScanner from MDP code libraries (it belongs to MDS)
+
+  - Add WidgetDataCacheKeys to WDS code libraries
+
+  - Update Deployment Model to include MDS and WDC in data plane list
+
+  * feat: deprecate MarketDataPubSubKeys; update MarketDataCacheKeys docstring
+
+  MarketDataPubSubKeys:
+
+  - Module-level warnings.warn(DeprecationWarning) fires on import — surfaces
+
+  in IDEs (PyCharm, VS Code) and test output
+
+  - Added '.. deprecated::' RST directive to module and class docstrings for
+
+  Sphinx rendering and IDE tooltip display
+
+  - Replacement: WidgetDataCacheKeys
+
+  MarketDataCacheKeys:
+
+  - Updated module and class docstrings to reference WidgetDataCacheKeys as
+
+  the home of WDC-facing keys (no deprecation — internal MDC keys remain valid)
+
+  - Removed stale reference to MarketDataPubSubKeys in the module docstring
+
+  * feat: deprecate WDC-facing members of MarketDataCacheTTL
+
+  Deprecated as of v0.4.0 (moved to WidgetDataCacheTTL):
+
+  QUOTE, TOP_TRADES_WIDGET_CACHE_TTL, TOP_TRADES_ALL_SYMBOLS_CACHE_TTL,
+
+  TOP_STOCKS_SCANNER, TOP_VOLUME_SCANNER, TOP_GAINERS_SCANNER,
+
+  TOP_GAPPERS_SCANNER, NEWS_FEED_LATEST, NEWS_TICKER
+
+  - '.. deprecated::' RST directive in class docstring lists all deprecated members
+
+  - Inline '@deprecated' comments on each deprecated member for IDE tooltip
+
+  - Module __getattr__ + warnings.warn(DeprecationWarning) fires on member access
+
+  - Module docstring updated to list all deprecated members with replacements
+
+  - Non-WDC members (raw data, ticker caches, leaderboards, TOP_TRADES_TRADE_TTL)
+
+  are not deprecated
+
+  * feat: mark all unused enum members as deprecated (v0.4.0 dead code pass)
+
+  Usage audit across src/ and tests/ identified the following unused members.
+
+  All marked with @deprecated inline comments and .. deprecated:: docstring
+
+  directives for IDE tooltip + Sphinx rendering.
+
+  MarketDataCacheKeys (unused, no replacement):
+
+  TOP_TRADES_WIDGET_CACHE_KEY, TOP_TRADES_ALL_SYMBOLS_CACHE_KEY,
+
+  DAILY_AGGREGATES, TOP_TRADES_SCANNER, TOP_GAINERS_SCANNER,
+
+  TOP_GAPPERS_SCANNER, TOP_STOCKS_SCANNER, TOP_VOLUME_SCANNER
+
+  MarketDataCacheTTL (unused dead code, no active callers):
+
+  NEGATIVE_CACHE_THROTTLE, LEADERBOARD_TOP_VOLUME,
+
+  LEADERBOARD_TOP_GAPPERS, LEADERBOARD_TOP_GAINERS
+
+  (WDC entries already marked in previous commit)
+
+  WidgetDataCacheKeys (unused, no active callers):
+
+  TOP_10_LISTS_SCANNER, TOP_TRADES_SCANNER_ONE_HOUR,
+
+  TOP_TRADES_SCANNER_FIVE_MINUTES, TOP_TRADES_SCANNER_ONE_MINUTE,
+
+  TOP_TRADES_SCANNER
+
+  WidgetDataCacheTTL (unused, no active callers):
+
+  TOP_TRADES_WIDGET_CACHE_TTL, TOP_TRADES_ALL_SYMBOLS_CACHE_TTL
+
+  Not deprecated:
+
+  MassiveDataQueue — all members used
+
+  FinlightDataQueue — all members used
+
+  MarketDataScannerNames — used as enum value constructors in other enums
+
+  * fix: revert incorrect deprecations on WidgetDataCacheTTL
+
+  TOP_TRADES_WIDGET_CACHE_TTL and TOP_TRADES_ALL_SYMBOLS_CACHE_TTL are both
+
+  actively used in top_trades_analyzer.py — audit regex had a false negative.
+
+  All WidgetDataCacheTTL members are in use; no deprecations warranted.
+
+  * fix: correct false positives in deprecation pass
+
+  After expanding audit to include tests/ and kuhl-haus-mdp-servers/:
+
+  MarketDataCacheTTL — remove deprecation from:
+
+  QUOTE, TOP_TRADES_WIDGET_CACHE_TTL, TOP_TRADES_ALL_SYMBOLS_CACHE_TTL,
+
+  NEWS_FEED_LATEST, NEWS_TICKER (all have active callers)
+
+  Remaining deprecated: NEGATIVE_CACHE_THROTTLE, LEADERBOARD_TOP_{VOLUME,GAPPERS,GAINERS},
+
+  TOP_{STOCKS,VOLUME,GAINERS,GAPPERS}_SCANNER
+
+  MarketDataPubSubKeys — NEWS_FEED_LATEST and NEWS_TICKER still used in tests;
+
+  noted in docstring, class-level deprecation stands for removal in next release
+
+  * test: migrate deprecated enum refs to WidgetDataCacheKeys/WidgetDataCacheTTL
+
+  test_finlight_data_analyzer.py:
+
+  - Replace MarketDataPubSubKeys with WidgetDataCacheKeys
+
+  - Replace MarketDataCacheTTL.NEWS_FEED_LATEST/NEWS_TICKER with WidgetDataCacheTTL equivalents
+
+  - Remove now-unused MarketDataCacheTTL import
+
+  test_widget_data_cache_enums.py:
+
+  - Replace MarketDataCacheTTL.QUOTE cross-comparison with direct FOUR_DAYS constant assertion
+
+  - Remove now-unused MarketDataCacheTTL import
+
+  71 tests pass.
+
+- `1178397 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/1178397>`_ Refine MarketDataScanner docstrings
+
+  Update module and class docstrings to better reflect the component's role. The text now states the scanner processes post-processed/enriched market data (not raw feeds), lists example analyzer tasks (event correlation, alert generation, trend analysis, pattern recognition), removes the single-analyzer/raw-data wording, and clarifies that this is a Redis-only processor (contrasting RabbitMQ-fed processors). These are wording/clarity changes only.
+
+- `eb86190 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/eb86190>`_ Adding WDC and MDS to the C4 diagram (#77)
+
+  The WDC component is described in the GitHub issue in kuhl-haus-project-roadmap.
+
+  https://github.com/kuhl-haus/kuhl-haus-project-roadmap/issues/2
+
+  When refactoring for this change, the MarketDataScanner was updated to conform with the Analyzer/AnalyzerOptions pattern.  It is not currently in-use but, it will be in Wave-2.
+
+- `a732e25 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/a732e25>`_ docs(architecture): add Widget Data Cache (WDC) to C4 diagram (#76)
+
+  Splits the single Redis node into MDC and WDC:
+
+  - MDC (db 0): internal analyzer state — leaderboards, snapshots,
+
+  float, avg volume, ticker caches
+
+  - WDC (db 1): client-facing results — scanner feeds, quote feed,
+
+  news feeds, top trades; pub/sub to WDS
+
+  Processors write analyzer results to WDC (not MDC).
+
+  WDS subscribes to WDC pub/sub (not MDC).
+
+  Removes CacheClient from WDS — WDS reads directly from WDC.
+
+- `bf7bffd <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/bf7bffd>`_ docs: update configuration.rst for MDC_REDIS_URL / WDC_REDIS_URL split (#75)
+
+  Replaces REDIS_URL with purpose-specific env vars across all server docs:
+
+  - FDP, MDP, LBA: MDC_REDIS_URL (AnalyzerOptions) + WDC_REDIS_URL (Processor)
+
+  - WDS: WDC_REDIS_URL only (reads widget results)
+
+  - MDL: Redis removed entirely (was POC leftover, never used)
+
+  refs #74
+
+
 Version 0.4.0 (2026-04-07)
 ==========================
+
+- `7a6d01c <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/7a6d01c>`_ Version 0.4.0 (2026-04-07)
+
+  Breaking changes - please read the change log for details.
 
 - `ac7c24c <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/ac7c24c>`_ feat: introduce WidgetDataCacheKeys and WidgetDataCacheTTL enums (WDC/MDC enum split) (#73)
 
