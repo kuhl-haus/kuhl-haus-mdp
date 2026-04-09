@@ -36,3 +36,6 @@ class WidgetDataCacheTTL(Enum):
     # Finlight news caches
     NEWS_FEED_LATEST = TWO_DAYS
     NEWS_TICKER = SEVEN_DAYS
+
+    # Enhanced quote cache
+    ENHANCED_QUOTE = SEVEN_DAYS  # 7 days

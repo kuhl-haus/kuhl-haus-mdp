@@ -64,3 +64,6 @@ class WidgetDataCacheKeys(Enum):
     # Finlight news feeds
     NEWS_FEED_LATEST = 'news:feed:latest'
     NEWS_TICKER = 'news:ticker:{ticker}'
+
+    # Enhanced quote feed
+    ENHANCED_QUOTE = 'enhanced_quote'  # Usage: f'{ENHANCED_QUOTE.value}:{symbol}'
