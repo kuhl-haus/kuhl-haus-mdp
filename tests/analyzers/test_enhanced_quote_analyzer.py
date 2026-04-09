@@ -1,9 +1,12 @@
 """Tests for EnhancedQuoteAnalyzer — session HOD/LOD tracking and MDS enrichment."""
 import json
+import time
 import pytest
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 from zoneinfo import ZoneInfo
+
+from massive.rest.models import MarketStatus
 
 from kuhl_haus.mdp.analyzers.enhanced_quote_analyzer import EnhancedQuoteAnalyzer
 from kuhl_haus.mdp.analyzers.analyzer import AnalyzerOptions
@@ -30,16 +33,6 @@ PRE_MARKET_TS = _ms(2026, 4, 8, 5, 0)     # 05:00 ET → pre-market
 REGULAR_TS = _ms(2026, 4, 8, 10, 0)       # 10:00 ET → regular session
 AFTER_HOURS_TS = _ms(2026, 4, 8, 17, 0)   # 17:00 ET → after-hours
 OUTSIDE_TS = _ms(2026, 4, 8, 23, 0)       # 23:00 ET → outside all windows
-OUTSIDE_MIDNIGHT_TS = _ms(2026, 4, 8, 1, 0)  # 01:00 ET → outside all windows
-
-# Edge timestamps
-PRE_MARKET_START_TS = _ms(2026, 4, 8, 4, 0)    # exactly 04:00 ET → pre-market
-PRE_MARKET_END_TS = _ms(2026, 4, 8, 9, 29)     # 09:29 ET → pre-market
-REGULAR_START_TS = _ms(2026, 4, 8, 9, 30)      # exactly 09:30 ET → regular
-REGULAR_END_TS = _ms(2026, 4, 8, 15, 59)       # 15:59 ET → regular
-AFTER_HOURS_START_TS = _ms(2026, 4, 8, 16, 0)  # exactly 16:00 ET → after-hours
-AFTER_HOURS_END_TS = _ms(2026, 4, 8, 19, 59)   # 19:59 ET → after-hours
-AFTER_HOURS_CLOSE_TS = _ms(2026, 4, 8, 20, 0)  # exactly 20:00 ET → outside
 
 
 # ------------------------------------------------------------------
@@ -68,6 +61,7 @@ def mock_rest_client():
     client.list_short_interest.return_value = iter([])
     client.list_short_volume.return_value = iter([])
     client.list_splits.return_value = iter([])
+    client.get_market_status.return_value = MarketStatus(market="open", early_hours=False, after_hours=False)
     return client
 
 
@@ -186,104 +180,212 @@ def test_eqa_init_creates_empty_enrichment_caches(mock_options):
     assert sut._splits_cache == {}
 
 
-# ------------------------------------------------------------------
-# _get_session — session detection from start_timestamp
-# ------------------------------------------------------------------
-
-
-@pytest.mark.parametrize("ts,expected", [
-    (PRE_MARKET_START_TS, "pre_market"),     # 04:00 ET — start of pre-market
-    (PRE_MARKET_TS, "pre_market"),           # 05:00 ET — mid pre-market
-    (PRE_MARKET_END_TS, "pre_market"),       # 09:29 ET — last pre-market minute
-    (REGULAR_START_TS, "regular"),           # 09:30 ET — start of regular
-    (REGULAR_TS, "regular"),                 # 10:00 ET — mid regular
-    (REGULAR_END_TS, "regular"),             # 15:59 ET — last regular minute
-    (AFTER_HOURS_START_TS, "after_hours"),   # 16:00 ET — start of after-hours
-    (AFTER_HOURS_TS, "after_hours"),         # 17:00 ET — mid after-hours
-    (AFTER_HOURS_END_TS, "after_hours"),     # 19:59 ET — last after-hours minute
-    (AFTER_HOURS_CLOSE_TS, None),            # 20:00 ET — outside
-    (OUTSIDE_TS, None),                      # 23:00 ET — outside
-    (OUTSIDE_MIDNIGHT_TS, None),             # 01:00 ET — outside (pre pre-market)
-])
-def test_eqa_get_session_returns_correct_session(sut, ts, expected):
+def test_eqa_init_sets_market_status_cache_fields(mock_options):
     # Act
-    result = sut._get_session(ts)
+    sut = EnhancedQuoteAnalyzer(mock_options)
 
     # Assert
-    assert result == expected
+    assert sut._market_status is None
+    assert sut._market_status_fetched_at == 0.0
+
+
+# ------------------------------------------------------------------
+# _get_market_status — 60-second in-memory cache
+# ------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_eqa_get_market_status_fetches_on_first_call(sut, mock_rest_client):
+    # Arrange — cache is cold (_market_status_fetched_at = 0.0)
+    status = MarketStatus(market="open", early_hours=False, after_hours=False)
+    mock_rest_client.get_market_status.return_value = status
+
+    # Act
+    result = await sut._get_market_status()
+
+    # Assert
+    assert result is status
+    mock_rest_client.get_market_status.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_eqa_get_market_status_returns_cached_within_60s(sut, mock_rest_client):
+    # Arrange — cache is warm (fetched just now)
+    cached = MarketStatus(market="open", early_hours=False, after_hours=False)
+    sut._market_status = cached
+    sut._market_status_fetched_at = time.monotonic()
+
+    # Act
+    result = await sut._get_market_status()
+
+    # Assert — cached value returned, API not called
+    assert result is cached
+    mock_rest_client.get_market_status.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_eqa_get_market_status_refetches_after_60s(sut, mock_rest_client):
+    # Arrange — cache expired 61 seconds ago
+    old = MarketStatus(market="closed", early_hours=False, after_hours=False)
+    new = MarketStatus(market="open", early_hours=False, after_hours=False)
+    sut._market_status = old
+    sut._market_status_fetched_at = time.monotonic() - 61
+    mock_rest_client.get_market_status.return_value = new
+
+    # Act
+    result = await sut._get_market_status()
+
+    # Assert — new value fetched and cached
+    assert result is new
+    mock_rest_client.get_market_status.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_eqa_get_market_status_returns_stale_on_api_failure(sut, mock_rest_client):
+    # Arrange — cache expired, API will raise
+    stale = MarketStatus(market="open", early_hours=False, after_hours=False)
+    sut._market_status = stale
+    sut._market_status_fetched_at = 0.0
+    mock_rest_client.get_market_status.side_effect = Exception("Network error")
+
+    # Act
+    result = await sut._get_market_status()
+
+    # Assert — stale value returned, no exception raised
+    assert result is stale
+    mock_rest_client.get_market_status.assert_called_once()
+
+
+# ------------------------------------------------------------------
+# _get_session — session detection via market status API
+# ------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_eqa_get_session_returns_pre_market(sut):
+    # Arrange
+    status = MarketStatus(market="extended-hours", early_hours=True, after_hours=False)
+    with patch.object(sut, "_get_market_status", new_callable=AsyncMock, return_value=status):
+        result = await sut._get_session()
+    assert result == "pre_market"
+
+
+@pytest.mark.asyncio
+async def test_eqa_get_session_returns_regular(sut):
+    # Arrange
+    status = MarketStatus(market="open", early_hours=False, after_hours=False)
+    with patch.object(sut, "_get_market_status", new_callable=AsyncMock, return_value=status):
+        result = await sut._get_session()
+    assert result == "regular"
+
+
+@pytest.mark.asyncio
+async def test_eqa_get_session_returns_after_hours(sut):
+    # Arrange
+    status = MarketStatus(market="extended-hours", early_hours=False, after_hours=True)
+    with patch.object(sut, "_get_market_status", new_callable=AsyncMock, return_value=status):
+        result = await sut._get_session()
+    assert result == "after_hours"
+
+
+@pytest.mark.asyncio
+async def test_eqa_get_session_returns_none_when_closed(sut):
+    # Arrange
+    status = MarketStatus(market="closed", early_hours=False, after_hours=False)
+    with patch.object(sut, "_get_market_status", new_callable=AsyncMock, return_value=status):
+        result = await sut._get_session()
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_eqa_get_session_returns_none_when_status_is_none(sut):
+    # Arrange
+    with patch.object(sut, "_get_market_status", new_callable=AsyncMock, return_value=None):
+        result = await sut._get_session()
+    assert result is None
 
 
 # ------------------------------------------------------------------
 # _update_session_hod_lod — HOD/LOD update logic
 # ------------------------------------------------------------------
 
+_PRE_MARKET_STATUS = MarketStatus(market="extended-hours", early_hours=True, after_hours=False)
+_REGULAR_STATUS = MarketStatus(market="open", early_hours=False, after_hours=False)
+_AFTER_HOURS_STATUS = MarketStatus(market="extended-hours", early_hours=False, after_hours=True)
+_CLOSED_STATUS = MarketStatus(market="closed", early_hours=False, after_hours=False)
 
-def test_eqa_update_hod_lod_pre_market_sets_initial_high(sut):
+
+@pytest.mark.asyncio
+async def test_eqa_update_hod_lod_pre_market_sets_initial_high(sut):
     # Arrange
     data = _make_quote(start_timestamp=PRE_MARKET_TS, high=155.0, low=145.0)
 
-    # Act
-    sut._update_session_hod_lod("AAPL", data)
+    with patch.object(sut, "_get_market_status", new_callable=AsyncMock, return_value=_PRE_MARKET_STATUS):
+        await sut._update_session_hod_lod("AAPL", data)
 
-    # Assert
     assert sut._pre_market_high["AAPL"] == 155.0
     assert sut._pre_market_low["AAPL"] == 145.0
 
 
-def test_eqa_update_hod_lod_pre_market_new_high_replaces(sut):
+@pytest.mark.asyncio
+async def test_eqa_update_hod_lod_pre_market_new_high_replaces(sut):
     # Arrange
     sut._pre_market_high["AAPL"] = 150.0
     data = _make_quote(start_timestamp=PRE_MARKET_TS, high=160.0, low=149.0)
 
-    # Act
-    sut._update_session_hod_lod("AAPL", data)
+    with patch.object(sut, "_get_market_status", new_callable=AsyncMock, return_value=_PRE_MARKET_STATUS):
+        await sut._update_session_hod_lod("AAPL", data)
 
     # Assert — new high is higher, should replace
     assert sut._pre_market_high["AAPL"] == 160.0
 
 
-def test_eqa_update_hod_lod_pre_market_lower_high_does_not_replace(sut):
+@pytest.mark.asyncio
+async def test_eqa_update_hod_lod_pre_market_lower_high_does_not_replace(sut):
     # Arrange
     sut._pre_market_high["AAPL"] = 165.0
     data = _make_quote(start_timestamp=PRE_MARKET_TS, high=155.0, low=149.0)
 
-    # Act
-    sut._update_session_hod_lod("AAPL", data)
+    with patch.object(sut, "_get_market_status", new_callable=AsyncMock, return_value=_PRE_MARKET_STATUS):
+        await sut._update_session_hod_lod("AAPL", data)
 
     # Assert — existing high is already higher, should NOT replace
     assert sut._pre_market_high["AAPL"] == 165.0
 
 
-def test_eqa_update_hod_lod_pre_market_new_low_replaces(sut):
+@pytest.mark.asyncio
+async def test_eqa_update_hod_lod_pre_market_new_low_replaces(sut):
     # Arrange
     sut._pre_market_low["AAPL"] = 145.0
     data = _make_quote(start_timestamp=PRE_MARKET_TS, high=155.0, low=140.0)
 
-    # Act
-    sut._update_session_hod_lod("AAPL", data)
+    with patch.object(sut, "_get_market_status", new_callable=AsyncMock, return_value=_PRE_MARKET_STATUS):
+        await sut._update_session_hod_lod("AAPL", data)
 
     # Assert — new low is lower, should replace
     assert sut._pre_market_low["AAPL"] == 140.0
 
 
-def test_eqa_update_hod_lod_pre_market_higher_low_does_not_replace(sut):
+@pytest.mark.asyncio
+async def test_eqa_update_hod_lod_pre_market_higher_low_does_not_replace(sut):
     # Arrange
     sut._pre_market_low["AAPL"] = 140.0
     data = _make_quote(start_timestamp=PRE_MARKET_TS, high=155.0, low=148.0)
 
-    # Act
-    sut._update_session_hod_lod("AAPL", data)
+    with patch.object(sut, "_get_market_status", new_callable=AsyncMock, return_value=_PRE_MARKET_STATUS):
+        await sut._update_session_hod_lod("AAPL", data)
 
     # Assert — existing low is already lower, should NOT replace
     assert sut._pre_market_low["AAPL"] == 140.0
 
 
-def test_eqa_update_hod_lod_regular_session_updates_correct_dicts(sut):
+@pytest.mark.asyncio
+async def test_eqa_update_hod_lod_regular_session_updates_correct_dicts(sut):
     # Arrange
     data = _make_quote(start_timestamp=REGULAR_TS, high=160.0, low=150.0)
 
-    # Act
-    sut._update_session_hod_lod("TSLA", data)
+    with patch.object(sut, "_get_market_status", new_callable=AsyncMock, return_value=_REGULAR_STATUS):
+        await sut._update_session_hod_lod("TSLA", data)
 
     # Assert — regular session dicts updated, not pre-market
     assert sut._regular_session_high["TSLA"] == 160.0
@@ -292,12 +394,13 @@ def test_eqa_update_hod_lod_regular_session_updates_correct_dicts(sut):
     assert "TSLA" not in sut._after_hours_high
 
 
-def test_eqa_update_hod_lod_after_hours_updates_correct_dicts(sut):
+@pytest.mark.asyncio
+async def test_eqa_update_hod_lod_after_hours_updates_correct_dicts(sut):
     # Arrange
     data = _make_quote(start_timestamp=AFTER_HOURS_TS, high=162.0, low=158.0)
 
-    # Act
-    sut._update_session_hod_lod("NVDA", data)
+    with patch.object(sut, "_get_market_status", new_callable=AsyncMock, return_value=_AFTER_HOURS_STATUS):
+        await sut._update_session_hod_lod("NVDA", data)
 
     # Assert — after-hours dicts updated, not others
     assert sut._after_hours_high["NVDA"] == 162.0
@@ -306,12 +409,13 @@ def test_eqa_update_hod_lod_after_hours_updates_correct_dicts(sut):
     assert "NVDA" not in sut._regular_session_high
 
 
-def test_eqa_update_hod_lod_outside_window_does_not_update(sut):
-    # Arrange
+@pytest.mark.asyncio
+async def test_eqa_update_hod_lod_closed_market_does_not_update(sut):
+    # Arrange — market is closed
     data = _make_quote(start_timestamp=OUTSIDE_TS, high=160.0, low=150.0)
 
-    # Act
-    sut._update_session_hod_lod("MSFT", data)
+    with patch.object(sut, "_get_market_status", new_callable=AsyncMock, return_value=_CLOSED_STATUS):
+        await sut._update_session_hod_lod("MSFT", data)
 
     # Assert — no session dict should be updated
     assert "MSFT" not in sut._pre_market_high
@@ -319,12 +423,13 @@ def test_eqa_update_hod_lod_outside_window_does_not_update(sut):
     assert "MSFT" not in sut._after_hours_high
 
 
-def test_eqa_update_hod_lod_missing_start_timestamp_does_not_update(sut):
-    # Arrange — no start_timestamp
+@pytest.mark.asyncio
+async def test_eqa_update_hod_lod_unavailable_market_status_does_not_update(sut):
+    # Arrange — market status unavailable (None)
     data = {"symbol": "AAPL", "high": 160.0, "low": 150.0}
 
-    # Act
-    sut._update_session_hod_lod("AAPL", data)
+    with patch.object(sut, "_get_market_status", new_callable=AsyncMock, return_value=None):
+        await sut._update_session_hod_lod("AAPL", data)
 
     # Assert — no dicts updated
     assert "AAPL" not in sut._pre_market_high
@@ -332,27 +437,29 @@ def test_eqa_update_hod_lod_missing_start_timestamp_does_not_update(sut):
     assert "AAPL" not in sut._after_hours_high
 
 
-def test_eqa_update_hod_lod_none_high_skips_high_update(sut):
+@pytest.mark.asyncio
+async def test_eqa_update_hod_lod_none_high_skips_high_update(sut):
     # Arrange — high is None, only low is present
     sut._regular_session_high["AAPL"] = 150.0
     data = _make_quote(start_timestamp=REGULAR_TS, high=None, low=140.0)
 
-    # Act
-    sut._update_session_hod_lod("AAPL", data)
+    with patch.object(sut, "_get_market_status", new_callable=AsyncMock, return_value=_REGULAR_STATUS):
+        await sut._update_session_hod_lod("AAPL", data)
 
     # Assert — high unchanged, low updated
     assert sut._regular_session_high["AAPL"] == 150.0
     assert sut._regular_session_low["AAPL"] == 140.0
 
 
-def test_eqa_update_hod_lod_multiple_symbols_tracked_independently(sut):
+@pytest.mark.asyncio
+async def test_eqa_update_hod_lod_multiple_symbols_tracked_independently(sut):
     # Arrange
     aapl_data = _make_quote(symbol="AAPL", start_timestamp=REGULAR_TS, high=155.0, low=145.0)
     tsla_data = _make_quote(symbol="TSLA", start_timestamp=REGULAR_TS, high=800.0, low=780.0)
 
-    # Act
-    sut._update_session_hod_lod("AAPL", aapl_data)
-    sut._update_session_hod_lod("TSLA", tsla_data)
+    with patch.object(sut, "_get_market_status", new_callable=AsyncMock, return_value=_REGULAR_STATUS):
+        await sut._update_session_hod_lod("AAPL", aapl_data)
+        await sut._update_session_hod_lod("TSLA", tsla_data)
 
     # Assert — symbols tracked independently
     assert sut._regular_session_high["AAPL"] == 155.0

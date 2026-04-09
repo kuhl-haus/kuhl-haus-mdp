@@ -12,12 +12,16 @@ Session windows (Eastern Time):
 """
 import json
 import logging
+import time
 from datetime import datetime, timezone
 from typing import Optional, List
 from zoneinfo import ZoneInfo
 
+from massive.rest.models import MarketStatus
+
 from kuhl_haus.mdp.analyzers.analyzer import Analyzer, AnalyzerOptions
 from kuhl_haus.mdp.data.market_data_analyzer_result import MarketDataAnalyzerResult
+from kuhl_haus.mdp.enum.market_status_value import MarketStatusValue
 from kuhl_haus.mdp.enum.widget_data_cache_keys import WidgetDataCacheKeys
 from kuhl_haus.mdp.enum.widget_data_cache_ttl import WidgetDataCacheTTL
 from kuhl_haus.mdp.helpers.observability import get_tracer
@@ -71,6 +75,10 @@ class EnhancedQuoteAnalyzer(Analyzer):
         self._short_volume_cache: dict = {}
         self._splits_cache: dict = {}
 
+        # Market status cache (60-second TTL)
+        self._market_status: Optional[MarketStatus] = None
+        self._market_status_fetched_at: float = 0.0  # monotonic epoch seconds
+
     @tracer.start_as_current_span("eqa.analyze_data")
     async def analyze_data(self, data: dict) -> Optional[List[MarketDataAnalyzerResult]]:
         """Process a quote event and return an enriched enhanced_quote result.
@@ -96,7 +104,7 @@ class EnhancedQuoteAnalyzer(Analyzer):
         await self._check_day_boundary()
         await self._check_market_open_reset()
 
-        self._update_session_hod_lod(symbol, data)
+        await self._update_session_hod_lod(symbol, data)
 
         overview_data = await self._get_overview(symbol)
         short_interest_data = await self._get_short_interest(symbol)
@@ -134,47 +142,53 @@ class EnhancedQuoteAnalyzer(Analyzer):
             publish_key=cache_key,
         )]
 
-    def _get_session(self, start_timestamp: int) -> Optional[str]:
-        """Detect intraday session from a millisecond UTC timestamp.
+    async def _get_market_status(self) -> Optional[MarketStatus]:
+        """Fetch market status with 60-second in-memory cache.
 
-        Converts the timestamp to Eastern Time and maps it to a session window.
+        Returns stale cache on API failure rather than None — better than
+        dropping events due to a transient error.
+        """
+        now = time.monotonic()
+        if now - self._market_status_fetched_at < 60:
+            return self._market_status
+        try:
+            self._market_status = self.rest_client.get_market_status()
+            self._market_status_fetched_at = now
+        except Exception as e:
+            self.logger.warning(f"get_market_status() failed: {e}")
+            # Return stale cache — better than None
+        return self._market_status
 
-        Args:
-            start_timestamp: Event start time in milliseconds since epoch (UTC).
+    async def _get_session(self) -> Optional[str]:
+        """Determine current trading session via market status API.
+
+        Uses get_market_status() with 60-second in-memory cache. Returns None
+        if market is closed or status is unavailable.
 
         Returns:
-            ``'pre_market'``, ``'regular'``, ``'after_hours'``, or ``None``
-            if outside all session windows.
+            ``'pre_market'``, ``'regular'``, ``'after_hours'``, or ``None``.
         """
-        dt = datetime.fromtimestamp(
-            start_timestamp / 1000, tz=timezone.utc
-        ).astimezone(ZoneInfo("America/New_York"))
-        total_minutes = dt.hour * 60 + dt.minute
-
-        if 4 * 60 <= total_minutes < 9 * 60 + 30:
+        status = await self._get_market_status()
+        if status is None or status.market == MarketStatusValue.CLOSED.value:
+            return None
+        if status.early_hours:
             return "pre_market"
-        elif 9 * 60 + 30 <= total_minutes < 16 * 60:
-            return "regular"
-        elif 16 * 60 <= total_minutes < 20 * 60:
+        if status.after_hours:
             return "after_hours"
+        if status.market is not None:
+            return "regular"
         return None
 
-    def _update_session_hod_lod(self, symbol: str, data: dict):
+    async def _update_session_hod_lod(self, symbol: str, data: dict):
         """Update in-memory session high/low from the event's high/low fields.
 
-        Skips update if ``start_timestamp`` is absent or the event falls
-        outside all session windows.
+        Skips update if the market is closed or status is unavailable.
 
         Args:
             symbol: Ticker symbol.
-            data:   Quote event dict containing ``start_timestamp``, ``high``,
-                    and ``low`` fields.
+            data:   Quote event dict containing ``high`` and ``low`` fields.
         """
-        start_timestamp = data.get("start_timestamp")
-        if not start_timestamp:
-            return
-
-        session = self._get_session(start_timestamp)
+        session = await self._get_session()
         if session is None:
             return
 
