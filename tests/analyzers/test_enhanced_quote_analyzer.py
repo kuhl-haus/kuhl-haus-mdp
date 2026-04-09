@@ -868,7 +868,8 @@ async def test_eqa_analyze_data_payload_contains_session_hod_lod(sut):
     sut._after_hours_high["AAPL"] = 156.0
     sut._after_hours_low["AAPL"] = 150.0
 
-    data = _make_quote(symbol="AAPL", start_timestamp=REGULAR_TS)
+    # Use high < pre_high and low > pre_low so pre-populated values are preserved
+    data = _make_quote(symbol="AAPL", start_timestamp=REGULAR_TS, high=155.0, low=149.0)
     with patch.object(sut, "_check_day_boundary", new_callable=AsyncMock), \
          patch.object(sut, "_check_market_open_reset", new_callable=AsyncMock), \
          patch.object(sut, "_get_overview", new_callable=AsyncMock, return_value={}), \
