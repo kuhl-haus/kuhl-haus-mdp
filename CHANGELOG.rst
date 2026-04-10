@@ -1,9 +1,24 @@
 =========
 Changelog
 =========
+Version 0.4.6 (2026-04-10)
+==========================
+
+- `faa386f <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/faa386f>`_ fix: use str comparison instead of .decode() for Redis get() result (refs #91) (#92)
+
+  redis.asyncio returns str from get(), not bytes. Calling .decode() raises
+
+  AttributeError: 'str' object has no attribute 'decode'.
+
+  Fix _check_day_boundary to compare existing == today directly.
+
+  Update test fixture to reflect actual redis.asyncio return type.
+
+
 Version 0.4.5 (2026-04-10)
 ==========================
 
+- `18bc9c4 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/18bc9c4>`_ Version 0.4.5 (2026-04-10)
 - `f06879f <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/f06879f>`_ feat: add DailyRangeAnalyzer — pure HOD/LOD tracker, no REST calls (#91)
 
   Replaces the REST-call-heavy EnhancedQuoteAnalyzer with a focused
