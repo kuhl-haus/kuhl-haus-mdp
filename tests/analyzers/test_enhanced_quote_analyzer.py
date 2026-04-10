@@ -1304,3 +1304,79 @@ async def test_eqa_get_overview_with_none_rest_client_expect_short_retry_ttl(sut
     call_args = mock_redis.setex.call_args
     key, ttl, value = call_args[0]
     assert ttl <= 120, f"Expected short retry TTL ≤120s when rest_client is None, got {ttl}s"
+
+
+# ---------------------------------------------------------------------------
+# Bug #85 part 2: Redis sentinel {} must NOT be trapped in memory cache
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_eqa_get_overview_with_redis_empty_sentinel_expect_no_memory_cache(sut, mock_redis):
+    """When Redis has an empty sentinel {}, must NOT populate memory cache.
+
+    If {} is stored in memory, the symbol is permanently blocked from retrying
+    the API even after the Redis TTL expires.
+    """
+    # Arrange — Redis returns empty sentinel (written on a previous API failure)
+    mock_redis.get.return_value = json.dumps({})
+
+    # Act
+    result = await sut._get_overview("JPM")
+
+    # Assert — memory cache must NOT contain JPM (would block future retries)
+    assert "JPM" not in sut._overview_cache
+    assert result == {}
+
+
+@pytest.mark.asyncio
+async def test_eqa_get_short_interest_with_redis_empty_sentinel_expect_no_memory_cache(sut, mock_redis):
+    """When Redis has an empty sentinel {}, must NOT populate short interest memory cache."""
+    mock_redis.get.return_value = json.dumps({})
+    result = await sut._get_short_interest("JPM")
+    assert "JPM" not in sut._short_interest_cache
+    assert result == {}
+
+
+@pytest.mark.asyncio
+async def test_eqa_get_short_volume_with_redis_empty_sentinel_expect_no_memory_cache(sut, mock_redis):
+    """When Redis has an empty sentinel {}, must NOT populate short volume memory cache."""
+    mock_redis.get.return_value = json.dumps({})
+    result = await sut._get_short_volume("JPM")
+    assert "JPM" not in sut._short_volume_cache
+    assert result == {}
+
+
+@pytest.mark.asyncio
+async def test_eqa_get_splits_with_redis_empty_sentinel_expect_no_memory_cache(sut, mock_redis):
+    """When Redis has an empty sentinel [], must NOT populate splits memory cache."""
+    mock_redis.get.return_value = json.dumps([])
+    result = await sut._get_splits("JPM")
+    assert "JPM" not in sut._splits_cache
+    assert result == []
+
+
+@pytest.mark.asyncio
+async def test_eqa_get_overview_after_redis_sentinel_expires_expect_api_retry(sut, mock_redis):
+    """After Redis sentinel expires (miss), must retry the API and populate memory on success."""
+    # Arrange — first call: Redis miss (sentinel expired), API succeeds
+    mock_redis.get.return_value = None
+    overview_result = MagicMock()
+    overview_result.results = MagicMock()
+    overview_result.results.name = "JPMorgan Chase"
+    overview_result.results.description = "A bank."
+    overview_result.results.homepage_url = "https://jpmorganchase.com"
+    overview_result.results.list_date = "1969-03-05"
+    overview_result.results.market_cap = 500000000000.0
+    overview_result.results.primary_exchange = "XNYS"
+    overview_result.results.sic_description = "State commercial banks"
+    overview_result.results.total_employees = 300000
+    overview_result.results.share_class_shares_outstanding = 2900000000
+    sut.rest_client.get_ticker_details.return_value = overview_result
+
+    # Act
+    result = await sut._get_overview("JPM")
+
+    # Assert — memory cache populated, real data returned
+    assert "JPM" in sut._overview_cache
+    assert sut._overview_cache["JPM"]["name"] == "JPMorgan Chase"
+    assert result["name"] == "JPMorgan Chase"
