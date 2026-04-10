@@ -1,9 +1,76 @@
 =========
 Changelog
 =========
+Version 0.4.2 (2026-04-10)
+==========================
+
+- `63e342f <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/63e342f>`_ fix: do not trap Redis empty sentinel in memory cache (#87)
+
+  * test: add failing tests for Redis empty sentinel memory trap (refs #85)
+
+  4 failing tests proving the real bug: when Redis contains an empty sentinel
+
+  {} (written on API failure), the Redis hit path unconditionally populates the
+
+  in-memory cache with {}, permanently blocking future API retries even after
+
+  the 60s sentinel TTL expires.
+
+  Fix required: only populate memory cache when cached value is non-empty.
+
+  * fix: do not trap Redis empty sentinel in memory cache (refs #85)
+
+  The real bug: when Redis hit returns an empty sentinel {} (written on API
+
+  failure), the code unconditionally did:
+
+  self._overview_cache[symbol] = {}
+
+  This trapped the empty result in memory permanently — after the 60s Redis
+
+  TTL expired, the memory hit prevented any API retry.
+
+  Fix: add 'if data:' guard on all four Redis hit paths. Empty sentinels are
+
+  served from Redis during the 60s retry window but never stored in memory.
+
+  After TTL expiry, memory miss → Redis miss → API retry → real data stored
+
+  in both caches on success.
+
+- `46f899c <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/46f899c>`_ fix: self-healing enrichment cache — short retry TTL on API failure (#86)
+
+  * test: add failing tests for enrichment cache poison fix (refs #85)
+
+  8 failing tests proving the bug:
+
+  - API failure caches empty result with full TTL (poisoning cache)
+
+  - API failure populates in-memory cache (blocks retries)
+
+  - None rest_client behaves identically to API failure
+
+  Expected behavior: short retry TTL (≤120s) on failure, no memory cache population.
+
+  * fix: use short retry TTL on enrichment API failure, no memory cache population (refs #85)
+
+  Adds _ENRICHMENT_RETRY_TTL = 60s. On API failure in all four enrichment
+
+  methods (_get_overview, _get_short_interest, _get_short_volume, _get_splits):
+
+  - Write empty result to Redis with 60s TTL (not full TTL)
+
+  - Do NOT populate in-memory cache
+
+  This ensures the pod self-heals within 60 seconds after API key/connectivity
+
+  is restored, without requiring manual cache flushing or pod restart.
+
+
 Version 0.4.1 (2026-04-09)
 ==========================
 
+- `f3680b4 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/f3680b4>`_ Version 0.4.1 (2026-04-09)
 - `6b9388c <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/6b9388c>`_ feat: EnhancedQuoteAnalyzer — session HOD/LOD tracking + enrichment via MDS (#83)
 
   * test: add failing tests for EnhancedQuoteAnalyzer (refs #82)
