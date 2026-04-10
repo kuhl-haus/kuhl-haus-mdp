@@ -38,9 +38,9 @@ def mock_redis():
     redis = MagicMock()
     redis.eval = AsyncMock(return_value=0)
     # SET NX returns None when key already existed (no reset triggered).
-    # get() returns a bytes value matching today so the boundary guard exits early.
+    # get() returns a str value matching today so the boundary guard exits early.
     import datetime as _dt
-    _today = _dt.datetime.now(tz=ZoneInfo("America/New_York")).strftime("%Y-%m-%d").encode()
+    _today = _dt.datetime.now(tz=ZoneInfo("America/New_York")).strftime("%Y-%m-%d")  # redis.asyncio returns str, not bytes
     redis.set = AsyncMock(return_value=None)
     redis.get = AsyncMock(return_value=_today)
     redis.setex = AsyncMock()
