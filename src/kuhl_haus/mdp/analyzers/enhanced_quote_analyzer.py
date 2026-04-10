@@ -114,7 +114,9 @@ class EnhancedQuoteAnalyzer(Analyzer):
 
         # TODO: https://github.com/kuhl-haus/kuhl-haus-mdp/issues/85
         # short_volume_data = await self._get_short_volume(symbol)
-        splits_data = await self._get_splits(symbol)
+
+        # TODO: https://github.com/kuhl-haus/kuhl-haus-mdp/issues/85
+        # splits_data = await self._get_splits(symbol)
 
         payload = {
             **data,
@@ -132,7 +134,8 @@ class EnhancedQuoteAnalyzer(Analyzer):
             # TODO: https://github.com/kuhl-haus/kuhl-haus-mdp/issues/85
             "short_volume_ratio": None,  # short_volume_data.get("short_volume_ratio"),
 
-            "splits": splits_data or [],
+            # TODO: https://github.com/kuhl-haus/kuhl-haus-mdp/issues/85
+            "splits": [],  # splits_data or [],
             "name": overview_data.get("name"),
             "description": overview_data.get("description"),
             "homepage_url": overview_data.get("homepage_url"),
