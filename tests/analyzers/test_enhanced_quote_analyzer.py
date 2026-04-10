@@ -1,4 +1,5 @@
 """Tests for EnhancedQuoteAnalyzer — session HOD/LOD tracking and MDS enrichment."""
+import asyncio
 import json
 import time
 import pytest
@@ -1380,3 +1381,103 @@ async def test_eqa_get_overview_after_redis_sentinel_expires_expect_api_retry(su
     assert "JPM" in sut._overview_cache
     assert sut._overview_cache["JPM"]["name"] == "JPMorgan Chase"
     assert result["name"] == "JPMorgan Chase"
+
+
+# ---------------------------------------------------------------------------
+# run_in_executor — blocking REST calls must not block the event loop
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_eqa_get_market_status_uses_run_in_executor(sut):
+    """get_market_status() must call rest_client via run_in_executor, not directly."""
+    # Arrange
+    loop = asyncio.get_event_loop()
+    executor_calls = []
+
+    original_run = loop.run_in_executor
+    async def mock_run_in_executor(executor, func, *args):
+        executor_calls.append(func)
+        return func(*args)
+
+    with patch.object(loop, 'run_in_executor', side_effect=mock_run_in_executor):
+        # Act
+        sut._market_status_fetched_at = 0  # force cache miss
+        await sut._get_market_status()
+
+    # Assert — get_market_status must have gone through run_in_executor
+    assert any(
+        getattr(f, '__self__', None) is sut.rest_client or 'get_market_status' in str(f)
+        for f in executor_calls
+    ), "get_market_status() must be called via run_in_executor"
+
+
+@pytest.mark.asyncio
+async def test_eqa_get_overview_api_call_uses_run_in_executor(sut, mock_redis):
+    """get_ticker_details() must be called via run_in_executor."""
+    mock_redis.get.return_value = None
+    loop = asyncio.get_event_loop()
+    executor_calls = []
+
+    original_run = loop.run_in_executor
+    async def mock_run_in_executor(executor, func, *args):
+        executor_calls.append(func)
+        return func(*args)
+
+    with patch.object(loop, 'run_in_executor', side_effect=mock_run_in_executor):
+        await sut._get_overview("AAPL")
+
+    assert any(
+        'get_ticker_details' in str(f) or getattr(f, '__func__', None) is type(sut.rest_client).get_ticker_details
+        for f in executor_calls
+    ), "get_ticker_details() must be called via run_in_executor"
+
+
+@pytest.mark.asyncio
+async def test_eqa_get_short_interest_api_call_uses_run_in_executor(sut, mock_redis):
+    """list_short_interest() must be called via run_in_executor."""
+    mock_redis.get.return_value = None
+    loop = asyncio.get_event_loop()
+    executor_calls = []
+
+    async def mock_run_in_executor(executor, func, *args):
+        executor_calls.append(func)
+        return func(*args)
+
+    with patch.object(loop, 'run_in_executor', side_effect=mock_run_in_executor):
+        await sut._get_short_interest("AAPL")
+
+    assert len(executor_calls) > 0, "list_short_interest() must be called via run_in_executor"
+
+
+@pytest.mark.asyncio
+async def test_eqa_get_short_volume_api_call_uses_run_in_executor(sut, mock_redis):
+    """list_short_volume() must be called via run_in_executor."""
+    mock_redis.get.return_value = None
+    loop = asyncio.get_event_loop()
+    executor_calls = []
+
+    async def mock_run_in_executor(executor, func, *args):
+        executor_calls.append(func)
+        return func(*args)
+
+    with patch.object(loop, 'run_in_executor', side_effect=mock_run_in_executor):
+        await sut._get_short_volume("AAPL")
+
+    assert len(executor_calls) > 0, "list_short_volume() must be called via run_in_executor"
+
+
+@pytest.mark.asyncio
+async def test_eqa_get_splits_api_call_uses_run_in_executor(sut, mock_redis):
+    """list_splits() must be called via run_in_executor."""
+    mock_redis.get.return_value = None
+    loop = asyncio.get_event_loop()
+    executor_calls = []
+
+    async def mock_run_in_executor(executor, func, *args):
+        executor_calls.append(func)
+        return func(*args)
+
+    with patch.object(loop, 'run_in_executor', side_effect=mock_run_in_executor):
+        await sut._get_splits("AAPL")
+
+    assert len(executor_calls) > 0, "list_splits() must be called via run_in_executor"
