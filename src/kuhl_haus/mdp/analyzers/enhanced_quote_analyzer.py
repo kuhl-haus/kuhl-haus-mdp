@@ -31,6 +31,7 @@ _OVERVIEW_TTL = 30 * 86400       # 30 days — effectively static reference data
 _SHORT_INTEREST_TTL = 14 * 86400  # 14 days — bi-monthly publication cadence
 _SHORT_VOLUME_TTL = 86400         # 24 hours — daily short volume data
 _SPLITS_TTL = 86400               # 24 hours — splits are infrequent but daily cache is safe
+_ENRICHMENT_RETRY_TTL = 60        # 60 seconds — short retry TTL on API failure (self-healing)
 
 
 class EnhancedQuoteAnalyzer(Analyzer):
@@ -319,11 +320,13 @@ class EnhancedQuoteAnalyzer(Analyzer):
                         r, "share_class_shares_outstanding", None
                     ),
                 }
+            self._overview_cache[symbol] = data
+            await self.redis_client.setex(redis_key, _OVERVIEW_TTL, json.dumps(data))
         except Exception as e:
             self.logger.error(f"Error fetching overview for {symbol}: {e}")
-
-        self._overview_cache[symbol] = data
-        await self.redis_client.setex(redis_key, _OVERVIEW_TTL, json.dumps(data))
+            # Use short retry TTL — do NOT populate memory cache so the next
+            # call retries Redis (and then the API) after 60 seconds.
+            await self.redis_client.setex(redis_key, _ENRICHMENT_RETRY_TTL, json.dumps({}))
         return data
 
     @tracer.start_as_current_span("eqa._get_short_interest")
@@ -357,11 +360,11 @@ class EnhancedQuoteAnalyzer(Analyzer):
                     "short_interest": getattr(item, "short_interest", None),
                     "days_to_cover": getattr(item, "days_to_cover", None),
                 }
+            self._short_interest_cache[symbol] = data
+            await self.redis_client.setex(redis_key, _SHORT_INTEREST_TTL, json.dumps(data))
         except Exception as e:
             self.logger.error(f"Error fetching short interest for {symbol}: {e}")
-
-        self._short_interest_cache[symbol] = data
-        await self.redis_client.setex(redis_key, _SHORT_INTEREST_TTL, json.dumps(data))
+            await self.redis_client.setex(redis_key, _ENRICHMENT_RETRY_TTL, json.dumps({}))
         return data
 
     @tracer.start_as_current_span("eqa._get_short_volume")
@@ -394,11 +397,11 @@ class EnhancedQuoteAnalyzer(Analyzer):
                 data = {
                     "short_volume_ratio": getattr(item, "short_volume_ratio", None),
                 }
+            self._short_volume_cache[symbol] = data
+            await self.redis_client.setex(redis_key, _SHORT_VOLUME_TTL, json.dumps(data))
         except Exception as e:
             self.logger.error(f"Error fetching short volume for {symbol}: {e}")
-
-        self._short_volume_cache[symbol] = data
-        await self.redis_client.setex(redis_key, _SHORT_VOLUME_TTL, json.dumps(data))
+            await self.redis_client.setex(redis_key, _ENRICHMENT_RETRY_TTL, json.dumps({}))
         return data
 
     @tracer.start_as_current_span("eqa._get_splits")
@@ -433,9 +436,9 @@ class EnhancedQuoteAnalyzer(Analyzer):
                     "split_to": getattr(item, "split_to", None),
                     "ticker": getattr(item, "ticker", None),
                 })
+            self._splits_cache[symbol] = data
+            await self.redis_client.setex(redis_key, _SPLITS_TTL, json.dumps(data))
         except Exception as e:
             self.logger.error(f"Error fetching splits for {symbol}: {e}")
-
-        self._splits_cache[symbol] = data
-        await self.redis_client.setex(redis_key, _SPLITS_TTL, json.dumps(data))
+            await self.redis_client.setex(redis_key, _ENRICHMENT_RETRY_TTL, json.dumps([]))
         return data
