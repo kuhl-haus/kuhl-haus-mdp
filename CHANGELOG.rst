@@ -1,9 +1,72 @@
 =========
 Changelog
 =========
+Version 0.4.3 (2026-04-10)
+==========================
+
+- `3c1788c <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/3c1788c>`_ Disabling short data in enhanced quote
+
+  This is a temporary mitigation to stabilize the MDS/EnhancedQuoteAnalyzer
+
+  ref: https://github.com/kuhl-haus/kuhl-haus-mdp/issues/85
+
+- `fb43891 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/fb43891>`_ fix: use next()/islice() instead of list() to prevent SDK auto-pagination (refs #85) (#89)
+
+  Also use asyncio.get_running_loop() instead of asyncio.get_event_loop() —
+
+  get_event_loop() is deprecated in Python 3.10+ and raises in strict asyncio
+
+  mode (Python 3.14/pytest-asyncio strict). get_running_loop() is the correct
+
+  call inside a running async context.
+
+  Pagination fix:
+
+  - list_short_interest: next(iterator, None) + sort='settlement_date.desc'
+
+  - list_short_volume: next(iterator, None) + sort='date.desc'
+
+  - list_splits: itertools.islice(iterator, 10), no next_url follow
+
+- `e657540 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/e657540>`_ fix: run all blocking REST calls in executor to prevent event loop blockage (#88)
+
+  * test: add failing tests — REST calls must use run_in_executor (refs #85)
+
+  Synchronous REST calls (get_market_status, get_ticker_details,
+
+  list_short_interest, list_short_volume, list_splits) were being called
+
+  directly in the async event loop, blocking all other coroutines including
+
+  the health check endpoint. These tests prove the fix is required.
+
+  * fix: run all blocking REST calls in executor to prevent event loop blockage (refs #85)
+
+  All five synchronous Massive REST calls now use run_in_executor:
+
+  - get_market_status() in _get_market_status
+
+  - get_ticker_details() in _get_overview
+
+  - list_short_interest() in _get_short_interest
+
+  - list_short_volume() in _get_short_volume
+
+  - list_splits() in _get_splits
+
+  Calling blocking I/O directly in an async function blocks the entire event
+
+  loop, starving all other coroutines including the FastAPI health check
+
+  endpoint. Using run_in_executor offloads the HTTP call to a thread pool
+
+  worker, keeping the event loop free.
+
+
 Version 0.4.2 (2026-04-10)
 ==========================
 
+- `7abb9ba <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/7abb9ba>`_ Version 0.4.2 (2026-04-10)
 - `63e342f <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/63e342f>`_ fix: do not trap Redis empty sentinel in memory cache (#87)
 
   * test: add failing tests for Redis empty sentinel memory trap (refs #85)
