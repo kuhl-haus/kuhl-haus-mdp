@@ -65,9 +65,6 @@ class WidgetDataCacheKeys(Enum):
     NEWS_FEED_LATEST = 'news:feed:latest'
     NEWS_TICKER = 'news:ticker:{ticker}'
 
-    # Enhanced quote feed
-    # @deprecated — replaced by DAILY_RANGE
-    ENHANCED_QUOTE = 'enhanced_quote'  # Usage: f'{ENHANCED_QUOTE.value}:{symbol}'
 
-    # Daily range (HOD/LOD) feed — replaces ENHANCED_QUOTE
+    # Daily range (HOD/LOD) feed
     DAILY_RANGE = 'daily_range'  # Usage: f'{DAILY_RANGE.value}:{symbol}'

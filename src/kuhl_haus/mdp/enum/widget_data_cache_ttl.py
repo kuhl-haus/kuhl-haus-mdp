@@ -37,9 +37,6 @@ class WidgetDataCacheTTL(Enum):
     NEWS_FEED_LATEST = TWO_DAYS
     NEWS_TICKER = SEVEN_DAYS
 
-    # Enhanced quote cache
-    # @deprecated — replaced by DAILY_RANGE
-    ENHANCED_QUOTE = SEVEN_DAYS  # 7 days
 
-    # Daily range (HOD/LOD) cache — replaces ENHANCED_QUOTE
+    # Daily range (HOD/LOD) cache
     DAILY_RANGE = FOUR_DAYS  # 4 days — consistent with QUOTE TTL
