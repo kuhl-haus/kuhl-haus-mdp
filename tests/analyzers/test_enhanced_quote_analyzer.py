@@ -1391,7 +1391,7 @@ async def test_eqa_get_overview_after_redis_sentinel_expires_expect_api_retry(su
 async def test_eqa_get_market_status_uses_run_in_executor(sut):
     """get_market_status() must call rest_client via run_in_executor, not directly."""
     # Arrange
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     executor_calls = []
 
     original_run = loop.run_in_executor
@@ -1415,7 +1415,7 @@ async def test_eqa_get_market_status_uses_run_in_executor(sut):
 async def test_eqa_get_overview_api_call_uses_run_in_executor(sut, mock_redis):
     """get_ticker_details() must be called via run_in_executor."""
     mock_redis.get.return_value = None
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     executor_calls = []
 
     original_run = loop.run_in_executor
@@ -1436,7 +1436,7 @@ async def test_eqa_get_overview_api_call_uses_run_in_executor(sut, mock_redis):
 async def test_eqa_get_short_interest_api_call_uses_run_in_executor(sut, mock_redis):
     """list_short_interest() must be called via run_in_executor."""
     mock_redis.get.return_value = None
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     executor_calls = []
 
     async def mock_run_in_executor(executor, func, *args):
@@ -1453,7 +1453,7 @@ async def test_eqa_get_short_interest_api_call_uses_run_in_executor(sut, mock_re
 async def test_eqa_get_short_volume_api_call_uses_run_in_executor(sut, mock_redis):
     """list_short_volume() must be called via run_in_executor."""
     mock_redis.get.return_value = None
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     executor_calls = []
 
     async def mock_run_in_executor(executor, func, *args):
@@ -1470,7 +1470,7 @@ async def test_eqa_get_short_volume_api_call_uses_run_in_executor(sut, mock_redi
 async def test_eqa_get_splits_api_call_uses_run_in_executor(sut, mock_redis):
     """list_splits() must be called via run_in_executor."""
     mock_redis.get.return_value = None
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     executor_calls = []
 
     async def mock_run_in_executor(executor, func, *args):
