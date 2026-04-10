@@ -1,9 +1,48 @@
 =========
 Changelog
 =========
+Version 0.4.5 (2026-04-10)
+==========================
+
+- `f06879f <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/f06879f>`_ feat: add DailyRangeAnalyzer — pure HOD/LOD tracker, no REST calls (#91)
+
+  Replaces the REST-call-heavy EnhancedQuoteAnalyzer with a focused
+
+  DailyRangeAnalyzer that does exactly one thing: track session highs
+
+  and lows from the quote:* feed.
+
+  - Subscribes to quote:* feed
+
+  - Tracks pre-market / regular / after-hours HOD/LOD in process memory
+
+  - Publishes to daily_range:{symbol} in WDC
+
+  - No REST API calls — no run_in_executor, no functools.partial, no enrichment
+
+  - Day boundary reset at 4AM ET, market open reset at 9:30AM ET
+
+  - Market status fetched via run_in_executor (one lightweight call, 60s cache)
+
+  New enum members:
+
+  - WidgetDataCacheKeys.DAILY_RANGE = 'daily_range'
+
+  - WidgetDataCacheTTL.DAILY_RANGE = FOUR_DAYS
+
+  Deprecated (but not removed yet):
+
+  - WidgetDataCacheKeys.ENHANCED_QUOTE
+
+  - WidgetDataCacheTTL.ENHANCED_QUOTE
+
+  19 tests. EnhancedQuoteAnalyzer and its tests remain untouched for now.
+
+
 Version 0.4.4 (2026-04-10)
 ==========================
 
+- `a3fdca8 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/a3fdca8>`_ Version 0.4.4 (2026-04-10)
 - `30012b9 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/30012b9>`_ fix: do not memory-cache empty API responses in enrichment lookups (refs #85) (#90)
 
   When get_ticker_details() or list_splits() returns no results (empty
