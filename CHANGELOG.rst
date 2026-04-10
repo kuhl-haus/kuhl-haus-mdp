@@ -1,9 +1,44 @@
 =========
 Changelog
 =========
+Version 0.4.4 (2026-04-10)
+==========================
+
+- `30012b9 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/30012b9>`_ fix: do not memory-cache empty API responses in enrichment lookups (refs #85) (#90)
+
+  When get_ticker_details() or list_splits() returns no results (empty
+
+  response, not an error), the code was writing {} / [] to the in-memory
+
+  cache permanently. This blocked all future retries because the memory
+
+  cache is checked first — the symbol would never reach Redis or the API
+
+  again.
+
+  Fix: apply the same if data: guard to the write path that already existed
+
+  on the Redis read path. On empty API response, write with _ENRICHMENT_RETRY_TTL
+
+  (60s) to Redis and skip memory entirely, consistent with the error path.
+
+  Affected methods: _get_overview, _get_splits (short interest/volume
+
+  are disabled so not changed, but have the same latent bug).
+
+  Add two regression tests covering the empty-API-response path.
+
+- `a7f3fda <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/a7f3fda>`_ Disable splits enrichment (temporary)
+
+  Temporarily disable fetching/including split data due to ongoing issue #85. Commented out the call to _get_splits and set payload["splits"] to an empty list in EnhancedQuoteAnalyzer, and updated tests to expect an empty splits array and commented related assertions. Add TODOs linking the issue so this can be reverted once fixed.
+
+  ref: https://github.com/kuhl-haus/kuhl-haus-mdp/issues/85
+
+
 Version 0.4.3 (2026-04-10)
 ==========================
 
+- `4f2d57b <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/4f2d57b>`_ Version 0.4.3 (2026-04-10)
 - `3c1788c <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/3c1788c>`_ Disabling short data in enhanced quote
 
   This is a temporary mitigation to stabilize the MDS/EnhancedQuoteAnalyzer
