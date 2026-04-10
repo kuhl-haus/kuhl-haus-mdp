@@ -8,6 +8,8 @@ short interest, short volume, splits) fetched via a three-tier cache
 Session detection uses the Massive ``get_market_status()`` API (60-second
 in-memory cache) so exchange holidays and early closes are handled correctly.
 """
+import asyncio
+import functools
 import json
 import logging
 import time
@@ -151,7 +153,10 @@ class EnhancedQuoteAnalyzer(Analyzer):
         if now - self._market_status_fetched_at < 60:
             return self._market_status
         try:
-            self._market_status = self.rest_client.get_market_status()
+            loop = asyncio.get_event_loop()
+            self._market_status = await loop.run_in_executor(
+                None, self.rest_client.get_market_status
+            )
             self._market_status_fetched_at = now
         except Exception as e:
             self.logger.warning(f"get_market_status() failed: {e}")
@@ -305,7 +310,10 @@ class EnhancedQuoteAnalyzer(Analyzer):
 
         data = {}
         try:
-            response = self.rest_client.get_ticker_details(symbol)
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None, functools.partial(self.rest_client.get_ticker_details, symbol)
+            )
             if response and getattr(response, "results", None):
                 r = response.results
                 data = {
@@ -355,7 +363,11 @@ class EnhancedQuoteAnalyzer(Analyzer):
 
         data = {}
         try:
-            items = list(self.rest_client.list_short_interest(ticker=symbol, limit=1))
+            loop = asyncio.get_event_loop()
+            items = await loop.run_in_executor(
+                None, functools.partial(self.rest_client.list_short_interest, ticker=symbol, limit=1)
+            )
+            items = list(items)
             if items:
                 item = items[0]
                 data = {
@@ -394,7 +406,11 @@ class EnhancedQuoteAnalyzer(Analyzer):
 
         data = {}
         try:
-            items = list(self.rest_client.list_short_volume(ticker=symbol, limit=1, order="desc"))
+            loop = asyncio.get_event_loop()
+            items = await loop.run_in_executor(
+                None, functools.partial(self.rest_client.list_short_volume, ticker=symbol, limit=1, order="desc")
+            )
+            items = list(items)
             if items:
                 item = items[0]
                 data = {
@@ -432,7 +448,11 @@ class EnhancedQuoteAnalyzer(Analyzer):
 
         data = []
         try:
-            items = list(self.rest_client.list_splits(ticker=symbol, limit=10))
+            loop = asyncio.get_event_loop()
+            items = await loop.run_in_executor(
+                None, functools.partial(self.rest_client.list_splits, ticker=symbol, limit=10)
+            )
+            items = list(items)
             for item in items:
                 data.append({
                     "execution_date": getattr(item, "execution_date", None),
