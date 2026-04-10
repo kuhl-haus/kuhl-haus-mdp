@@ -1,9 +1,22 @@
 =========
 Changelog
 =========
+Version 0.4.8 (2026-04-10)
+==========================
+
+- `326ba42 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/326ba42>`_ chore: relax Python floor from 3.14 to 3.12 (#94)
+
+  kuhl-haus-mdp-app runs on Python 3.12 (ubuntu system python) and needs
+
+  to take a dependency on kuhl-haus-mdp. The 3.14 floor was aspirational
+
+  (free-threaded GIL) but not practically useful before 3.15+.
+
+
 Version 0.4.7 (2026-04-10)
 ==========================
 
+- `b33021f <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/b33021f>`_ Version 0.4.7 (2026-04-10)
 - `8a12760 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/8a12760>`_ chore: remove EnhancedQuoteAnalyzer and deprecated ENHANCED_QUOTE enum members (#93)
 
   EnhancedQuoteAnalyzer is superseded by DailyRangeAnalyzer. The REST
