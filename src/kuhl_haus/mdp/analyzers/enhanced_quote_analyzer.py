@@ -299,7 +299,8 @@ class EnhancedQuoteAnalyzer(Analyzer):
         cached = await self.redis_client.get(redis_key)
         if cached:
             data = json.loads(cached)
-            self._overview_cache[symbol] = data
+            if data:  # Empty sentinel — do NOT trap in memory (would block API retries after TTL)
+                self._overview_cache[symbol] = data
             return data
 
         data = {}
@@ -348,7 +349,8 @@ class EnhancedQuoteAnalyzer(Analyzer):
         cached = await self.redis_client.get(redis_key)
         if cached:
             data = json.loads(cached)
-            self._short_interest_cache[symbol] = data
+            if data:
+                self._short_interest_cache[symbol] = data
             return data
 
         data = {}
@@ -386,7 +388,8 @@ class EnhancedQuoteAnalyzer(Analyzer):
         cached = await self.redis_client.get(redis_key)
         if cached:
             data = json.loads(cached)
-            self._short_volume_cache[symbol] = data
+            if data:
+                self._short_volume_cache[symbol] = data
             return data
 
         data = {}
@@ -423,7 +426,8 @@ class EnhancedQuoteAnalyzer(Analyzer):
         cached = await self.redis_client.get(redis_key)
         if cached:
             data = json.loads(cached)
-            self._splits_cache[symbol] = data
+            if data:  # Empty sentinel — do NOT trap in memory
+                self._splits_cache[symbol] = data
             return data
 
         data = []
