@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 
 from massive.rest.models import MarketStatus
 
-from kuhl_haus.mdp.analyzers.enhanced_quote_analyzer import EnhancedQuoteAnalyzer
+from kuhl_haus.mdp.analyzers.enhanced_quote_analyzer import EnhancedQuoteAnalyzer, _ENRICHMENT_RETRY_TTL, _ENRICHMENT_NO_DATA_TTL
 from kuhl_haus.mdp.analyzers.analyzer import AnalyzerOptions
 from kuhl_haus.mdp.data.market_data_analyzer_result import MarketDataAnalyzerResult
 from kuhl_haus.mdp.enum.widget_data_cache_keys import WidgetDataCacheKeys
@@ -1503,3 +1503,56 @@ async def test_eqa_get_splits_api_call_uses_run_in_executor(sut, mock_redis):
         await sut._get_splits("AAPL")
 
     assert len(executor_calls) > 0, "list_splits() must be called via run_in_executor"
+
+
+@pytest.mark.asyncio
+async def test_eqa_get_overview_with_empty_api_response_expect_retry_ttl_not_memory_cached(
+    sut, mock_redis, mock_rest_client
+):
+    """When API returns a response with no results, must use retry TTL and NOT cache in memory.
+
+    This is the 'API succeeded but returned nothing' bug — previously the code would
+    write {} to memory cache permanently, blocking all future retries.
+    """
+    # Arrange — Redis miss, API returns response with no results
+    mock_redis.get.return_value = None
+    mock_rest_client.get_ticker_details.return_value.results = None
+
+    # Act
+    result = await sut._get_overview("ZNTL")
+
+    # Assert — empty result, NOT in memory, Redis written with short retry TTL
+    assert result == {}
+    assert "ZNTL" not in sut._overview_cache
+    mock_redis.setex.assert_called_once()
+    ttl_used = mock_redis.setex.call_args[0][1]
+    assert ttl_used == _ENRICHMENT_NO_DATA_TTL, (
+        f"Expected no-data TTL {_ENRICHMENT_NO_DATA_TTL}, got {ttl_used} — "
+        "empty API response must use no-data TTL (not short retry TTL)"
+    )
+
+
+@pytest.mark.asyncio
+async def test_eqa_get_splits_with_empty_api_response_expect_retry_ttl_not_memory_cached(
+    sut, mock_redis, mock_rest_client
+):
+    """When splits API returns no results, must use retry TTL and NOT cache in memory.
+
+    Previously empty [] would be written to memory cache permanently.
+    """
+    # Arrange — Redis miss, API returns empty iterator
+    mock_redis.get.return_value = None
+    mock_rest_client.list_splits.return_value = iter([])
+
+    # Act
+    result = await sut._get_splits("ZNTL")
+
+    # Assert — empty result, NOT in memory, Redis written with short retry TTL
+    assert result == []
+    assert "ZNTL" not in sut._splits_cache
+    mock_redis.setex.assert_called_once()
+    ttl_used = mock_redis.setex.call_args[0][1]
+    assert ttl_used == _ENRICHMENT_NO_DATA_TTL, (
+        f"Expected no-data TTL {_ENRICHMENT_NO_DATA_TTL}, got {ttl_used} — "
+        "empty splits response must use no-data TTL (not short retry TTL)"
+    )

@@ -35,6 +35,7 @@ _SHORT_INTEREST_TTL = 14 * 86400  # 14 days — bi-monthly publication cadence
 _SHORT_VOLUME_TTL = 86400         # 24 hours — daily short volume data
 _SPLITS_TTL = 86400               # 24 hours — splits are infrequent but daily cache is safe
 _ENRICHMENT_RETRY_TTL = 60        # 60 seconds — short retry TTL on API failure (self-healing)
+_ENRICHMENT_NO_DATA_TTL = 86400   # 24 hours — ticker not in Massive; stable fact, no point retrying every 60s
 
 
 class EnhancedQuoteAnalyzer(Analyzer):
@@ -310,6 +311,7 @@ class EnhancedQuoteAnalyzer(Analyzer):
             Dict with overview fields, or empty dict on error/no data.
         """
         if symbol in self._overview_cache:
+            self.logger.debug(f"[overview:{symbol}] memory cache hit")
             return self._overview_cache[symbol]
 
         redis_key = f"enrichment:overview:{symbol}"
@@ -317,16 +319,22 @@ class EnhancedQuoteAnalyzer(Analyzer):
         if cached:
             data = json.loads(cached)
             if data:  # Empty sentinel — do NOT trap in memory (would block API retries after TTL)
+                self.logger.debug(f"[overview:{symbol}] redis cache hit — populating memory")
                 self._overview_cache[symbol] = data
+            else:
+                self.logger.debug(f"[overview:{symbol}] redis empty sentinel — will retry after TTL")
             return data
 
         data = {}
         try:
+            self.logger.debug(f"[overview:{symbol}] cache miss — calling API")
             loop = asyncio.get_running_loop()
             response = await loop.run_in_executor(
                 None, functools.partial(self.rest_client.get_ticker_details, symbol)
             )
-            if response and getattr(response, "results", None):
+            has_results = response and getattr(response, "results", None)
+            self.logger.debug(f"[overview:{symbol}] API response received — has_results={bool(has_results)}")
+            if has_results:
                 r = response.results
                 data = {
                     "name": getattr(r, "name", None),
@@ -341,10 +349,17 @@ class EnhancedQuoteAnalyzer(Analyzer):
                         r, "share_class_shares_outstanding", None
                     ),
                 }
-            self._overview_cache[symbol] = data
-            await self.redis_client.setex(redis_key, _OVERVIEW_TTL, json.dumps(data))
+            if data:
+                # Only cache in memory + use long TTL when we have real data
+                self.logger.debug(f"[overview:{symbol}] caching in memory + Redis (TTL={_OVERVIEW_TTL}s) — name={data.get('name')!r}")
+                self._overview_cache[symbol] = data
+                await self.redis_client.setex(redis_key, _OVERVIEW_TTL, json.dumps(data))
+            else:
+                # API returned no results — short retry TTL, skip memory cache
+                self.logger.warning(f"[overview:{symbol}] API returned no results — writing no-data sentinel (TTL={_ENRICHMENT_NO_DATA_TTL}s)")
+                await self.redis_client.setex(redis_key, _ENRICHMENT_NO_DATA_TTL, json.dumps({}))
         except Exception as e:
-            self.logger.error(f"Error fetching overview for {symbol}: {e}")
+            self.logger.error(f"[overview:{symbol}] API call failed: {e}")
             # Use short retry TTL — do NOT populate memory cache so the next
             # call retries Redis (and then the API) after 60 seconds.
             await self.redis_client.setex(redis_key, _ENRICHMENT_RETRY_TTL, json.dumps({}))
@@ -481,8 +496,13 @@ class EnhancedQuoteAnalyzer(Analyzer):
                     "split_to": getattr(item, "split_to", None),
                     "ticker": getattr(item, "ticker", None),
                 })
-            self._splits_cache[symbol] = data
-            await self.redis_client.setex(redis_key, _SPLITS_TTL, json.dumps(data))
+            if data:
+                # Only cache in memory + use long TTL when we have real data
+                self._splits_cache[symbol] = data
+                await self.redis_client.setex(redis_key, _SPLITS_TTL, json.dumps(data))
+            else:
+                # No splits found — 24h no-data TTL, skip memory cache
+                await self.redis_client.setex(redis_key, _ENRICHMENT_NO_DATA_TTL, json.dumps([]))
         except Exception as e:
             self.logger.error(f"Error fetching splits for {symbol}: {e}")
             await self.redis_client.setex(redis_key, _ENRICHMENT_RETRY_TTL, json.dumps([]))
