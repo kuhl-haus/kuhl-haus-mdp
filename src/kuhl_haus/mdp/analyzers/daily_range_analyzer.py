@@ -195,7 +195,7 @@ class DailyRangeAnalyzer(Analyzer):
         set_result = await self.redis_client.set(key, today, nx=True, ex=86400)
         if set_result is None:
             existing = await self.redis_client.get(key)
-            if existing and existing.decode() == today:
+            if existing and existing == today:  # redis.asyncio returns str, not bytes
                 return
 
         self.logger.info(f"Day boundary reset at {today}")
