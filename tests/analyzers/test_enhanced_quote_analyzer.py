@@ -1186,3 +1186,121 @@ async def test_eqa_analyze_data_enrichment_calls_use_correct_symbol(sut):
     mock_si.assert_awaited_once_with("TSLA")
     mock_sv.assert_awaited_once_with("TSLA")
     mock_sp.assert_awaited_once_with("TSLA")
+
+
+# ---------------------------------------------------------------------------
+# Bug #85: Enrichment cache poison — short retry TTL on failure
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_eqa_get_overview_with_api_error_expect_short_retry_ttl(sut, mock_redis):
+    """On API failure, Redis TTL must be short (retry), not full 30-day TTL."""
+    # Arrange
+    sut.rest_client.get_ticker_details.side_effect = Exception("boom")
+
+    # Act
+    await sut._get_overview("FAIL")
+
+    # Assert — setex called with short TTL
+    call_args = mock_redis.setex.call_args
+    key, ttl, value = call_args[0]
+    assert ttl <= 120, f"Expected short retry TTL ≤120s on failure, got {ttl}s"
+
+
+@pytest.mark.asyncio
+async def test_eqa_get_overview_with_api_error_expect_no_memory_cache_population(sut):
+    """On API failure, symbol must NOT be stored in the in-memory cache."""
+    # Arrange
+    sut.rest_client.get_ticker_details.side_effect = Exception("boom")
+
+    # Act
+    await sut._get_overview("FAIL")
+
+    # Assert
+    assert "FAIL" not in sut._overview_cache
+
+
+@pytest.mark.asyncio
+async def test_eqa_get_short_interest_with_api_error_expect_short_retry_ttl(sut, mock_redis):
+    """On API failure, short interest Redis TTL must be short (retry)."""
+    # Arrange
+    sut.rest_client.list_short_interest.side_effect = Exception("boom")
+
+    # Act
+    await sut._get_short_interest("FAIL")
+
+    # Assert
+    call_args = mock_redis.setex.call_args
+    key, ttl, value = call_args[0]
+    assert ttl <= 120, f"Expected short retry TTL ≤120s on failure, got {ttl}s"
+
+
+@pytest.mark.asyncio
+async def test_eqa_get_short_interest_with_api_error_expect_no_memory_cache(sut):
+    """On API failure, symbol must NOT be stored in short interest memory cache."""
+    # Arrange
+    sut.rest_client.list_short_interest.side_effect = Exception("boom")
+
+    # Act
+    await sut._get_short_interest("FAIL")
+
+    # Assert
+    assert "FAIL" not in sut._short_interest_cache
+
+
+@pytest.mark.asyncio
+async def test_eqa_get_short_volume_with_api_error_expect_short_retry_ttl(sut, mock_redis):
+    """On API failure, short volume Redis TTL must be short (retry)."""
+    # Arrange
+    sut.rest_client.list_short_volume.side_effect = Exception("boom")
+
+    # Act
+    await sut._get_short_volume("FAIL")
+
+    # Assert
+    call_args = mock_redis.setex.call_args
+    key, ttl, value = call_args[0]
+    assert ttl <= 120, f"Expected short retry TTL ≤120s on failure, got {ttl}s"
+
+
+@pytest.mark.asyncio
+async def test_eqa_get_splits_with_api_error_expect_short_retry_ttl(sut, mock_redis):
+    """On API failure, splits Redis TTL must be short (retry)."""
+    # Arrange
+    sut.rest_client.list_splits.side_effect = Exception("boom")
+
+    # Act
+    await sut._get_splits("FAIL")
+
+    # Assert
+    call_args = mock_redis.setex.call_args
+    key, ttl, value = call_args[0]
+    assert ttl <= 120, f"Expected short retry TTL ≤120s on failure, got {ttl}s"
+
+
+@pytest.mark.asyncio
+async def test_eqa_get_overview_with_none_rest_client_expect_no_memory_cache(sut):
+    """When rest_client is None, symbol must NOT be stored in memory cache."""
+    # Arrange
+    sut.rest_client = None
+
+    # Act
+    await sut._get_overview("FAIL")
+
+    # Assert
+    assert "FAIL" not in sut._overview_cache
+
+
+@pytest.mark.asyncio
+async def test_eqa_get_overview_with_none_rest_client_expect_short_retry_ttl(sut, mock_redis):
+    """When rest_client is None, Redis TTL must be short (retry)."""
+    # Arrange
+    sut.rest_client = None
+
+    # Act
+    await sut._get_overview("FAIL")
+
+    # Assert
+    call_args = mock_redis.setex.call_args
+    key, ttl, value = call_args[0]
+    assert ttl <= 120, f"Expected short retry TTL ≤120s when rest_client is None, got {ttl}s"
