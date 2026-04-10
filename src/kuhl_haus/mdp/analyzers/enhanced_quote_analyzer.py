@@ -109,8 +109,11 @@ class EnhancedQuoteAnalyzer(Analyzer):
         await self._update_session_hod_lod(symbol, data)
 
         overview_data = await self._get_overview(symbol)
-        short_interest_data = await self._get_short_interest(symbol)
-        short_volume_data = await self._get_short_volume(symbol)
+        # TODO: https://github.com/kuhl-haus/kuhl-haus-mdp/issues/85
+        # short_interest_data = await self._get_short_interest(symbol)
+
+        # TODO: https://github.com/kuhl-haus/kuhl-haus-mdp/issues/85
+        # short_volume_data = await self._get_short_volume(symbol)
         splits_data = await self._get_splits(symbol)
 
         payload = {
@@ -121,9 +124,14 @@ class EnhancedQuoteAnalyzer(Analyzer):
             "regular_session_low": self._regular_session_low.get(symbol),
             "after_hours_high": self._after_hours_high.get(symbol),
             "after_hours_low": self._after_hours_low.get(symbol),
-            "short_interest": short_interest_data.get("short_interest"),
-            "days_to_cover": short_interest_data.get("days_to_cover"),
-            "short_volume_ratio": short_volume_data.get("short_volume_ratio"),
+
+            # TODO: https://github.com/kuhl-haus/kuhl-haus-mdp/issues/85
+            "short_interest": None,  # short_interest_data.get("short_interest"),
+            # TODO: https://github.com/kuhl-haus/kuhl-haus-mdp/issues/85
+            "days_to_cover": None,  # short_interest_data.get("days_to_cover"),
+            # TODO: https://github.com/kuhl-haus/kuhl-haus-mdp/issues/85
+            "short_volume_ratio": None,  # short_volume_data.get("short_volume_ratio"),
+
             "splits": splits_data or [],
             "name": overview_data.get("name"),
             "description": overview_data.get("description"),
