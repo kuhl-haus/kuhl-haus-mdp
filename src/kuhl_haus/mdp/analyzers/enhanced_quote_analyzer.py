@@ -10,6 +10,7 @@ in-memory cache) so exchange holidays and early closes are handled correctly.
 """
 import asyncio
 import functools
+import itertools
 import json
 import logging
 import time
@@ -364,12 +365,16 @@ class EnhancedQuoteAnalyzer(Analyzer):
         data = {}
         try:
             loop = asyncio.get_event_loop()
-            items = await loop.run_in_executor(
-                None, functools.partial(self.rest_client.list_short_interest, ticker=symbol, limit=1)
+            # Use next() — fetches exactly one page (limit=1), no pagination triggered
+            # Sort desc to get most recent settlement date first
+            iterator = await loop.run_in_executor(
+                None, functools.partial(
+                    self.rest_client.list_short_interest,
+                    ticker=symbol, limit=1, sort="settlement_date.desc"
+                )
             )
-            items = list(items)
-            if items:
-                item = items[0]
+            item = next(iterator, None)
+            if item is not None:
                 data = {
                     "short_interest": getattr(item, "short_interest", None),
                     "days_to_cover": getattr(item, "days_to_cover", None),
@@ -407,12 +412,16 @@ class EnhancedQuoteAnalyzer(Analyzer):
         data = {}
         try:
             loop = asyncio.get_event_loop()
-            items = await loop.run_in_executor(
-                None, functools.partial(self.rest_client.list_short_volume, ticker=symbol, limit=1, order="desc")
+            # Use next() — fetches exactly one page (limit=1), no pagination triggered
+            # Sort desc to get most recent date first
+            iterator = await loop.run_in_executor(
+                None, functools.partial(
+                    self.rest_client.list_short_volume,
+                    ticker=symbol, limit=1, sort="date.desc"
+                )
             )
-            items = list(items)
-            if items:
-                item = items[0]
+            item = next(iterator, None)
+            if item is not None:
                 data = {
                     "short_volume_ratio": getattr(item, "short_volume_ratio", None),
                 }
@@ -449,11 +458,12 @@ class EnhancedQuoteAnalyzer(Analyzer):
         data = []
         try:
             loop = asyncio.get_event_loop()
-            items = await loop.run_in_executor(
+            # islice caps at 10 items from the first page — no pagination triggered
+            # Default sort is execution_date.desc so most recent splits come first
+            iterator = await loop.run_in_executor(
                 None, functools.partial(self.rest_client.list_splits, ticker=symbol, limit=10)
             )
-            items = list(items)
-            for item in items:
+            for item in itertools.islice(iterator, 10):
                 data.append({
                     "execution_date": getattr(item, "execution_date", None),
                     "split_from": getattr(item, "split_from", None),
