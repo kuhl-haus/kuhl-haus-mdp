@@ -1,9 +1,36 @@
 =========
 Changelog
 =========
+Version 0.4.7 (2026-04-10)
+==========================
+
+- `8a12760 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/8a12760>`_ chore: remove EnhancedQuoteAnalyzer and deprecated ENHANCED_QUOTE enum members (#93)
+
+  EnhancedQuoteAnalyzer is superseded by DailyRangeAnalyzer. The REST
+
+  enrichment calls it contained don't belong in an async stream processor
+
+  and were the root cause of the MDS instability (blocking I/O, pagination
+
+  bugs, empty cache poisoning, wrong decode calls).
+
+  Removed:
+
+  - src/kuhl_haus/mdp/analyzers/enhanced_quote_analyzer.py
+
+  - tests/analyzers/test_enhanced_quote_analyzer.py
+
+  - WidgetDataCacheKeys.ENHANCED_QUOTE (deprecated since v0.4.5)
+
+  - WidgetDataCacheTTL.ENHANCED_QUOTE (deprecated since v0.4.5)
+
+  686 tests passing.
+
+
 Version 0.4.6 (2026-04-10)
 ==========================
 
+- `694a362 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/694a362>`_ Version 0.4.6 (2026-04-10)
 - `faa386f <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/faa386f>`_ fix: use str comparison instead of .decode() for Redis get() result (refs #91) (#92)
 
   redis.asyncio returns str from get(), not bytes. Calling .decode() raises
