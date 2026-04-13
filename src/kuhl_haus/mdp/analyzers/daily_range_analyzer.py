@@ -65,6 +65,57 @@ class DailyRangeAnalyzer(Analyzer):
         self._market_status: Optional[MarketStatus] = None
         self._market_status_fetched_at: float = 0.0  # monotonic epoch seconds
 
+    @tracer.start_as_current_span("dra.rehydrate")
+    async def rehydrate(self):
+        """Restore session HOD/LOD state from Redis on startup.
+
+        Scans all ``daily_range:*`` keys and restores per-symbol H/L values
+        into the six in-memory session dicts. This prevents restarts from
+        discarding data accumulated earlier in the trading day.
+
+        The existing day/market-open boundary guards in ``_check_day_boundary()``
+        and ``_check_market_open_reset()`` will clear stale rehydrated state at
+        the appropriate time boundaries on the next tick.
+        """
+        prefix = WidgetDataCacheKeys.DAILY_RANGE.value
+        pattern = f"{prefix}:*"
+        cursor = 0
+        restored = 0
+
+        while True:
+            cursor, keys = await self.redis_client.scan(cursor=cursor, match=pattern, count=100)
+            for key in keys:
+                raw = await self.redis_client.get(key)
+                if not raw:
+                    continue
+                try:
+                    import json
+                    payload = json.loads(raw)
+                except Exception:
+                    continue
+
+                symbol = payload.get("symbol")
+                if not symbol:
+                    continue
+
+                def _restore(dict_: dict, field: str):
+                    val = payload.get(field)
+                    if val is not None:
+                        dict_[symbol] = float(val)
+
+                _restore(self._pre_market_high, "pre_market_high")
+                _restore(self._pre_market_low, "pre_market_low")
+                _restore(self._regular_session_high, "regular_session_high")
+                _restore(self._regular_session_low, "regular_session_low")
+                _restore(self._after_hours_high, "after_hours_high")
+                _restore(self._after_hours_low, "after_hours_low")
+                restored += 1
+
+            if cursor == 0:
+                break
+
+        self.logger.info(f"dra.rehydrate: restored {restored} symbol(s)")
+
     @tracer.start_as_current_span("dra.analyze_data")
     async def analyze_data(self, data: dict) -> Optional[List[MarketDataAnalyzerResult]]:
         """Process a quote event and publish session HOD/LOD results.
