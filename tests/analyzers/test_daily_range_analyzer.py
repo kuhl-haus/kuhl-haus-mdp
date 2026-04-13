@@ -1,5 +1,6 @@
-"""Tests for DailyRangeAnalyzer - session HOD/LOD tracking."""
+"""Tests for DailyRangeAnalyzer — session HOD/LOD tracking."""
 import asyncio
+import json
 import time
 import pytest
 from datetime import datetime
@@ -355,7 +356,6 @@ def _make_cached_payload(symbol, pre_high=None, pre_low=None,
                           reg_high=None, reg_low=None,
                           ah_high=None, ah_low=None):
     """Build a JSON payload as stored in Redis daily_range:{symbol}."""
-    import json
     return json.dumps({
         "symbol": symbol,
         "pre_market_high": pre_high,
@@ -460,7 +460,6 @@ async def test_dra_rehydrate_handles_empty_scan_result(mock_options):
 @pytest.mark.asyncio
 async def test_dra_rehydrate_paginates_through_multiple_scan_batches(mock_options):
     # Arrange - SCAN requires two round-trips (cursor non-zero then zero)
-    import json
     aapl_payload = json.dumps({"symbol": "AAPL", "regular_session_high": 157.0, "regular_session_low": 151.0})
     tsla_payload = json.dumps({"symbol": "TSLA", "regular_session_high": 260.0, "regular_session_low": 248.0})
 
@@ -481,8 +480,8 @@ async def test_dra_rehydrate_paginates_through_multiple_scan_batches(mock_option
 
 @pytest.mark.asyncio
 async def test_dra_rehydrate_then_analyze_data_preserves_rehydrated_highs(mock_options, mock_rest_client):
-    # Arrange — AAPL rehydrated with reg session high of 157.0
-    import json, datetime as _dt
+    # Arrange - AAPL rehydrated with reg session high of 157.0
+    import datetime as _dt
     cached = json.dumps({
         "symbol": "AAPL", "regular_session_high": 157.0, "regular_session_low": 151.0,
     })
@@ -497,13 +496,13 @@ async def test_dra_rehydrate_then_analyze_data_preserves_rehydrated_highs(mock_o
     sut = DailyRangeAnalyzer(mock_options)
     await sut.rehydrate()
 
-    # Act — new tick comes in with a lower high (156.0) during regular session
+    # Act - new tick comes in with a lower high (156.0) during regular session
     mock_rest_client.get_market_status.return_value = MarketStatus(
         market="open", early_hours=False, after_hours=False
     )
     result = await sut.analyze_data(_make_quote("AAPL", high=156.0, low=152.0))
 
-    # Assert — rehydrated high (157.0) preserved; it’s still the day high
+    # Assert - rehydrated high (157.0) preserved; it's still the day high
     assert result is not None
     payload = result[0].data
     assert payload["regular_session_high"] == 157.0   # rehydrated value wins

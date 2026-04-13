@@ -15,6 +15,7 @@ Boundary resets:
 """
 import asyncio
 import functools
+import json
 import logging
 import time
 from datetime import datetime, timezone
@@ -89,7 +90,6 @@ class DailyRangeAnalyzer(Analyzer):
                 if not raw:
                     continue
                 try:
-                    import json
                     payload = json.loads(raw)
                 except Exception:
                     continue
