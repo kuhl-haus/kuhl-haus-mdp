@@ -78,14 +78,57 @@ class DailyRangeAnalyzer(Analyzer):
         """Restore session HOD/LOD state from Redis on startup.
 
         Scans all ``daily_range:*`` keys and restores per-symbol H/L values
-        into the six in-memory session dicts. This prevents restarts from
-        discarding data accumulated earlier in the trading day.
+        into the in-memory session dicts for sessions that have already
+        elapsed today.
 
-        ``_check_day_boundary()`` will clear stale rehydrated state when a new
-        pre-market session is detected on the next tick. Pre-market H/L is frozen
-        (not cleared) at regular session open and remains in published payloads
-        for the duration of the trading day.
+        Only fields from sessions that have already occurred are restored:
+
+        - ``pre_market``  → pre-market fields only
+        - ``regular``     → pre-market + regular-session fields
+        - ``after_hours`` → all six fields
+        - ``None``        → nothing (market closed; cannot determine which
+          trading day the cached data belongs to)
+
+        This prevents yesterday's regular/after-hours values from leaking
+        into today's pre-market display on restart.
+
+        Pre-market H/L is intentionally preserved through the regular session
+        open and remains visible in published payloads throughout the day.
         """
+        current_session = await self._get_session()
+
+        # Determine which session fields are valid for today so far.
+        # Sessions only accumulate forward; restoring future-session fields
+        # would surface yesterday's data until overwritten.
+        if current_session == "pre_market":
+            restore_fields = [
+                (self._pre_market_high, "pre_market_high"),
+                (self._pre_market_low, "pre_market_low"),
+            ]
+        elif current_session == "regular":
+            restore_fields = [
+                (self._pre_market_high, "pre_market_high"),
+                (self._pre_market_low, "pre_market_low"),
+                (self._regular_session_high, "regular_session_high"),
+                (self._regular_session_low, "regular_session_low"),
+            ]
+        elif current_session == "after_hours":
+            restore_fields = [
+                (self._pre_market_high, "pre_market_high"),
+                (self._pre_market_low, "pre_market_low"),
+                (self._regular_session_high, "regular_session_high"),
+                (self._regular_session_low, "regular_session_low"),
+                (self._after_hours_high, "after_hours_high"),
+                (self._after_hours_low, "after_hours_low"),
+            ]
+        else:
+            # Market closed — cannot safely determine which day the cached
+            # data belongs to; skip rehydration and let the day-boundary
+            # reset handle cleanup on the next pre-market transition.
+            self._last_session = current_session
+            self.logger.info("dra.rehydrate: market closed — skipping rehydration")
+            return
+
         prefix = WidgetDataCacheKeys.DAILY_RANGE.value
         pattern = f"{prefix}:*"
         cursor = 0
@@ -109,23 +152,17 @@ class DailyRangeAnalyzer(Analyzer):
                 if not symbol:
                     continue
 
-                def _restore(dict_: dict, field: str):
+                for dict_, field in restore_fields:
                     val = payload.get(field)
                     if val is not None:
                         dict_[symbol] = float(val)
 
-                _restore(self._pre_market_high, "pre_market_high")
-                _restore(self._pre_market_low, "pre_market_low")
-                _restore(self._regular_session_high, "regular_session_high")
-                _restore(self._regular_session_low, "regular_session_low")
-                _restore(self._after_hours_high, "after_hours_high")
-                _restore(self._after_hours_low, "after_hours_low")
                 restored += 1
 
             if cursor == 0:
                 break
 
-        self._last_session = await self._get_session()
+        self._last_session = current_session
         self.logger.info(f"dra.rehydrate: restored {restored} symbol(s), session={self._last_session}")
 
     @tracer.start_as_current_span("dra.analyze_data")

@@ -410,8 +410,11 @@ def _make_cached_payload(symbol, pre_high=None, pre_low=None,
 
 
 @pytest.mark.asyncio
-async def test_dra_rehydrate_restores_all_six_session_fields_from_redis(mock_options):
-    # Arrange - two symbols with complete session data in Redis
+async def test_dra_rehydrate_during_after_hours_restores_all_six_fields(mock_options):
+    # Arrange - after-hours session: all six fields are valid for today.
+    mock_options.new_rest_client.return_value.get_market_status.return_value = MarketStatus(
+        market="closed", early_hours=False, after_hours=True
+    )
     aapl_payload = _make_cached_payload(
         "AAPL", pre_high=153.0, pre_low=149.0,
         reg_high=157.0, reg_low=151.0,
@@ -424,15 +427,12 @@ async def test_dra_rehydrate_restores_all_six_session_fields_from_redis(mock_opt
     )
 
     redis = mock_options.new_redis_client.return_value
-    # scan returns both keys in one batch then cursor=0 to stop
     redis.scan = AsyncMock(side_effect=[
         (0, ["daily_range:AAPL", "daily_range:TSLA"])
     ])
     redis.get = AsyncMock(side_effect=[aapl_payload, tsla_payload])
 
     sut = DailyRangeAnalyzer(mock_options)
-
-    # Act
     await sut.rehydrate()
 
     # Assert - all six dicts populated for both symbols
@@ -446,7 +446,8 @@ async def test_dra_rehydrate_restores_all_six_session_fields_from_redis(mock_opt
 
 @pytest.mark.asyncio
 async def test_dra_rehydrate_skips_null_session_values(mock_options):
-    # Arrange - AAPL has no pre-market data yet (market hasn't opened pre-market)
+    # Arrange - regular session; AAPL has no pre-market data (e.g. gapped up at open)
+    # mock_options defaults to market="open" (regular session)
     aapl_payload = _make_cached_payload(
         "AAPL", pre_high=None, pre_low=None,
         reg_high=157.0, reg_low=151.0,
@@ -459,7 +460,7 @@ async def test_dra_rehydrate_skips_null_session_values(mock_options):
     sut = DailyRangeAnalyzer(mock_options)
     await sut.rehydrate()
 
-    # Assert - null fields not inserted into dicts
+    # Assert - null pre-market fields not inserted; regular fields restored
     assert "AAPL" not in sut._pre_market_high
     assert "AAPL" not in sut._pre_market_low
     assert sut._regular_session_high == {"AAPL": 157.0}
@@ -501,7 +502,7 @@ async def test_dra_rehydrate_handles_empty_scan_result(mock_options):
 
 @pytest.mark.asyncio
 async def test_dra_rehydrate_paginates_through_multiple_scan_batches(mock_options):
-    # Arrange - SCAN requires two round-trips (cursor non-zero then zero)
+    # Arrange - regular session (mock_options default); SCAN requires two round-trips
     aapl_payload = json.dumps({"symbol": "AAPL", "regular_session_high": 157.0, "regular_session_low": 151.0})
     tsla_payload = json.dumps({"symbol": "TSLA", "regular_session_high": 260.0, "regular_session_low": 248.0})
 
@@ -522,13 +523,12 @@ async def test_dra_rehydrate_paginates_through_multiple_scan_batches(mock_option
 
 @pytest.mark.asyncio
 async def test_dra_rehydrate_then_analyze_data_preserves_rehydrated_highs(mock_options, mock_rest_client):
-    # Arrange - AAPL rehydrated with pre-market data; market is currently in pre_market.
-    # This is the critical scenario: without seeding _last_session in rehydrate(),
-    # the first analyze_data() call would see None→pre_market and wipe rehydrated data.
+    # Arrange - AAPL rehydrated during pre-market; market is currently in pre_market.
+    # Critical scenario: without seeding _last_session in rehydrate(), the first
+    # analyze_data() call would see None→pre_market transition and wipe rehydrated data.
     cached = json.dumps({
         "symbol": "AAPL",
         "pre_market_high": 153.0, "pre_market_low": 149.0,
-        "regular_session_high": 157.0, "regular_session_low": 151.0,
     })
 
     # Market is currently in pre-market
@@ -549,17 +549,19 @@ async def test_dra_rehydrate_then_analyze_data_preserves_rehydrated_highs(mock_o
     # Act - new pre-market tick arrives with a lower high (152.0)
     result = await sut.analyze_data(_make_quote("AAPL", high=152.0, low=150.0))
 
-    # Assert - rehydrated reg session high (157.0) preserved; pre-market high stays at 153.0
+    # Assert - rehydrated pre-market high (153.0) preserved; incoming 152.0 does not displace it
     assert result is not None
     payload = result[0].data
-    assert payload["pre_market_high"] == 153.0         # rehydrated value wins (152 < 153)
-    assert payload["pre_market_low"] == 149.0          # rehydrated low preserved (150 > 149)
-    assert payload["regular_session_high"] == 157.0   # reg session data not wiped
+    assert payload["pre_market_high"] == 153.0   # rehydrated value wins (152 < 153)
+    assert payload["pre_market_low"] == 149.0    # rehydrated low preserved (150 > 149)
+    assert payload["regular_session_high"] is None   # not yet in regular session
+    assert payload["after_hours_high"] is None        # not yet in after-hours session
 
 
 @pytest.mark.asyncio
 async def test_dra_rehydrate_skips_non_dict_control_keys(mock_options):
-    # Arrange - scan returns the day-boundary control key alongside a valid symbol key.
+    # Arrange - regular session (mock_options default); scan returns the day-boundary
+    # control key alongside a valid symbol key.
     # daily_range:day_boundary stores a date string; json.loads returns str, not dict.
     # The isinstance(payload, dict) guard must skip it without raising AttributeError.
     aapl_payload = _make_cached_payload("AAPL", reg_high=157.0, reg_low=151.0)
@@ -583,3 +585,89 @@ async def test_dra_rehydrate_skips_non_dict_control_keys(mock_options):
     # Assert - AAPL restored; control key silently skipped
     assert sut._regular_session_high == {"AAPL": 157.0}
     assert sut._regular_session_low == {"AAPL": 151.0}
+
+
+@pytest.mark.asyncio
+async def test_dra_rehydrate_during_pre_market_restores_only_pre_market_fields(mock_options):
+    # Arrange - pre-market session: only pre-market fields are valid for today.
+    # Regular and after-hours values in the cached payload are from yesterday
+    # and must NOT be restored.
+    mock_options.new_rest_client.return_value.get_market_status.return_value = MarketStatus(
+        market="closed", early_hours=True, after_hours=False
+    )
+    aapl_payload = _make_cached_payload(
+        "AAPL",
+        pre_high=153.0, pre_low=149.0,
+        reg_high=165.0, reg_low=158.0,    # yesterday's regular — must be ignored
+        ah_high=162.0, ah_low=160.0,      # yesterday's after-hours — must be ignored
+    )
+
+    redis = mock_options.new_redis_client.return_value
+    redis.scan = AsyncMock(return_value=(0, ["daily_range:AAPL"]))
+    redis.get = AsyncMock(return_value=aapl_payload)
+
+    sut = DailyRangeAnalyzer(mock_options)
+    await sut.rehydrate()
+
+    # Assert - only pre-market fields restored; regular and AH dicts empty
+    assert sut._pre_market_high == {"AAPL": 153.0}
+    assert sut._pre_market_low == {"AAPL": 149.0}
+    assert sut._regular_session_high == {}
+    assert sut._regular_session_low == {}
+    assert sut._after_hours_high == {}
+    assert sut._after_hours_low == {}
+    assert sut._last_session == "pre_market"
+
+
+@pytest.mark.asyncio
+async def test_dra_rehydrate_during_regular_session_excludes_after_hours_fields(mock_options):
+    # Arrange - regular session (mock_options default: market="open").
+    # After-hours values in the cached payload are from yesterday and must NOT be restored.
+    aapl_payload = _make_cached_payload(
+        "AAPL",
+        pre_high=153.0, pre_low=149.0,
+        reg_high=157.0, reg_low=151.0,
+        ah_high=162.0, ah_low=160.0,      # yesterday's after-hours — must be ignored
+    )
+
+    redis = mock_options.new_redis_client.return_value
+    redis.scan = AsyncMock(return_value=(0, ["daily_range:AAPL"]))
+    redis.get = AsyncMock(return_value=aapl_payload)
+
+    sut = DailyRangeAnalyzer(mock_options)
+    await sut.rehydrate()
+
+    # Assert - pre-market and regular fields restored; AH dict empty
+    assert sut._pre_market_high == {"AAPL": 153.0}
+    assert sut._pre_market_low == {"AAPL": 149.0}
+    assert sut._regular_session_high == {"AAPL": 157.0}
+    assert sut._regular_session_low == {"AAPL": 151.0}
+    assert sut._after_hours_high == {}
+    assert sut._after_hours_low == {}
+    assert sut._last_session == "regular"
+
+
+@pytest.mark.asyncio
+async def test_dra_rehydrate_when_market_closed_skips_rehydration(mock_options):
+    # Arrange - market closed (not in any active session). Cannot determine whether
+    # cached data is from today or yesterday; skip rehydration entirely.
+    mock_options.new_rest_client.return_value.get_market_status.return_value = MarketStatus(
+        market="closed", early_hours=False, after_hours=False
+    )
+
+    redis = mock_options.new_redis_client.return_value
+    # scan should never be called
+    redis.scan = AsyncMock(return_value=(0, ["daily_range:AAPL"]))
+    aapl_payload = _make_cached_payload(
+        "AAPL", pre_high=153.0, pre_low=149.0, reg_high=157.0, reg_low=151.0
+    )
+    redis.get = AsyncMock(return_value=aapl_payload)
+
+    sut = DailyRangeAnalyzer(mock_options)
+    await sut.rehydrate()
+
+    # Assert - all dicts empty; scan never called
+    assert sut._pre_market_high == {}
+    assert sut._regular_session_high == {}
+    assert sut._after_hours_high == {}
+    redis.scan.assert_not_called()
