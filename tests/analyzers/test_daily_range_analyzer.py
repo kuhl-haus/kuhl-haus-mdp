@@ -555,3 +555,32 @@ async def test_dra_rehydrate_then_analyze_data_preserves_rehydrated_highs(mock_o
     assert payload["pre_market_high"] == 153.0         # rehydrated value wins (152 < 153)
     assert payload["pre_market_low"] == 149.0          # rehydrated low preserved (150 > 149)
     assert payload["regular_session_high"] == 157.0   # reg session data not wiped
+
+
+@pytest.mark.asyncio
+async def test_dra_rehydrate_skips_non_dict_control_keys(mock_options):
+    # Arrange - scan returns both a valid symbol key AND the control keys
+    # (daily_range:day_boundary stores a date string; daily_range:market_open_reset:DATE
+    # stores "1"). json.loads on those returns str/int, not dict — must not crash.
+    aapl_payload = _make_cached_payload("AAPL", reg_high=157.0, reg_low=151.0)
+
+    redis = mock_options.new_redis_client.return_value
+    redis.scan = AsyncMock(return_value=(
+        0,
+        [
+            "daily_range:day_boundary",
+            "daily_range:market_open_reset:2026-04-14",
+            "daily_range:AAPL",
+        ],
+    ))
+    # Return values: date string, "1" (int after json.loads), then valid JSON
+    redis.get = AsyncMock(side_effect=["\"2026-04-14\"", "1", aapl_payload])
+
+    sut = DailyRangeAnalyzer(mock_options)
+
+    # Act - must not raise AttributeError: 'int'/'str' object has no attribute 'get'
+    await sut.rehydrate()
+
+    # Assert - AAPL restored; control keys silently skipped
+    assert sut._regular_session_high == {"AAPL": 157.0}
+    assert sut._regular_session_low == {"AAPL": 151.0}
