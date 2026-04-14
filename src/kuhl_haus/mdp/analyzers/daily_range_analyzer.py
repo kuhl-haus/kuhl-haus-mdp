@@ -81,9 +81,10 @@ class DailyRangeAnalyzer(Analyzer):
         into the six in-memory session dicts. This prevents restarts from
         discarding data accumulated earlier in the trading day.
 
-        The existing day/market-open boundary guards in ``_check_day_boundary()``
-        and ``_check_market_open_reset()`` will clear stale rehydrated state at
-        the appropriate time boundaries on the next tick.
+        ``_check_day_boundary()`` will clear stale rehydrated state when a new
+        pre-market session is detected on the next tick. Pre-market H/L is frozen
+        (not cleared) at regular session open and remains in published payloads
+        for the duration of the trading day.
         """
         prefix = WidgetDataCacheKeys.DAILY_RANGE.value
         pattern = f"{prefix}:*"
