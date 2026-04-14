@@ -3,21 +3,27 @@
 Subscribes to the ``quote:*`` feed and publishes per-symbol session
 high/low (pre-market, regular, after-hours) to ``daily_range:{symbol}``.
 
-No external API calls are made. All state is maintained in process memory
-and coordinated via lightweight Redis keys for boundary resets.
+All state is maintained in process memory with Redis-backed rehydration
+on startup so restarts do not lose intraday data.
 
 Session detection uses the Massive ``get_market_status()`` API (60-second
 in-memory cache) so exchange holidays and early closes are handled correctly.
 
-Boundary resets:
-- 4:00 AM ET: all six HOD/LOD dicts cleared (SET NX per-day guard on Redis)
-- 9:30 AM ET: pre-market HOD/LOD cleared (SET NX per-day guard on Redis)
+Pre-market H/L is frozen (not cleared) when the regular session opens —
+it remains visible in published payloads throughout the trading day.
+
+Day boundary reset:
+- Triggered by observing a transition to ``pre_market`` session after a
+  period of ``None`` (market closed). All six HOD/LOD dicts are cleared.
+  A Redis SET NX key scoped to the calendar date prevents duplicate resets
+  across restarts and replicas.
 """
 import asyncio
 import functools
+import json
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional, List
 from zoneinfo import ZoneInfo
 
@@ -45,7 +51,6 @@ class DailyRangeAnalyzer(Analyzer):
     """
 
     DAY_BOUNDARY_KEY = "daily_range:day_boundary"
-    MARKET_OPEN_RESET_KEY = "daily_range:market_open_reset:{date}"
 
     def __init__(self, options: AnalyzerOptions):
         super().__init__(options)
@@ -65,6 +70,61 @@ class DailyRangeAnalyzer(Analyzer):
         self._market_status: Optional[MarketStatus] = None
         self._market_status_fetched_at: float = 0.0  # monotonic epoch seconds
 
+        # Last observed session — used to detect transitions for day-boundary reset
+        self._last_session: Optional[str] = None
+
+    @tracer.start_as_current_span("dra.rehydrate")
+    async def rehydrate(self):
+        """Restore session HOD/LOD state from Redis on startup.
+
+        Scans all ``daily_range:*`` keys and restores per-symbol H/L values
+        into the six in-memory session dicts. This prevents restarts from
+        discarding data accumulated earlier in the trading day.
+
+        ``_check_day_boundary()`` will clear stale rehydrated state when a new
+        pre-market session is detected on the next tick. Pre-market H/L is frozen
+        (not cleared) at regular session open and remains in published payloads
+        for the duration of the trading day.
+        """
+        prefix = WidgetDataCacheKeys.DAILY_RANGE.value
+        pattern = f"{prefix}:*"
+        cursor = 0
+        restored = 0
+
+        while True:
+            cursor, keys = await self.redis_client.scan(cursor=cursor, match=pattern, count=100)
+            for key in keys:
+                raw = await self.redis_client.get(key)
+                if not raw:
+                    continue
+                try:
+                    payload = json.loads(raw)
+                except Exception:
+                    continue
+
+                symbol = payload.get("symbol")
+                if not symbol:
+                    continue
+
+                def _restore(dict_: dict, field: str):
+                    val = payload.get(field)
+                    if val is not None:
+                        dict_[symbol] = float(val)
+
+                _restore(self._pre_market_high, "pre_market_high")
+                _restore(self._pre_market_low, "pre_market_low")
+                _restore(self._regular_session_high, "regular_session_high")
+                _restore(self._regular_session_low, "regular_session_low")
+                _restore(self._after_hours_high, "after_hours_high")
+                _restore(self._after_hours_low, "after_hours_low")
+                restored += 1
+
+            if cursor == 0:
+                break
+
+        self._last_session = await self._get_session()
+        self.logger.info(f"dra.rehydrate: restored {restored} symbol(s), session={self._last_session}")
+
     @tracer.start_as_current_span("dra.analyze_data")
     async def analyze_data(self, data: dict) -> Optional[List[MarketDataAnalyzerResult]]:
         """Process a quote event and publish session HOD/LOD results.
@@ -81,7 +141,6 @@ class DailyRangeAnalyzer(Analyzer):
             return None
 
         await self._check_day_boundary()
-        await self._check_market_open_reset()
         await self._update_session_hod_lod(symbol, data)
 
         payload = {
@@ -180,22 +239,37 @@ class DailyRangeAnalyzer(Analyzer):
 
     @tracer.start_as_current_span("dra._check_day_boundary")
     async def _check_day_boundary(self):
-        """Reset all HOD/LOD dicts at 4:00 AM ET (start of pre-market).
+        """Reset all HOD/LOD dicts when a new pre-market session is detected.
 
-        Uses a Redis SET NX key scoped to the current date to ensure the
-        reset fires exactly once per day per instance.
+        Triggers on the session transition ``None \u2192 pre_market`` (market closed
+        \u2192 pre-market open). This is session-transition driven, not wall-clock
+        driven, so exchange holidays and early closes are handled correctly.
+
+        A Redis SET NX key scoped to the calendar date prevents duplicate
+        resets across restarts and replicas within the same trading day.
+
+        Pre-market H/L is intentionally **not** cleared when the regular session
+        opens — it is frozen at 9:30 AM and remains visible in published payloads
+        throughout the day. AH H/L is similarly preserved until the next day
+        boundary reset.
         """
-        et = ZoneInfo("America/New_York")
-        now_et = datetime.now(tz=et)
-        if now_et.hour < 4:
+        session = await self._get_session()
+
+        # Track session transitions; only act on closed → pre_market
+        prev_session = self._last_session
+        self._last_session = session
+
+        if not (prev_session is None and session == "pre_market"):
             return
 
-        today = now_et.strftime("%Y-%m-%d")
+        # New pre-market session detected — guard with a per-day Redis key
+        et = ZoneInfo("America/New_York")
+        today = datetime.now(tz=et).strftime("%Y-%m-%d")
         key = self.DAY_BOUNDARY_KEY
         set_result = await self.redis_client.set(key, today, nx=True, ex=86400)
         if set_result is None:
             existing = await self.redis_client.get(key)
-            if existing and existing == today:  # redis.asyncio returns str, not bytes
+            if existing and existing == today:
                 return
 
         self.logger.info(f"Day boundary reset at {today}")
@@ -205,25 +279,3 @@ class DailyRangeAnalyzer(Analyzer):
         self._regular_session_low.clear()
         self._after_hours_high.clear()
         self._after_hours_low.clear()
-
-    @tracer.start_as_current_span("dra._check_market_open_reset")
-    async def _check_market_open_reset(self):
-        """Clear pre-market HOD/LOD at 9:30 AM ET (regular session open).
-
-        Uses a Redis SET NX key scoped to the current date so the reset
-        fires exactly once per day per instance.
-        """
-        et = ZoneInfo("America/New_York")
-        now_et = datetime.now(tz=et)
-        if now_et.hour < 9 or (now_et.hour == 9 and now_et.minute < 30):
-            return
-
-        today = now_et.strftime("%Y-%m-%d")
-        key = self.MARKET_OPEN_RESET_KEY.format(date=today)
-        set_result = await self.redis_client.set(key, "1", nx=True, ex=86400)
-        if set_result is None:
-            return
-
-        self.logger.info(f"Market open reset for {today}")
-        self._pre_market_high.clear()
-        self._pre_market_low.clear()
