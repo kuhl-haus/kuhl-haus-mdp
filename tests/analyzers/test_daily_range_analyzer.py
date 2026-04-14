@@ -259,72 +259,114 @@ async def test_dra_get_market_status_returns_stale_on_api_failure(sut, mock_rest
 
 
 # ------------------------------------------------------------------
-# Day boundary reset
+# Day boundary reset — session-transition driven
 # ------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_dra_check_day_boundary_clears_all_hod_lod_dicts(sut, mock_redis):
+async def test_dra_check_day_boundary_clears_all_hod_lod_dicts_on_closed_to_pre_market(sut, mock_redis):
+    # Arrange — previous session was None (closed), now pre_market
+    sut._last_session = None
     sut._regular_session_high["AAPL"] = 170.0
     sut._regular_session_low["AAPL"] = 160.0
     sut._pre_market_high["AAPL"] = 152.0
     sut._pre_market_low["AAPL"] = 148.0
+    mock_redis.set = AsyncMock(return_value=True)  # SET NX succeeds
 
-    # SET NX returns truthy value (key was set - first time today)
-    mock_redis.set = AsyncMock(return_value=True)
-
-    with patch(f"{MODULE}.datetime") as mock_dt:
-        mock_dt.now.return_value = datetime(2026, 4, 8, 5, 0, 0, tzinfo=ET)
+    with patch.object(sut, "_get_session", return_value="pre_market"):
         await sut._check_day_boundary()
 
     assert sut._regular_session_high == {}
     assert sut._regular_session_low == {}
     assert sut._pre_market_high == {}
     assert sut._pre_market_low == {}
+    assert sut._last_session == "pre_market"
 
 
 @pytest.mark.asyncio
-async def test_dra_check_day_boundary_does_not_reset_before_4am(sut, mock_redis):
-    sut._regular_session_high["AAPL"] = 170.0
+async def test_dra_check_day_boundary_does_not_reset_when_already_in_pre_market(sut, mock_redis):
+    # Arrange — already in pre_market, no transition
+    sut._last_session = "pre_market"
+    sut._pre_market_high["AAPL"] = 152.0
 
-    with patch(f"{MODULE}.datetime") as mock_dt:
-        mock_dt.now.return_value = datetime(2026, 4, 8, 3, 59, 0, tzinfo=ET)
+    with patch.object(sut, "_get_session", return_value="pre_market"):
         await sut._check_day_boundary()
-
-    assert sut._regular_session_high == {"AAPL": 170.0}
-    mock_redis.set.assert_not_called()
-
-
-# ------------------------------------------------------------------
-# Market open reset (9:30 AM ET)
-# ------------------------------------------------------------------
-
-@pytest.mark.asyncio
-async def test_dra_check_market_open_reset_clears_pre_market_hod_lod(sut, mock_redis):
-    sut._pre_market_high["AAPL"] = 152.0
-    sut._pre_market_low["AAPL"] = 148.0
-    sut._regular_session_high["AAPL"] = 155.0  # Should NOT be cleared
-
-    mock_redis.set = AsyncMock(return_value=True)  # NX success
-
-    with patch(f"{MODULE}.datetime") as mock_dt:
-        mock_dt.now.return_value = datetime(2026, 4, 8, 9, 30, 0, tzinfo=ET)
-        await sut._check_market_open_reset()
-
-    assert sut._pre_market_high == {}
-    assert sut._pre_market_low == {}
-    assert sut._regular_session_high == {"AAPL": 155.0}
-
-
-@pytest.mark.asyncio
-async def test_dra_check_market_open_reset_does_not_reset_before_930am(sut, mock_redis):
-    sut._pre_market_high["AAPL"] = 152.0
-
-    with patch(f"{MODULE}.datetime") as mock_dt:
-        mock_dt.now.return_value = datetime(2026, 4, 8, 9, 29, 0, tzinfo=ET)
-        await sut._check_market_open_reset()
 
     assert sut._pre_market_high == {"AAPL": 152.0}
     mock_redis.set.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_dra_check_day_boundary_does_not_reset_on_regular_session(sut, mock_redis):
+    # Arrange — pre_market → regular is NOT a day boundary
+    sut._last_session = "pre_market"
+    sut._pre_market_high["AAPL"] = 152.0
+
+    with patch.object(sut, "_get_session", return_value="regular"):
+        await sut._check_day_boundary()
+
+    assert sut._pre_market_high == {"AAPL": 152.0}
+    mock_redis.set.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_dra_check_day_boundary_redis_guard_prevents_double_reset(sut, mock_redis):
+    # Arrange — SET NX returns None (key already exists for today)
+    sut._last_session = None
+    sut._pre_market_high["AAPL"] = 152.0
+    mock_redis.set = AsyncMock(return_value=None)  # NX failed
+    import datetime as _dt
+    today = _dt.datetime.now(tz=ET).strftime("%Y-%m-%d")
+    mock_redis.get = AsyncMock(return_value=today)
+
+    with patch.object(sut, "_get_session", return_value="pre_market"):
+        await sut._check_day_boundary()
+
+    # Guard fired — reset did NOT happen
+    assert sut._pre_market_high == {"AAPL": 152.0}
+
+
+# ------------------------------------------------------------------
+# Pre-market H/L preserved during regular session and after-hours
+# ------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_dra_pre_market_hod_lod_visible_in_regular_session_payload(sut, mock_rest_client):
+    # Pre-market H/L must remain in published payload during regular session.
+    # This was broken when _check_market_open_reset() cleared the dicts.
+    sut._pre_market_high["AAPL"] = 153.0
+    sut._pre_market_low["AAPL"] = 149.0
+
+    mock_rest_client.get_market_status.return_value = MarketStatus(
+        market="open", early_hours=False, after_hours=False
+    )
+    result = await sut.analyze_data(_make_quote("AAPL", high=156.0, low=151.0))
+
+    assert result is not None
+    payload = result[0].data
+    assert payload["pre_market_high"] == 153.0
+    assert payload["pre_market_low"] == 149.0
+    assert payload["regular_session_high"] == 156.0
+    assert payload["regular_session_low"] == 151.0
+
+
+@pytest.mark.asyncio
+async def test_dra_pre_market_and_regular_hod_lod_visible_in_after_hours_payload(sut, mock_rest_client):
+    # Pre-market AND regular session H/L must remain visible after hours.
+    sut._pre_market_high["AAPL"] = 153.0
+    sut._pre_market_low["AAPL"] = 149.0
+    sut._regular_session_high["AAPL"] = 158.0
+    sut._regular_session_low["AAPL"] = 150.0
+
+    mock_rest_client.get_market_status.return_value = MarketStatus(
+        market="closed", early_hours=False, after_hours=True
+    )
+    result = await sut.analyze_data(_make_quote("AAPL", high=155.0, low=152.0))
+
+    assert result is not None
+    payload = result[0].data
+    assert payload["pre_market_high"] == 153.0
+    assert payload["regular_session_high"] == 158.0
+    assert payload["after_hours_high"] == 155.0
 
 
 # ------------------------------------------------------------------
@@ -481,22 +523,23 @@ async def test_dra_rehydrate_paginates_through_multiple_scan_batches(mock_option
 @pytest.mark.asyncio
 async def test_dra_rehydrate_then_analyze_data_preserves_rehydrated_highs(mock_options, mock_rest_client):
     # Arrange - AAPL rehydrated with reg session high of 157.0
-    import datetime as _dt
     cached = json.dumps({
         "symbol": "AAPL", "regular_session_high": 157.0, "regular_session_low": 151.0,
     })
-    today_str = _dt.datetime.now(tz=ZoneInfo("America/New_York")).strftime("%Y-%m-%d")
 
     redis = mock_options.new_redis_client.return_value
     redis.scan = AsyncMock(return_value=(0, ["daily_range:AAPL"]))
-    # get() is called twice: once by rehydrate (returns JSON), then by
-    # _check_day_boundary (must return today's date string to avoid reset).
-    redis.get = AsyncMock(side_effect=[cached, today_str])
+    # get() called once by rehydrate; _check_day_boundary no longer hits Redis
+    # unless a closed→pre_market transition is detected.
+    redis.get = AsyncMock(return_value=cached)
 
     sut = DailyRangeAnalyzer(mock_options)
     await sut.rehydrate()
 
     # Act - new tick comes in with a lower high (156.0) during regular session
+    # _last_session starts as None after rehydrate; set it to regular to avoid
+    # triggering a day-boundary reset on the first analyze_data() call.
+    sut._last_session = "regular"
     mock_rest_client.get_market_status.return_value = MarketStatus(
         market="open", early_hours=False, after_hours=False
     )
