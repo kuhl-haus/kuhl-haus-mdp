@@ -1,9 +1,28 @@
 =========
 Changelog
 =========
+Version 0.4.10 (2026-04-14)
+===========================
+
+- `ff590cb <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/ff590cb>`_ fix(DailyRangeAnalyzer): skip non-dict Redis values during rehydrate() (#98)
+
+  daily_range:day_boundary and daily_range:market_open_reset:* keys share
+
+  the daily_range:* prefix. json.loads on their values returns str/int, not
+
+  dict, causing AttributeError: 'int' object has no attribute 'get' on the
+
+  first payload.get('symbol') call.
+
+  Add isinstance(payload, dict) guard to skip control keys silently.
+
+  refs #95
+
+
 Version 0.4.9 (2026-04-13)
 ==========================
 
+- `4041e05 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/4041e05>`_ Version 0.4.9 (2026-04-13)
 - `bf6f029 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/bf6f029>`_ fix(DailyRangeAnalyzer): implement rehydrate() to restore session H/L from Redis (#96)
 
   * fix(DailyRangeAnalyzer): implement rehydrate() to restore session H/L from Redis
