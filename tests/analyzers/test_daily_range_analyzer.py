@@ -522,31 +522,36 @@ async def test_dra_rehydrate_paginates_through_multiple_scan_batches(mock_option
 
 @pytest.mark.asyncio
 async def test_dra_rehydrate_then_analyze_data_preserves_rehydrated_highs(mock_options, mock_rest_client):
-    # Arrange - AAPL rehydrated with reg session high of 157.0
+    # Arrange - AAPL rehydrated with pre-market data; market is currently in pre_market.
+    # This is the critical scenario: without seeding _last_session in rehydrate(),
+    # the first analyze_data() call would see None→pre_market and wipe rehydrated data.
     cached = json.dumps({
-        "symbol": "AAPL", "regular_session_high": 157.0, "regular_session_low": 151.0,
+        "symbol": "AAPL",
+        "pre_market_high": 153.0, "pre_market_low": 149.0,
+        "regular_session_high": 157.0, "regular_session_low": 151.0,
     })
+
+    # Market is currently in pre-market
+    mock_rest_client.get_market_status.return_value = MarketStatus(
+        market="closed", early_hours=True, after_hours=False
+    )
 
     redis = mock_options.new_redis_client.return_value
     redis.scan = AsyncMock(return_value=(0, ["daily_range:AAPL"]))
-    # get() called once by rehydrate; _check_day_boundary no longer hits Redis
-    # unless a closed→pre_market transition is detected.
     redis.get = AsyncMock(return_value=cached)
 
     sut = DailyRangeAnalyzer(mock_options)
     await sut.rehydrate()
 
-    # Act - new tick comes in with a lower high (156.0) during regular session
-    # _last_session starts as None after rehydrate; set it to regular to avoid
-    # triggering a day-boundary reset on the first analyze_data() call.
-    sut._last_session = "regular"
-    mock_rest_client.get_market_status.return_value = MarketStatus(
-        market="open", early_hours=False, after_hours=False
-    )
-    result = await sut.analyze_data(_make_quote("AAPL", high=156.0, low=152.0))
+    # rehydrate() must have seeded _last_session = 'pre_market'
+    assert sut._last_session == "pre_market"
 
-    # Assert - rehydrated high (157.0) preserved; it's still the day high
+    # Act - new pre-market tick arrives with a lower high (152.0)
+    result = await sut.analyze_data(_make_quote("AAPL", high=152.0, low=150.0))
+
+    # Assert - rehydrated reg session high (157.0) preserved; pre-market high stays at 153.0
     assert result is not None
     payload = result[0].data
-    assert payload["regular_session_high"] == 157.0   # rehydrated value wins
-    assert payload["regular_session_low"] == 151.0    # rehydrated low preserved (152 > 151)
+    assert payload["pre_market_high"] == 153.0         # rehydrated value wins (152 < 153)
+    assert payload["pre_market_low"] == 149.0          # rehydrated low preserved (150 > 149)
+    assert payload["regular_session_high"] == 157.0   # reg session data not wiped

@@ -121,7 +121,8 @@ class DailyRangeAnalyzer(Analyzer):
             if cursor == 0:
                 break
 
-        self.logger.info(f"dra.rehydrate: restored {restored} symbol(s)")
+        self._last_session = await self._get_session()
+        self.logger.info(f"dra.rehydrate: restored {restored} symbol(s), session={self._last_session}")
 
     @tracer.start_as_current_span("dra.analyze_data")
     async def analyze_data(self, data: dict) -> Optional[List[MarketDataAnalyzerResult]]:
