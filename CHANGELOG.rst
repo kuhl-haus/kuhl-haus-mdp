@@ -1,9 +1,124 @@
 =========
 Changelog
 =========
+Version 0.4.9 (2026-04-13)
+==========================
+
+- `bf6f029 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/bf6f029>`_ fix(DailyRangeAnalyzer): implement rehydrate() to restore session H/L from Redis (#96)
+
+  * fix(DailyRangeAnalyzer): implement rehydrate() to restore session H/L from Redis
+
+  On every restart, the six in-memory HOD/LOD dicts were wiped and the
+
+  analyzer started tracking from zero — losing all pre-market, regular,
+
+  and after-hours session data accumulated earlier in the trading day.
+
+  Fix: override rehydrate() to scan all daily_range:* keys in Redis and
+
+  restore per-symbol H/L values into the six session dicts before
+
+  processing begins. The existing day-boundary reset at 4AM ET and
+
+  market-open reset at 9:30AM ET handle clearing stale data naturally.
+
+  Six new tests:
+
+  - restore all six session fields from Redis
+
+  - skip null session values (field not yet observed)
+
+  - skip keys with missing Redis values (expired/deleted)
+
+  - handle empty scan result (first startup of the day)
+
+  - paginate through multiple SCAN batches
+
+  - rehydrated highs preserved correctly on subsequent analyze_data() calls
+
+  closes #95
+
+  * style: move json import to module level
+
+  * fix(DailyRangeAnalyzer): preserve pre-market H/L; drive resets from session transitions
+
+  Two issues addressed:
+
+  1. Pre-market H/L was cleared at 9:30 AM by _check_market_open_reset().
+
+  Remove that method entirely. Pre-market H/L is only written during the
+
+  pre_market session (gated by _get_session()), so it is naturally frozen
+
+  at regular session open and remains visible in published payloads through
+
+  the rest of the trading day and after-hours.
+
+  2. Day boundary reset was driven by wall-clock time (hour < 4 guard).
+
+  Replace with session-transition detection: reset fires on the observed
+
+  transition from None (closed) -> pre_market. This correctly handles
+
+  exchange holidays, early closes, and any schedule variation Massive's
+
+  Market Status API reflects. A Redis SET NX guard (per calendar date)
+
+  prevents duplicate resets across restarts and replicas.
+
+  _last_session tracks the previous tick's session for transition detection.
+
+  Tests updated: remove the four wall-clock / _check_market_open_reset tests;
+
+  add six new tests covering session-transition-driven resets, Redis guard,
+
+  pre-market H/L visible during regular session, and pre-market + regular H/L
+
+  visible during after-hours.
+
+  refs #95
+
+  * fix(DailyRangeAnalyzer): seed _last_session from rehydrate() to prevent post-restart wipe
+
+  After rehydrate() completed, _last_session was None. On the first
+
+  analyze_data() call, _check_day_boundary() would see prev=None,
+
+  session=pre_market, satisfy the transition condition, hit the Redis
+
+  guard, and clear all six dicts — wiping everything just rehydrated.
+
+  Fix: call _get_session() at the end of rehydrate() and store the
+
+  result in _last_session so the first tick sees the correct previous
+
+  state.
+
+  Integration test updated: removes the manual sut._last_session='regular'
+
+  workaround; now tests the actual dangerous scenario (market in pre_market
+
+  at time of rehydrate) and asserts _last_session is seeded correctly plus
+
+  rehydrated data survives the subsequent analyze_data() call.
+
+  refs #95
+
+  * docs(DailyRangeAnalyzer): fix stale rehydrate() docstring
+
+  Remove reference to _check_market_open_reset() which no longer exists.
+
+  Describe current behavior: _check_day_boundary() clears on
+
+  None→pre_market transition; pre-market H/L is frozen at market open.
+
+  refs #95
+
+
 Version 0.4.8 (2026-04-10)
 ==========================
 
+- `b23280c <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/b23280c>`_ Version 0.4.8 (2026-04-10)
 - `326ba42 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/326ba42>`_ chore: relax Python floor from 3.14 to 3.12 (#94)
 
   kuhl-haus-mdp-app runs on Python 3.12 (ubuntu system python) and needs
