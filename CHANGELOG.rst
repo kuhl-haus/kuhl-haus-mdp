@@ -1,9 +1,56 @@
 =========
 Changelog
 =========
+Version 0.4.11 (2026-04-14)
+===========================
+
+- `da069b0 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/da069b0>`_ fix(DailyRangeAnalyzer): scope rehydrate() to sessions elapsed today (#100)
+
+  rehydrate() was restoring all six HOD/LOD fields unconditionally, which
+
+  caused yesterday's regular and after-hours values to persist into the
+
+  following day until overwritten by new ticks.
+
+  Fix: determine the current session before scanning and only restore
+
+  fields from sessions that have already elapsed today:
+
+  pre_market   -> pre-market fields only
+
+  regular      -> pre-market + regular-session fields
+
+  after_hours  -> all six fields (correct)
+
+  None (closed)-> skip rehydration entirely; cannot determine which
+
+  trading day the cached data belongs to
+
+  Also replaces the inline closure (_restore) with a direct loop over
+
+  the session-scoped field list.
+
+  3 new tests:
+
+  - pre_market: only pre-market fields restored; reg and AH dicts empty
+
+  - regular:    pre-market + regular fields restored; AH dict empty
+
+  - closed:     scan never called; all dicts remain empty
+
+  Updated existing tests to set explicit market status where session
+
+  matters, and corrected the _last_session seeding integration test
+
+  to reflect pre-market-only rehydration.
+
+  refs #95
+
+
 Version 0.4.10 (2026-04-14)
 ===========================
 
+- `df4c705 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/df4c705>`_ Version 0.4.10 (2026-04-14)
 - `ff590cb <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/ff590cb>`_ fix(DailyRangeAnalyzer): skip non-dict Redis values during rehydrate() (#98)
 
   daily_range:day_boundary and daily_range:market_open_reset:* keys share
