@@ -102,6 +102,9 @@ class DailyRangeAnalyzer(Analyzer):
                 except Exception:
                     continue
 
+                if not isinstance(payload, dict):
+                    continue
+
                 symbol = payload.get("symbol")
                 if not symbol:
                     continue
