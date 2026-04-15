@@ -1,9 +1,36 @@
 =========
 Changelog
 =========
+Version 0.4.12 (2026-04-15)
+===========================
+
+- `33d171c <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/33d171c>`_ fix(DailyRangeAnalyzer): reset HOD/LOD using 4AM ET Lua pattern (mirrors LeaderboardAnalyzer) (#101)
+
+  Root cause (confirmed via production logs 2026-04-15):
+
+  REST client failures during the overnight window leave _last_session as
+
+  'after_hours'. The None→pre_market session transition never fires, so
+
+  yesterday's HOD/LOD persist all day. Side-effect: LOD shown in regular
+
+  session H/L is yesterday's LOD because it was lower than today's.
+
+  Fix: adopt the same 4AM ET Lua atomic pattern used by LeaderboardAnalyzer.
+
+  Anchor to today's 4AM ET timestamp (stable throughout the day). Lua script
+
+  atomically compares stored vs current — only one replica resets; no session-
+
+  transition logic; not subject to REST client availability.
+
+  698/698 tests passing.
+
+
 Version 0.4.11 (2026-04-14)
 ===========================
 
+- `69a869c <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/69a869c>`_ Version 0.4.11 (2026-04-14)
 - `da069b0 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/da069b0>`_ fix(DailyRangeAnalyzer): scope rehydrate() to sessions elapsed today (#100)
 
   rehydrate() was restoring all six HOD/LOD fields unconditionally, which
