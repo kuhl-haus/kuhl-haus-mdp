@@ -23,7 +23,7 @@ import functools
 import json
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List
 from zoneinfo import ZoneInfo
 
@@ -279,40 +279,54 @@ class DailyRangeAnalyzer(Analyzer):
 
     @tracer.start_as_current_span("dra._check_day_boundary")
     async def _check_day_boundary(self):
-        """Reset all HOD/LOD dicts when a new pre-market session is detected.
+        """Reset all six HOD/LOD dicts at the start of each new trading day.
 
-        Triggers on the session transition ``None \u2192 pre_market`` (market closed
-        \u2192 pre-market open). This is session-transition driven, not wall-clock
-        driven, so exchange holidays and early closes are handled correctly.
+        Called on every quote tick via ``analyze_data``. Uses the same 4AM ET
+        Lua atomic pattern as ``LeaderboardAnalyzer``:
 
-        A Redis SET NX key scoped to the calendar date prevents duplicate
-        resets across restarts and replicas within the same trading day.
+        - Anchors to today's 4:00 AM ET timestamp, which is stable throughout
+          the trading day regardless of when the code runs.
+        - Lua script atomically compares the stored timestamp against the
+          current 4AM ET anchor. If they differ the key is overwritten and
+          the method returns 1 (reset); if they match it returns 0 (no-op).
+        - Only one replica across the cluster performs the reset per day.
+        - No dependency on session state or REST client availability — robust
+          against REST client failures during the overnight window that would
+          otherwise prevent ``_last_session`` from reaching ``None``.
 
-        Pre-market H/L is intentionally **not** cleared when the regular session
-        opens — it is frozen at 9:30 AM and remains visible in published payloads
-        throughout the day. AH H/L is similarly preserved until the next day
-        boundary reset.
+        Pre-market H/L is reset along with all other sessions at the 4AM ET
+        boundary; it accumulates fresh during the new pre-market session and
+        remains frozen in published payloads through the regular session and
+        after-hours.
         """
-        session = await self._get_session()
+        # Day boundary detection uses the same pattern as LeaderboardAnalyzer:
+        # anchor to today's 4 AM ET timestamp, which is stable throughout the day.
+        # Lua script atomically compares stored vs current — only one replica resets;
+        # no session-transition logic required.
+        et_now = datetime.now(timezone.utc).astimezone(ZoneInfo("America/New_York"))
+        current_day = et_now.replace(hour=4, minute=0, second=0, microsecond=0)
+        current_day_ts = str(int(current_day.timestamp()))
 
-        # Track session transitions; only act on closed → pre_market
-        prev_session = self._last_session
-        self._last_session = session
+        lua_script = """
+        local stored = redis.call('GET', KEYS[1])
+        if stored ~= ARGV[1] then
+            redis.call('SET', KEYS[1], ARGV[1])
+            return 1
+        end
+        return 0
+        """
 
-        if not (prev_session is None and session == "pre_market"):
+        reset = await self.redis_client.eval(
+            lua_script,
+            1,
+            self.DAY_BOUNDARY_KEY,
+            current_day_ts,
+        )
+
+        if not reset:
             return
 
-        # New pre-market session detected — guard with a per-day Redis key
-        et = ZoneInfo("America/New_York")
-        today = datetime.now(tz=et).strftime("%Y-%m-%d")
-        key = self.DAY_BOUNDARY_KEY
-        set_result = await self.redis_client.set(key, today, nx=True, ex=86400)
-        if set_result is None:
-            existing = await self.redis_client.get(key)
-            if existing and existing == today:
-                return
-
-        self.logger.info(f"Day boundary reset at {today}")
+        self.logger.info(f"Day boundary reset at {current_day}")
         self._pre_market_high.clear()
         self._pre_market_low.clear()
         self._regular_session_high.clear()
