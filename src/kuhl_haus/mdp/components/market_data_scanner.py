@@ -13,6 +13,9 @@ from redis.exceptions import ConnectionError
 
 from kuhl_haus.mdp.analyzers.analyzer import Analyzer, AnalyzerOptions
 from kuhl_haus.mdp.data.market_data_analyzer_result import MarketDataAnalyzerResult
+from kuhl_haus.mdp.helpers.observability import get_tracer
+
+tracer = get_tracer(__name__)
 
 
 class MarketDataScanner:
@@ -62,6 +65,7 @@ class MarketDataScanner:
         self.published_results = 0
         self.errors = 0
 
+    @tracer.start_as_current_span("mds.start")
     async def start(self):
         """Initialize Redis connections and begin consuming subscribed channels.
 
@@ -89,6 +93,7 @@ class MarketDataScanner:
         self._pubsub_task = asyncio.create_task(self._handle_pubsub())
         self.logger.info("mds.started")
 
+    @tracer.start_as_current_span("mds.stop")
     async def stop(self):
         """Shutdown pub/sub task and close Redis connections.
 
@@ -123,6 +128,7 @@ class MarketDataScanner:
 
         self.logger.info("mds.stopped")
 
+    @tracer.start_as_current_span("mds.connect")
     async def connect(self, force: bool = False):
         """Establish async Redis (WDC) connection for result storage.
 
@@ -148,6 +154,7 @@ class MarketDataScanner:
                 self.logger.error(f"Failed to connect to Redis: {e}")
                 raise
 
+    @tracer.start_as_current_span("mds.restart")
     async def restart(self):
         """Cycle scanner: stop, wait 1s, start.
 
@@ -161,6 +168,7 @@ class MarketDataScanner:
         except Exception as e:
             self.logger.error(f"Error restarting Market Data Scanner: {e}")
 
+    @tracer.start_as_current_span("mds._handle_pubsub")
     async def _handle_pubsub(self):
         """Background task that polls Redis pub/sub and delegates messages to analyzer.
 
@@ -233,6 +241,7 @@ class MarketDataScanner:
             self.mdc_connected = False
             raise
 
+    @tracer.start_as_current_span("mds._process_message")
     async def _process_message(self, data: dict):
         """Delegate message to analyzer and cache results.
 
@@ -266,6 +275,7 @@ class MarketDataScanner:
             self.logger.error(f"Processing error: {e}", exc_info=True)
             self.errors += 1
 
+    @tracer.start_as_current_span("mds.get_cache")
     async def get_cache(self, cache_key: str) -> Optional[dict]:
         """Retrieve cached analyzer result by key."""
         value = await self.redis_client.get(cache_key)
@@ -273,6 +283,7 @@ class MarketDataScanner:
             return json.loads(value)
         return None
 
+    @tracer.start_as_current_span("mds.cache_result")
     async def cache_result(self, analyzer_result: MarketDataAnalyzerResult):
         """Write analyzer output to Redis and publish notification.
 
