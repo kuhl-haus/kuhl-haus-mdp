@@ -1,9 +1,15 @@
 =========
 Changelog
 =========
+Version 0.4.13 (2026-04-17)
+===========================
+
+- `7686ddc <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/7686ddc>`_ feat(MarketDataScanner): add OpenTelemetry tracing to all methods (refs #103) (#104)
+
 Version 0.4.12 (2026-04-15)
 ===========================
 
+- `72849d0 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/72849d0>`_ Version 0.4.12 (2026-04-15)
 - `33d171c <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/33d171c>`_ fix(DailyRangeAnalyzer): reset HOD/LOD using 4AM ET Lua pattern (mirrors LeaderboardAnalyzer) (#101)
 
   Root cause (confirmed via production logs 2026-04-15):
