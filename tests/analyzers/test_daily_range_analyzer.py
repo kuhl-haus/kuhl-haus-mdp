@@ -679,3 +679,415 @@ async def test_dra_rehydrate_when_market_closed_skips_rehydration(mock_options):
     assert sut._regular_session_high == {}
     assert sut._after_hours_high == {}
     redis.scan.assert_not_called()
+
+
+# ------------------------------------------------------------------
+# HOD/LOD alert emission
+# ------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_dra_alert_first_tick_emits_no_alert(sut, mock_rest_client):
+    # Arrange — first tick for symbol, no prior HOD/LOD
+    mock_rest_client.get_market_status.return_value = MarketStatus(
+        market="open", early_hours=False, after_hours=False
+    )
+
+    # Act
+    results = await sut.analyze_data(_make_quote(symbol="AAPL", high=155.0, low=145.0))
+
+    # Assert — only state result; no alert
+    assert results is not None
+    assert len(results) == 1
+    assert results[0].publish_key == f"{WidgetDataCacheKeys.DAILY_RANGE.value}:AAPL"
+
+
+@pytest.mark.asyncio
+async def test_dra_alert_second_tick_higher_high_emits_hod_alert(sut, mock_rest_client):
+    # Arrange — seed a prior HOD, then send a higher tick
+    mock_rest_client.get_market_status.return_value = MarketStatus(
+        market="open", early_hours=False, after_hours=False
+    )
+    sut._regular_session_high["AAPL"] = 155.0
+    sut._regular_session_low["AAPL"] = 145.0
+
+    # Act
+    results = await sut.analyze_data(_make_quote(symbol="AAPL", high=156.0, low=146.0))
+
+    # Assert — state + HOD alert
+    assert results is not None
+    assert len(results) == 2
+    alert = results[1]
+    assert alert.publish_key == WidgetDataCacheKeys.DAILY_RANGE_HOD_ALERT.value
+    assert alert.cache_key == WidgetDataCacheKeys.DAILY_RANGE_HOD_ALERT.value
+    assert alert.data["symbol"] == "AAPL"
+    assert alert.data["direction"] == "high"
+    assert alert.data["price"] == 156.0
+    assert alert.data["previous"] == 155.0
+    assert alert.data["session"] == "regular"
+
+
+@pytest.mark.asyncio
+async def test_dra_alert_lower_low_emits_lod_alert(sut, mock_rest_client):
+    # Arrange — seed a prior LOD, then send a lower tick
+    mock_rest_client.get_market_status.return_value = MarketStatus(
+        market="open", early_hours=False, after_hours=False
+    )
+    sut._regular_session_high["AAPL"] = 155.0
+    sut._regular_session_low["AAPL"] = 145.0
+
+    # Act
+    results = await sut.analyze_data(_make_quote(symbol="AAPL", high=154.0, low=144.0))
+
+    # Assert — state + LOD alert; no HOD alert
+    assert results is not None
+    assert len(results) == 2
+    alert = results[1]
+    assert alert.publish_key == WidgetDataCacheKeys.DAILY_RANGE_LOD_ALERT.value
+    assert alert.data["direction"] == "low"
+    assert alert.data["price"] == 144.0
+    assert alert.data["previous"] == 145.0
+
+
+@pytest.mark.asyncio
+async def test_dra_alert_both_new_hod_and_lod_emits_two_alerts(sut, mock_rest_client):
+    # Arrange — seed prior values, then send tick exceeding both
+    mock_rest_client.get_market_status.return_value = MarketStatus(
+        market="open", early_hours=False, after_hours=False
+    )
+    sut._regular_session_high["AAPL"] = 155.0
+    sut._regular_session_low["AAPL"] = 145.0
+
+    # Act — wider range: new HOD and new LOD simultaneously
+    results = await sut.analyze_data(_make_quote(symbol="AAPL", high=160.0, low=140.0))
+
+    # Assert — state + two alerts
+    assert results is not None
+    assert len(results) == 3
+    directions = {r.data["direction"] for r in results[1:]}
+    assert directions == {"high", "low"}
+
+
+@pytest.mark.asyncio
+async def test_dra_alert_no_new_extreme_emits_no_alert(sut, mock_rest_client):
+    # Arrange — seed prior values, then send tick within existing range
+    mock_rest_client.get_market_status.return_value = MarketStatus(
+        market="open", early_hours=False, after_hours=False
+    )
+    sut._regular_session_high["AAPL"] = 155.0
+    sut._regular_session_low["AAPL"] = 145.0
+
+    # Act — tick within existing range
+    results = await sut.analyze_data(_make_quote(symbol="AAPL", high=154.0, low=146.0))
+
+    # Assert — state only
+    assert results is not None
+    assert len(results) == 1
+
+
+@pytest.mark.asyncio
+async def test_dra_alert_hod_cache_key_and_publish_key_are_hod_channel(sut, mock_rest_client):
+    # Arrange
+    mock_rest_client.get_market_status.return_value = MarketStatus(
+        market="open", early_hours=False, after_hours=False
+    )
+    sut._regular_session_high["AAPL"] = 155.0
+    sut._regular_session_low["AAPL"] = 145.0
+
+    # Act
+    results = await sut.analyze_data(_make_quote(symbol="AAPL", high=156.0, low=146.0))
+
+    # Assert
+    hod_alert = results[1]
+    assert hod_alert.cache_key == WidgetDataCacheKeys.DAILY_RANGE_HOD_ALERT.value
+    assert hod_alert.publish_key == WidgetDataCacheKeys.DAILY_RANGE_HOD_ALERT.value
+
+
+@pytest.mark.asyncio
+async def test_dra_alert_lod_cache_key_and_publish_key_are_lod_channel(sut, mock_rest_client):
+    # Arrange
+    mock_rest_client.get_market_status.return_value = MarketStatus(
+        market="open", early_hours=False, after_hours=False
+    )
+    sut._regular_session_high["AAPL"] = 155.0
+    sut._regular_session_low["AAPL"] = 145.0
+
+    # Act
+    results = await sut.analyze_data(_make_quote(symbol="AAPL", high=154.0, low=144.0))
+
+    # Assert
+    lod_alert = results[1]
+    assert lod_alert.cache_key == WidgetDataCacheKeys.DAILY_RANGE_LOD_ALERT.value
+    assert lod_alert.publish_key == WidgetDataCacheKeys.DAILY_RANGE_LOD_ALERT.value
+
+
+@pytest.mark.asyncio
+async def test_dra_alert_cache_list_max_is_100(sut, mock_rest_client):
+    # Arrange
+    mock_rest_client.get_market_status.return_value = MarketStatus(
+        market="open", early_hours=False, after_hours=False
+    )
+    sut._regular_session_high["AAPL"] = 155.0
+    sut._regular_session_low["AAPL"] = 145.0
+
+    # Act
+    results = await sut.analyze_data(_make_quote(symbol="AAPL", high=156.0, low=144.0))
+
+    # Assert — both alert results have cache_list_max=100
+    for alert in results[1:]:
+        assert alert.cache_list_max == 100
+
+
+@pytest.mark.asyncio
+async def test_dra_alert_cache_ttl_is_eight_hours(sut, mock_rest_client):
+    # Arrange
+    mock_rest_client.get_market_status.return_value = MarketStatus(
+        market="open", early_hours=False, after_hours=False
+    )
+    sut._regular_session_high["AAPL"] = 155.0
+    sut._regular_session_low["AAPL"] = 145.0
+
+    # Act
+    results = await sut.analyze_data(_make_quote(symbol="AAPL", high=156.0, low=144.0))
+
+    # Assert
+    for alert in results[1:]:
+        assert alert.cache_ttl == WidgetDataCacheTTL.DAILY_RANGE_ALERT.value
+
+
+@pytest.mark.asyncio
+async def test_dra_alert_session_field_matches_current_session(sut, mock_rest_client):
+    # Arrange — pre_market session
+    mock_rest_client.get_market_status.return_value = MarketStatus(
+        market="closed", early_hours=True, after_hours=False
+    )
+    sut._pre_market_high["AAPL"] = 155.0
+    sut._pre_market_low["AAPL"] = 145.0
+
+    # Act
+    results = await sut.analyze_data(_make_quote(symbol="AAPL", high=156.0, low=144.0))
+
+    # Assert — alerts have session="pre_market"
+    for alert in results[1:]:
+        assert alert.data["session"] == "pre_market"
+
+
+@pytest.mark.asyncio
+async def test_dra_alert_after_day_boundary_reset_first_tick_silent(sut, mock_rest_client, mock_redis):
+    # Arrange — simulate day boundary reset, then first tick
+    mock_rest_client.get_market_status.return_value = MarketStatus(
+        market="open", early_hours=False, after_hours=False
+    )
+    mock_redis.eval = AsyncMock(return_value=1)  # Lua returns 1 → reset fires
+
+    # Seed values that will be cleared by the reset
+    sut._regular_session_high["AAPL"] = 155.0
+    sut._regular_session_low["AAPL"] = 145.0
+
+    # Act — reset fires inside analyze_data; dicts cleared; first tick after reset
+    results = await sut.analyze_data(_make_quote(symbol="AAPL", high=160.0, low=140.0))
+
+    # Assert — no alert (first tick after reset)
+    assert len(results) == 1
+
+
+@pytest.mark.asyncio
+async def test_dra_alert_after_rehydration_matched_value_no_alert(sut, mock_rest_client):
+    # Arrange — simulate rehydrated state, then tick at exact HOD (not exceeded)
+    mock_rest_client.get_market_status.return_value = MarketStatus(
+        market="open", early_hours=False, after_hours=False
+    )
+    sut._regular_session_high["AAPL"] = 155.0
+    sut._regular_session_low["AAPL"] = 145.0
+
+    # Act — tick exactly at stored values
+    results = await sut.analyze_data(_make_quote(symbol="AAPL", high=155.0, low=145.0))
+
+    # Assert — no alert
+    assert len(results) == 1
+
+
+@pytest.mark.asyncio
+async def test_dra_alert_after_rehydration_exceeded_value_emits_alert(sut, mock_rest_client):
+    # Arrange — simulate rehydrated state, then tick exceeding HOD
+    mock_rest_client.get_market_status.return_value = MarketStatus(
+        market="open", early_hours=False, after_hours=False
+    )
+    sut._regular_session_high["AAPL"] = 155.0
+    sut._regular_session_low["AAPL"] = 145.0
+
+    # Act — tick above stored HOD
+    results = await sut.analyze_data(_make_quote(symbol="AAPL", high=156.0, low=146.0))
+
+    # Assert — HOD alert emitted
+    assert len(results) == 2
+    assert results[1].data["direction"] == "high"
+
+
+# ------------------------------------------------------------------
+# _compute_note — note field logic
+# ------------------------------------------------------------------
+
+def test_dra_compute_note_pre_market_always_empty(sut):
+    # Arrange
+    sut._pre_market_high["AAPL"] = 155.0
+
+    # Act / Assert
+    assert sut._compute_note("AAPL", "pre_market", "high", 160.0) == ""
+
+
+def test_dra_compute_note_regular_hod_no_breach_is_empty(sut):
+    # Arrange — regular HOD, but below pre-market high
+    sut._pre_market_high["AAPL"] = 165.0
+
+    # Act / Assert
+    assert sut._compute_note("AAPL", "regular", "high", 160.0) == ""
+
+
+def test_dra_compute_note_regular_hod_breaks_pre_market_high(sut):
+    # Arrange
+    sut._pre_market_high["AAPL"] = 155.0
+
+    # Act
+    note = sut._compute_note("AAPL", "regular", "high", 156.0)
+
+    # Assert
+    assert note == "Broke pre-market high of $155.00"
+
+
+def test_dra_compute_note_regular_lod_breaks_pre_market_low(sut):
+    # Arrange
+    sut._pre_market_low["AAPL"] = 145.0
+
+    # Act
+    note = sut._compute_note("AAPL", "regular", "low", 144.0)
+
+    # Assert
+    assert note == "Broke pre-market low of $145.00"
+
+
+def test_dra_compute_note_after_hours_hod_breaks_regular_session_high(sut):
+    # Arrange
+    sut._regular_session_high["AAPL"] = 158.0
+
+    # Act
+    note = sut._compute_note("AAPL", "after_hours", "high", 160.0)
+
+    # Assert
+    assert note == "Broke regular session high of $158.00"
+
+
+def test_dra_compute_note_after_hours_hod_no_regular_high_breaks_pre_market_high(sut):
+    # Arrange — no regular session high set; pre-market high present
+    sut._pre_market_high["AAPL"] = 155.0
+
+    # Act
+    note = sut._compute_note("AAPL", "after_hours", "high", 157.0)
+
+    # Assert
+    assert note == "Broke pre-market high of $155.00"
+
+
+def test_dra_compute_note_after_hours_hod_both_prior_highs_none_is_empty(sut):
+    # Arrange — neither regular nor pre-market high set
+    # Act / Assert
+    assert sut._compute_note("AAPL", "after_hours", "high", 160.0) == ""
+
+
+def test_dra_compute_note_after_hours_hod_no_breach_is_empty(sut):
+    # Arrange — regular session high above new tick
+    sut._regular_session_high["AAPL"] = 165.0
+
+    # Act / Assert
+    assert sut._compute_note("AAPL", "after_hours", "high", 160.0) == ""
+
+
+def test_dra_compute_note_after_hours_lod_breaks_regular_session_low(sut):
+    # Arrange
+    sut._regular_session_low["AAPL"] = 142.0
+
+    # Act
+    note = sut._compute_note("AAPL", "after_hours", "low", 140.0)
+
+    # Assert
+    assert note == "Broke regular session low of $142.00"
+
+
+def test_dra_compute_note_after_hours_lod_both_prior_lows_none_is_empty(sut):
+    # Arrange — neither regular nor pre-market low set
+    # Act / Assert
+    assert sut._compute_note("AAPL", "after_hours", "low", 140.0) == ""
+
+
+def test_dra_compute_note_price_formatted_to_two_decimal_places(sut):
+    # Arrange
+    sut._pre_market_high["AAPL"] = 15.0
+
+    # Act
+    note = sut._compute_note("AAPL", "regular", "high", 16.0)
+
+    # Assert — $15.00 not $15 or $15.0
+    assert note == "Broke pre-market high of $15.00"
+
+
+# ------------------------------------------------------------------
+# Timestamp normalization
+# ------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_dra_alert_timestamp_normalized_from_milliseconds(sut, mock_rest_client):
+    # Arrange — tick with "t" field in milliseconds
+    mock_rest_client.get_market_status.return_value = MarketStatus(
+        market="open", early_hours=False, after_hours=False
+    )
+    sut._regular_session_high["AAPL"] = 155.0
+    sut._regular_session_low["AAPL"] = 145.0
+    tick = _make_quote(symbol="AAPL", high=156.0, low=146.0)
+    tick["t"] = 1745364812345  # milliseconds
+
+    # Act
+    results = await sut.analyze_data(tick)
+
+    # Assert — timestamp in seconds
+    assert len(results) == 2
+    assert results[1].data["timestamp"] == pytest.approx(1745364812.345, rel=1e-6)
+
+
+@pytest.mark.asyncio
+async def test_dra_alert_timestamp_falls_back_to_time_time_when_absent(sut, mock_rest_client):
+    # Arrange — tick with no "t" or "timestamp" field
+    mock_rest_client.get_market_status.return_value = MarketStatus(
+        market="open", early_hours=False, after_hours=False
+    )
+    sut._regular_session_high["AAPL"] = 155.0
+    sut._regular_session_low["AAPL"] = 145.0
+    tick = {"symbol": "AAPL", "high": 156.0, "low": 146.0}
+
+    before = time.time()
+    results = await sut.analyze_data(tick)
+    after = time.time()
+
+    # Assert — timestamp within the test window
+    assert len(results) == 2
+    ts = results[1].data["timestamp"]
+    assert before <= ts <= after
+
+
+# ------------------------------------------------------------------
+# State result always first
+# ------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_dra_analyze_data_state_result_always_first(sut, mock_rest_client):
+    # Arrange — tick that will produce both alerts
+    mock_rest_client.get_market_status.return_value = MarketStatus(
+        market="open", early_hours=False, after_hours=False
+    )
+    sut._regular_session_high["AAPL"] = 155.0
+    sut._regular_session_low["AAPL"] = 145.0
+
+    # Act
+    results = await sut.analyze_data(_make_quote(symbol="AAPL", high=160.0, low=140.0))
+
+    # Assert — first result is the state result (daily_range:{symbol} key)
+    assert results[0].publish_key == f"{WidgetDataCacheKeys.DAILY_RANGE.value}:AAPL"
+    assert results[0].cache_key == f"{WidgetDataCacheKeys.DAILY_RANGE.value}:AAPL"

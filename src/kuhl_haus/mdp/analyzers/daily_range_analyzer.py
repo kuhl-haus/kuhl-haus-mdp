@@ -24,7 +24,7 @@ import json
 import logging
 import time
 from datetime import datetime, timezone
-from typing import Optional, List
+from typing import List, Optional
 from zoneinfo import ZoneInfo
 
 from massive.rest.models import MarketStatus
@@ -169,11 +169,19 @@ class DailyRangeAnalyzer(Analyzer):
     async def analyze_data(self, data: dict) -> Optional[List[MarketDataAnalyzerResult]]:
         """Process a quote event and publish session HOD/LOD results.
 
+        Returns a list of one or more ``MarketDataAnalyzerResult`` entries:
+
+        - Always: one state result published to ``daily_range:{symbol}``.
+        - Conditionally: one alert result per new session extreme (HOD or LOD),
+          published to ``daily_range_hod_alert`` or ``daily_range_lod_alert``.
+          Alerts are suppressed on the first tick for a symbol (no prior value
+          to compare against) and after day-boundary resets.
+
         Args:
             data: Quote event dict from the ``quote:*`` feed.
 
         Returns:
-            List with a single ``MarketDataAnalyzerResult`` for the symbol,
+            List of ``MarketDataAnalyzerResult`` (state first, alerts appended),
             or ``None`` if the event could not be processed.
         """
         symbol = data.get("sym") or data.get("symbol")
@@ -181,7 +189,7 @@ class DailyRangeAnalyzer(Analyzer):
             return None
 
         await self._check_day_boundary()
-        await self._update_session_hod_lod(symbol, data)
+        alert_results = await self._update_session_hod_lod(symbol, data)
 
         payload = {
             **data,
@@ -194,12 +202,13 @@ class DailyRangeAnalyzer(Analyzer):
         }
 
         cache_key = f"{WidgetDataCacheKeys.DAILY_RANGE.value}:{symbol}"
-        return [MarketDataAnalyzerResult(
+        state_result = MarketDataAnalyzerResult(
             data=payload,
             cache_key=cache_key,
             cache_ttl=WidgetDataCacheTTL.DAILY_RANGE.value,
             publish_key=cache_key,
-        )]
+        )
+        return [state_result, *alert_results]
 
     @tracer.start_as_current_span("dra._get_market_status")
     async def _get_market_status(self) -> Optional[MarketStatus]:
@@ -245,22 +254,29 @@ class DailyRangeAnalyzer(Analyzer):
         return None
 
     @tracer.start_as_current_span("dra._update_session_hod_lod")
-    async def _update_session_hod_lod(self, symbol: str, data: dict):
-        """Update session HOD/LOD for the given symbol.
+    async def _update_session_hod_lod(self, symbol: str, data: dict) -> List[MarketDataAnalyzerResult]:
+        """Update session HOD/LOD for the given symbol and return alert results.
+
+        Alert results are appended only when a new extreme is set AND a prior
+        value existed (first-print suppression). The HOD/LOD dicts are always
+        updated unconditionally.
 
         Args:
             symbol: Ticker symbol.
             data: Quote event dict containing price fields.
+
+        Returns:
+            List of 0–2 alert ``MarketDataAnalyzerResult`` entries.
         """
         session = await self._get_session()
         if session is None:
-            return
+            return []
 
         high = data.get("high") or data.get("h")
         low = data.get("low") or data.get("l")
 
         if high is None or low is None:
-            return
+            return []
 
         if session == "pre_market":
             high_dict, low_dict = self._pre_market_high, self._pre_market_low
@@ -269,13 +285,117 @@ class DailyRangeAnalyzer(Analyzer):
         else:
             high_dict, low_dict = self._after_hours_high, self._after_hours_low
 
-        current_high = high_dict.get(symbol)
-        current_low = low_dict.get(symbol)
+        raw_ts = data.get("t") or data.get("timestamp") or (time.time() * 1000)
+        timestamp = raw_ts / 1000
 
-        if current_high is None or high > current_high:
+        alerts: List[MarketDataAnalyzerResult] = []
+
+        previous_high = high_dict.get(symbol)
+        if previous_high is None or high > previous_high:
+            if previous_high is not None:  # suppress first-print alert
+                alerts.append(self._make_alert(symbol, session, "high", high, previous_high, timestamp))
             high_dict[symbol] = high
-        if current_low is None or low < current_low:
+
+        previous_low = low_dict.get(symbol)
+        if previous_low is None or low < previous_low:
+            if previous_low is not None:  # suppress first-print alert
+                alerts.append(self._make_alert(symbol, session, "low", low, previous_low, timestamp))
             low_dict[symbol] = low
+
+        return alerts
+
+    def _make_alert(
+        self,
+        symbol: str,
+        session: str,
+        direction: str,
+        price: float,
+        previous: float,
+        timestamp: float,
+    ) -> MarketDataAnalyzerResult:
+        """Construct a HOD/LOD alert result.
+
+        Args:
+            symbol: Ticker symbol.
+            session: Current market session (``pre_market``, ``regular``,
+                ``after_hours``).
+            direction: ``'high'`` or ``'low'``.
+            price: New extreme price.
+            previous: Prior extreme price (never None — first-print suppressed).
+            timestamp: UTC epoch seconds (float).
+
+        Returns:
+            A ``MarketDataAnalyzerResult`` routed to the HOD or LOD alert channel.
+        """
+        note = self._compute_note(symbol, session, direction, price)
+        cache_key = (
+            WidgetDataCacheKeys.DAILY_RANGE_HOD_ALERT.value
+            if direction == "high"
+            else WidgetDataCacheKeys.DAILY_RANGE_LOD_ALERT.value
+        )
+        return MarketDataAnalyzerResult(
+            data={
+                "symbol":    symbol,
+                "session":   session,
+                "direction": direction,
+                "price":     price,
+                "previous":  previous,
+                "timestamp": timestamp,
+                "note":      note,
+            },
+            cache_key=cache_key,
+            cache_ttl=WidgetDataCacheTTL.DAILY_RANGE_ALERT.value,
+            cache_list_max=100,
+            publish_key=cache_key,
+        )
+
+    def _compute_note(self, symbol: str, session: str, direction: str, price: float) -> str:
+        """Return a human-readable cross-session breach note, or empty string.
+
+        Checks whether the new extreme breaks a prior session's HOD/LOD and
+        formats a note if so. Price values are formatted as ``$%.2f``.
+
+        Args:
+            symbol: Ticker symbol.
+            session: Current market session.
+            direction: ``'high'`` or ``'low'``.
+            price: New extreme price.
+
+        Returns:
+            Formatted note string, or ``''`` if no cross-session breach.
+        """
+        if session == "pre_market":
+            return ""
+
+        if session == "regular":
+            if direction == "high":
+                pm_high = self._pre_market_high.get(symbol)
+                if pm_high is not None and price > pm_high:
+                    return f"Broke pre-market high of ${pm_high:.2f}"
+            else:
+                pm_low = self._pre_market_low.get(symbol)
+                if pm_low is not None and price < pm_low:
+                    return f"Broke pre-market low of ${pm_low:.2f}"
+            return ""
+
+        if session == "after_hours":
+            if direction == "high":
+                rs_high = self._regular_session_high.get(symbol)
+                if rs_high is not None and price > rs_high:
+                    return f"Broke regular session high of ${rs_high:.2f}"
+                pm_high = self._pre_market_high.get(symbol)
+                if pm_high is not None and price > pm_high:
+                    return f"Broke pre-market high of ${pm_high:.2f}"
+            else:
+                rs_low = self._regular_session_low.get(symbol)
+                if rs_low is not None and price < rs_low:
+                    return f"Broke regular session low of ${rs_low:.2f}"
+                pm_low = self._pre_market_low.get(symbol)
+                if pm_low is not None and price < pm_low:
+                    return f"Broke pre-market low of ${pm_low:.2f}"
+            return ""
+
+        return ""  # fallback for unknown session
 
     @tracer.start_as_current_span("dra._check_day_boundary")
     async def _check_day_boundary(self):
