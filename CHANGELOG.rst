@@ -1,9 +1,34 @@
 =========
 Changelog
 =========
+Version 0.4.15 (2026-04-23)
+===========================
+
+- `4204b92 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/4204b92>`_ fix(cache_result): honor cache_list_max in MarketDataScanner and MassiveDataProcessor (refs #108) (#109)
+
+  Both cache_result implementations previously wrote all results as strings
+
+  (SET/SETEX), ignoring cache_list_max. Results with cache_list_max set are
+
+  now written as Redis lists (LPUSH + LTRIM), matching FinlightDataProcessor.
+
+  This fixes daily_range_hod_alert and daily_range_lod_alert, which were
+
+  storing only the most recent alert instead of the intended cap of 100.
+
+  TTL is applied via EXPIRE after LTRIM when cache_ttl > 0.
+
+  Redundant double-guard on cache_ttl removed (simplified to cache_ttl > 0).
+
+  Boundary test added: cache_list_max=1 → ltrim(key, 0, 0).
+
+  6 new tests added (3 per component); 743/743 passing.
+
+
 Version 0.4.14 (2026-04-22)
 ===========================
 
+- `3249f27 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/3249f27>`_ Version 0.4.14 (2026-04-22)
 - `cb4c132 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/cb4c132>`_ feat(DailyRangeAnalyzer): emit HOD/LOD alert events on new session extremes (#107)
 
   * feat(DailyRangeAnalyzer): emit HOD/LOD alert events on new session extremes (refs #106)
