@@ -1,9 +1,102 @@
 =========
 Changelog
 =========
+Version 0.4.14 (2026-04-22)
+===========================
+
+- `cb4c132 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/cb4c132>`_ feat(DailyRangeAnalyzer): emit HOD/LOD alert events on new session extremes (#107)
+
+  * feat(DailyRangeAnalyzer): emit HOD/LOD alert events on new session extremes (refs #106)
+
+  - analyze_data() now returns [state_result, *alert_results]; state is always first
+
+  - _update_session_hod_lod() returns List[MarketDataAnalyzerResult] (was None)
+
+  - Alerts suppressed on first tick (no prior value); only strictly new extremes emit
+
+  - Two channels: daily_range_hod_alert / daily_range_lod_alert — shared by all tickers
+
+  - cache_list_max=100, TTL=8h per channel (WDC layer trims oldest on overflow)
+
+  - _make_alert() and _compute_note() added as private instance methods
+
+  - _compute_note() formats cross-session breach notes (e.g. 'Broke pre-market high of $15.00')
+
+  - WidgetDataCacheKeys: DAILY_RANGE_HOD_ALERT, DAILY_RANGE_LOD_ALERT added
+
+  - WidgetDataCacheTTL: DAILY_RANGE_ALERT = EIGHT_HOURS added
+
+  - 29 new tests; 58/58 passing
+
+  Co-authored-by: Tom Pounders <git@oldschool.engineer>
+
+  * test(DailyRangeAnalyzer): add missing _compute_note branch tests (refs #106)
+
+  B1: after_hours LOD fallback — no regular_session_low, pre_market_low present
+
+  B2: regular LOD no-breach — price above pre_market_low returns empty string
+
+  60/60 passing.
+
+  Co-authored-by: Tom Pounders <git@oldschool.engineer>
+
+  * refactor(DailyRangeAnalyzer): replace _compute_note branching with data-driven constants (refs #106)
+
+  Three module-level constants replace nested if/elif branching:
+
+  - _NOTE_TEMPLATES: key → format string
+
+  - _NOTE_CHECKS: (session, direction) → ordered list of keys to evaluate
+
+  - _BREACH_CONDITIONS: key → (attr_name, condition_fn)
+
+  _compute_note() is now a 4-line algorithm loop. Adding a new breach type
+
+  requires only extending the constants — no changes to the method body.
+
+  Each constant is documented to guide future maintainers.
+
+  60/60 passing.
+
+  Co-authored-by: Tom Pounders <git@oldschool.engineer>
+
+  * test(DailyRangeAnalyzer): cover regular session None prior value branches (refs #106)
+
+  B1: (regular, high) with pre_market_high = None → ''
+
+  B2: (regular, low) with pre_market_low = None → ''
+
+  62/62 passing.
+
+  Co-authored-by: Tom Pounders <git@oldschool.engineer>
+
+- `51c172c <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/51c172c>`_ chore(deps): update sphinx requirement from >=3.2.1 to >=9.1.0 (#105)
+
+  Updates the requirements on [sphinx](https://github.com/sphinx-doc/sphinx) to permit the latest version.
+
+  - [Release notes](https://github.com/sphinx-doc/sphinx/releases)
+
+  - [Changelog](https://github.com/sphinx-doc/sphinx/blob/master/CHANGES.rst)
+
+  - [Commits](https://github.com/sphinx-doc/sphinx/compare/v3.2.1...v9.1.0)
+
+  ---
+
+  updated-dependencies:
+
+  - dependency-name: sphinx
+
+  dependency-version: 9.1.0
+
+  dependency-type: direct:production
+
+  ...
+
+
 Version 0.4.13 (2026-04-17)
 ===========================
 
+- `cc98e66 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/cc98e66>`_ Version 0.4.13 (2026-04-17)
 - `7686ddc <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/7686ddc>`_ feat(MarketDataScanner): add OpenTelemetry tracing to all methods (refs #103) (#104)
 
 Version 0.4.12 (2026-04-15)
