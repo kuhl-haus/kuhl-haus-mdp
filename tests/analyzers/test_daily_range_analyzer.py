@@ -1110,3 +1110,15 @@ def test_dra_compute_note_regular_lod_no_breach_is_empty(sut):
 
     # Act / Assert
     assert sut._compute_note("AAPL", "regular", "low", 145.0) == ""
+
+
+def test_dra_compute_note_regular_hod_pre_market_high_none_is_empty(sut):
+    # Arrange — no pre-market high set for symbol
+    # Act / Assert
+    assert sut._compute_note("AAPL", "regular", "high", 160.0) == ""
+
+
+def test_dra_compute_note_regular_lod_pre_market_low_none_is_empty(sut):
+    # Arrange — no pre-market low set for symbol
+    # Act / Assert
+    assert sut._compute_note("AAPL", "regular", "low", 140.0) == ""
