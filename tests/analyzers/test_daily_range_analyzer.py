@@ -1091,3 +1091,22 @@ async def test_dra_analyze_data_state_result_always_first(sut, mock_rest_client)
     # Assert — first result is the state result (daily_range:{symbol} key)
     assert results[0].publish_key == f"{WidgetDataCacheKeys.DAILY_RANGE.value}:AAPL"
     assert results[0].cache_key == f"{WidgetDataCacheKeys.DAILY_RANGE.value}:AAPL"
+
+
+def test_dra_compute_note_after_hours_lod_no_regular_low_breaks_pre_market_low(sut):
+    # Arrange — no regular session low set; pre-market low present
+    sut._pre_market_low["AAPL"] = 142.0
+
+    # Act
+    note = sut._compute_note("AAPL", "after_hours", "low", 140.0)
+
+    # Assert
+    assert note == "Broke pre-market low of $142.00"
+
+
+def test_dra_compute_note_regular_lod_no_breach_is_empty(sut):
+    # Arrange — regular LOD, but above pre-market low
+    sut._pre_market_low["AAPL"] = 130.0
+
+    # Act / Assert
+    assert sut._compute_note("AAPL", "regular", "low", 145.0) == ""
