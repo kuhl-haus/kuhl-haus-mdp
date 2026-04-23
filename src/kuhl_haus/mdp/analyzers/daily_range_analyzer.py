@@ -38,6 +38,54 @@ from kuhl_haus.mdp.helpers.observability import get_tracer
 
 tracer = get_tracer(__name__)
 
+# ---------------------------------------------------------------------------
+# Cross-session breach note constants
+# ---------------------------------------------------------------------------
+
+_NOTE_TEMPLATES: dict[str, str] = {
+    "pre_market_high":      "Broke pre-market high of ${:.2f}",
+    "pre_market_low":       "Broke pre-market low of ${:.2f}",
+    "regular_session_high": "Broke regular session high of ${:.2f}",
+    "regular_session_low":  "Broke regular session low of ${:.2f}",
+}
+"""Human-readable note templates keyed by prior-session extreme identifier.
+
+Each value is a format string accepting a single float (the prior-session
+extreme price). Add a new key here when a new breach type is introduced,
+then reference it in ``_NOTE_CHECKS`` and ``_BREACH_CONDITIONS``.
+"""
+
+_NOTE_CHECKS: dict[tuple[str, str], list[str]] = {
+    ("regular",     "high"): ["pre_market_high"],
+    ("regular",     "low"):  ["pre_market_low"],
+    ("after_hours", "high"): ["regular_session_high", "pre_market_high"],
+    ("after_hours", "low"):  ["regular_session_low",  "pre_market_low"],
+}
+"""Ordered list of prior-session extreme keys to check per (session, direction).
+
+The first matching entry in ``_BREACH_CONDITIONS`` wins. Sessions not present
+(e.g. ``pre_market``) return an empty list, producing no note.
+
+Ordering matters for ``after_hours``: regular-session extremes are checked
+before pre-market extremes because they are more proximate and meaningful.
+"""
+
+_BREACH_CONDITIONS: dict[str, tuple[str, object]] = {
+    "pre_market_high":      ("_pre_market_high",      lambda price, v: price > v),
+    "pre_market_low":       ("_pre_market_low",        lambda price, v: price < v),
+    "regular_session_high": ("_regular_session_high",  lambda price, v: price > v),
+    "regular_session_low":  ("_regular_session_low",   lambda price, v: price < v),
+}
+"""Maps each prior-session extreme key to (instance_attr_name, breach_condition).
+
+``instance_attr_name`` is the name of the per-symbol dict on ``DailyRangeAnalyzer``
+that holds the prior extreme. ``breach_condition(price, value)`` returns ``True``
+when the new price exceeds the prior extreme in the relevant direction.
+
+To add a new breach type: add an entry here, a template to ``_NOTE_TEMPLATES``,
+and a reference in the appropriate ``_NOTE_CHECKS`` list.
+"""
+
 
 class DailyRangeAnalyzer(Analyzer):
     """Tracks intraday session highs and lows for real-time quote events.
@@ -352,50 +400,33 @@ class DailyRangeAnalyzer(Analyzer):
     def _compute_note(self, symbol: str, session: str, direction: str, price: float) -> str:
         """Return a human-readable cross-session breach note, or empty string.
 
-        Checks whether the new extreme breaks a prior session's HOD/LOD and
-        formats a note if so. Price values are formatted as ``$%.2f``.
+        Walks ``_NOTE_CHECKS[(session, direction)]`` in priority order and
+        returns the formatted note for the first prior-session extreme that
+        the new price breaches. Returns ``''`` if no breach or if the session
+        has no checks defined (e.g. ``pre_market``).
+
+        Breach logic, note templates, and check order are defined in the
+        module-level constants ``_NOTE_CHECKS``, ``_BREACH_CONDITIONS``, and
+        ``_NOTE_TEMPLATES``. Extend those constants to add new breach types
+        without modifying this method.
 
         Args:
             symbol: Ticker symbol.
-            session: Current market session.
+            session: Current market session (``pre_market``, ``regular``,
+                ``after_hours``).
             direction: ``'high'`` or ``'low'``.
             price: New extreme price.
 
         Returns:
-            Formatted note string, or ``''`` if no cross-session breach.
+            Formatted note string (e.g. ``'Broke pre-market high of $15.00'``),
+            or ``''`` if no cross-session breach applies.
         """
-        if session == "pre_market":
-            return ""
-
-        if session == "regular":
-            if direction == "high":
-                pm_high = self._pre_market_high.get(symbol)
-                if pm_high is not None and price > pm_high:
-                    return f"Broke pre-market high of ${pm_high:.2f}"
-            else:
-                pm_low = self._pre_market_low.get(symbol)
-                if pm_low is not None and price < pm_low:
-                    return f"Broke pre-market low of ${pm_low:.2f}"
-            return ""
-
-        if session == "after_hours":
-            if direction == "high":
-                rs_high = self._regular_session_high.get(symbol)
-                if rs_high is not None and price > rs_high:
-                    return f"Broke regular session high of ${rs_high:.2f}"
-                pm_high = self._pre_market_high.get(symbol)
-                if pm_high is not None and price > pm_high:
-                    return f"Broke pre-market high of ${pm_high:.2f}"
-            else:
-                rs_low = self._regular_session_low.get(symbol)
-                if rs_low is not None and price < rs_low:
-                    return f"Broke regular session low of ${rs_low:.2f}"
-                pm_low = self._pre_market_low.get(symbol)
-                if pm_low is not None and price < pm_low:
-                    return f"Broke pre-market low of ${pm_low:.2f}"
-            return ""
-
-        return ""  # fallback for unknown session
+        for key in _NOTE_CHECKS.get((session, direction), []):
+            attr, condition = _BREACH_CONDITIONS[key]
+            value = getattr(self, attr).get(symbol)
+            if value is not None and condition(price, value):
+                return _NOTE_TEMPLATES[key].format(value)
+        return ""
 
     @tracer.start_as_current_span("dra._check_day_boundary")
     async def _check_day_boundary(self):
