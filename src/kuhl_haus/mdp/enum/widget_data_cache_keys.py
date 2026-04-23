@@ -68,3 +68,7 @@ class WidgetDataCacheKeys(Enum):
 
     # Daily range (HOD/LOD) feed
     DAILY_RANGE = 'daily_range'  # Usage: f'{DAILY_RANGE.value}:{symbol}'
+
+    # Daily range alert event channels (shared by all tickers, no symbol suffix)
+    DAILY_RANGE_HOD_ALERT = 'daily_range_hod_alert'
+    DAILY_RANGE_LOD_ALERT = 'daily_range_lod_alert'

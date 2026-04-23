@@ -7,6 +7,7 @@ consumption. Separated from MarketDataCacheTTL which governs internal MDC data.
 from enum import Enum
 
 from kuhl_haus.mdp.enum.constants import (
+    EIGHT_HOURS,
     FOUR_DAYS,
     ONE_MINUTE,
     SEVEN_DAYS,
@@ -40,3 +41,6 @@ class WidgetDataCacheTTL(Enum):
 
     # Daily range (HOD/LOD) cache
     DAILY_RANGE = FOUR_DAYS  # 4 days — consistent with QUOTE TTL
+
+    # Daily range alert event channels — 8 hours; alerts are intraday only
+    DAILY_RANGE_ALERT = EIGHT_HOURS
