@@ -802,3 +802,80 @@ async def test_mdp_start_uses_analyzer_options_for_analyzer_instantiation(
 
     # Assert — analyzer instantiated with our analyzer_options
     mock_analyzer_class.assert_called_once_with(options=opts)
+
+
+# -- _cache_result list support ------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_mdp_cache_result_with_cache_list_max_expect_lpush_ltrim(sut):
+    # Arrange
+    pipe = MagicMock()
+    pipe.execute = AsyncMock()
+    sut.redis_client = MagicMock()
+    sut.redis_client.pipeline.return_value = pipe
+    result = MarketDataAnalyzerResult(
+        data={"event": "hod"},
+        cache_key="daily_range_hod_alert",
+        cache_ttl=28800,
+        cache_list_max=100,
+        publish_key="daily_range_hod_alert",
+    )
+
+    # Act
+    await sut._cache_result(result)
+
+    # Assert
+    pipe.lpush.assert_called_once_with("daily_range_hod_alert", json.dumps({"event": "hod"}))
+    pipe.ltrim.assert_called_once_with("daily_range_hod_alert", 0, 99)
+    pipe.expire.assert_called_once_with("daily_range_hod_alert", 28800)
+    pipe.setex.assert_not_called()
+    pipe.set.assert_not_called()
+    pipe.publish.assert_called_once_with("daily_range_hod_alert", json.dumps({"event": "hod"}))
+    pipe.execute.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_mdp_cache_result_with_cache_list_max_and_no_ttl_expect_no_expire(sut):
+    # Arrange
+    pipe = MagicMock()
+    pipe.execute = AsyncMock()
+    sut.redis_client = MagicMock()
+    sut.redis_client.pipeline.return_value = pipe
+    result = MarketDataAnalyzerResult(
+        data={"event": "lod"},
+        cache_key="daily_range_lod_alert",
+        cache_ttl=0,
+        cache_list_max=50,
+    )
+
+    # Act
+    await sut._cache_result(result)
+
+    # Assert
+    pipe.lpush.assert_called_once_with("daily_range_lod_alert", json.dumps({"event": "lod"}))
+    pipe.ltrim.assert_called_once_with("daily_range_lod_alert", 0, 49)
+    pipe.expire.assert_not_called()
+    pipe.setex.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_mdp_cache_result_with_cache_list_max_1_expect_ltrim_keeps_one(sut):
+    # Arrange — boundary: cap of 1 keeps exactly the most recent entry (ltrim 0,0)
+    pipe = MagicMock()
+    pipe.execute = AsyncMock()
+    sut.redis_client = MagicMock()
+    sut.redis_client.pipeline.return_value = pipe
+    result = MarketDataAnalyzerResult(
+        data={"event": "hod"},
+        cache_key="daily_range_hod_alert",
+        cache_ttl=28800,
+        cache_list_max=1,
+    )
+
+    # Act
+    await sut._cache_result(result)
+
+    # Assert — ltrim(key, 0, 0) keeps exactly one entry
+    pipe.lpush.assert_called_once_with("daily_range_hod_alert", json.dumps({"event": "hod"}))
+    pipe.ltrim.assert_called_once_with("daily_range_hod_alert", 0, 0)
