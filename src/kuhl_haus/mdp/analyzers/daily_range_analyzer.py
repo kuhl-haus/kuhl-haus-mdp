@@ -341,13 +341,13 @@ class DailyRangeAnalyzer(Analyzer):
         previous_high = high_dict.get(symbol)
         if previous_high is None or high > previous_high:
             if previous_high is not None:  # suppress first-print alert
-                alerts.append(self._make_alert(symbol, session, "high", high, previous_high, timestamp))
+                alerts.append(self._make_alert(symbol, session, "high", high, previous_high, timestamp, data))
             high_dict[symbol] = high
 
         previous_low = low_dict.get(symbol)
         if previous_low is None or low < previous_low:
             if previous_low is not None:  # suppress first-print alert
-                alerts.append(self._make_alert(symbol, session, "low", low, previous_low, timestamp))
+                alerts.append(self._make_alert(symbol, session, "low", low, previous_low, timestamp, data))
             low_dict[symbol] = low
 
         return alerts
@@ -360,6 +360,7 @@ class DailyRangeAnalyzer(Analyzer):
         price: float,
         previous: float,
         timestamp: float,
+        quote: dict,
     ) -> MarketDataAnalyzerResult:
         """Construct a HOD/LOD alert result.
 
@@ -371,6 +372,11 @@ class DailyRangeAnalyzer(Analyzer):
             price: New extreme price.
             previous: Prior extreme price (never None — first-print suppressed).
             timestamp: UTC epoch seconds (float).
+            quote: Full quote dict as received by the analyzer. Its fields are
+                spread into the alert payload so clients can filter on arbitrary
+                quote fields without a second lookup. Quote fields win on any
+                key collision. Fields already present in the quote (e.g.
+                ``symbol``) are not duplicated as alert-specific keys.
 
         Returns:
             A ``MarketDataAnalyzerResult`` routed to the HOD or LOD alert channel.
@@ -383,13 +389,13 @@ class DailyRangeAnalyzer(Analyzer):
         )
         return MarketDataAnalyzerResult(
             data={
-                "symbol":    symbol,
                 "session":   session,
                 "direction": direction,
                 "price":     price,
                 "previous":  previous,
                 "timestamp": timestamp,
                 "note":      note,
+                **quote,
             },
             cache_key=cache_key,
             cache_ttl=WidgetDataCacheTTL.DAILY_RANGE_ALERT.value,

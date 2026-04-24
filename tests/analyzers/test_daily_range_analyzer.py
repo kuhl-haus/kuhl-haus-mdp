@@ -1122,3 +1122,178 @@ def test_dra_compute_note_regular_lod_pre_market_low_none_is_empty(sut):
     # Arrange — no pre-market low set for symbol
     # Act / Assert
     assert sut._compute_note("AAPL", "regular", "low", 140.0) == ""
+
+
+# ------------------------------------------------------------------
+# Alert quote fields (flat merge)
+# ------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_dra_alert_hod_merges_quote_fields_flat(sut, mock_rest_client):
+    # Arrange — seed prior HOD; quote carries extra fields beyond high/low
+    mock_rest_client.get_market_status.return_value = MarketStatus(
+        market="open", early_hours=False, after_hours=False
+    )
+    sut._regular_session_high["AAPL"] = 155.0
+    sut._regular_session_low["AAPL"] = 145.0
+    quote = _make_quote(symbol="AAPL", high=156.0, low=146.0, volume=1000, vwap=155.5)
+
+    # Act
+    results = await sut.analyze_data(quote)
+
+    # Assert — quote fields are present at the top level; no nested 'quote' key
+    alert = next(r for r in results if r.data.get("direction") == "high")
+    assert "quote" not in alert.data
+    assert alert.data["volume"] == 1000
+    assert alert.data["vwap"] == 155.5
+
+
+@pytest.mark.asyncio
+async def test_dra_alert_lod_merges_quote_fields_flat(sut, mock_rest_client):
+    # Arrange — seed prior LOD; quote carries extra fields beyond high/low
+    mock_rest_client.get_market_status.return_value = MarketStatus(
+        market="open", early_hours=False, after_hours=False
+    )
+    sut._regular_session_high["AAPL"] = 155.0
+    sut._regular_session_low["AAPL"] = 145.0
+    quote = _make_quote(symbol="AAPL", high=154.0, low=144.0, volume=500, pct_change=-0.48)
+
+    # Act
+    results = await sut.analyze_data(quote)
+
+    # Assert — quote fields present flat; no nested 'quote' key
+    alert = next(r for r in results if r.data.get("direction") == "low")
+    assert "quote" not in alert.data
+    assert alert.data["volume"] == 500
+    assert alert.data["pct_change"] == pytest.approx(-0.48)
+
+
+@pytest.mark.asyncio
+async def test_dra_alert_quote_fields_win_on_collision(sut, mock_rest_client):
+    # Arrange — quote has 'symbol'; quote value must win over any alert default
+    mock_rest_client.get_market_status.return_value = MarketStatus(
+        market="open", early_hours=False, after_hours=False
+    )
+    sut._regular_session_high["AAPL"] = 155.0
+    sut._regular_session_low["AAPL"] = 145.0
+    quote = _make_quote(symbol="AAPL", high=156.0, low=146.0)
+
+    # Act
+    results = await sut.analyze_data(quote)
+
+    # Assert — symbol comes from quote; alert-only fields are still present
+    alert = next(r for r in results if r.data.get("direction") == "high")
+    assert alert.data["symbol"] == "AAPL"
+    assert alert.data["direction"] == "high"
+    assert alert.data["price"] == 156.0
+
+
+@pytest.mark.asyncio
+async def test_dra_alert_minimal_quote_does_not_raise(sut, mock_rest_client):
+    # Arrange — bare-minimum quote; merge must not raise on missing optional fields
+    mock_rest_client.get_market_status.return_value = MarketStatus(
+        market="open", early_hours=False, after_hours=False
+    )
+    sut._regular_session_high["AAPL"] = 155.0
+    sut._regular_session_low["AAPL"] = 145.0
+    quote = {"symbol": "AAPL", "high": 156.0, "low": 146.0, "close": 150.0,
+             "start_timestamp": 1776973680000}
+
+    # Act
+    results = await sut.analyze_data(quote)
+
+    # Assert — alert is valid; direction and price present
+    alert = next(r for r in results if r.data.get("direction") == "high")
+    assert alert.data["symbol"] == "AAPL"
+    assert alert.data["direction"] == "high"
+
+
+@pytest.mark.asyncio
+async def test_dra_alert_does_not_mutate_input_quote(sut, mock_rest_client):
+    # Arrange
+    mock_rest_client.get_market_status.return_value = MarketStatus(
+        market="open", early_hours=False, after_hours=False
+    )
+    sut._regular_session_high["AAPL"] = 155.0
+    sut._regular_session_low["AAPL"] = 145.0
+    quote = _make_quote(symbol="AAPL", high=156.0, low=146.0, volume=1000)
+    original_keys = set(quote.keys())
+    original_volume = quote["volume"]
+
+    # Act
+    await sut.analyze_data(quote)
+
+    # Assert — original quote dict is unmodified after the call
+    assert set(quote.keys()) == original_keys
+    assert quote["volume"] == original_volume
+    assert "direction" not in quote
+    assert "previous" not in quote
+
+
+@pytest.mark.asyncio
+async def test_dra_alert_both_extremes_produce_independent_dicts(sut, mock_rest_client):
+    # Arrange — tick that fires both HOD and LOD alerts
+    mock_rest_client.get_market_status.return_value = MarketStatus(
+        market="open", early_hours=False, after_hours=False
+    )
+    sut._regular_session_high["AAPL"] = 155.0
+    sut._regular_session_low["AAPL"] = 145.0
+    quote = _make_quote(symbol="AAPL", high=160.0, low=140.0)
+
+    # Act
+    results = await sut.analyze_data(quote)
+
+    # Assert — the two alert dicts are independent objects, not shared references
+    assert len(results) == 3
+    hod = next(r for r in results if r.data.get("direction") == "high")
+    lod = next(r for r in results if r.data.get("direction") == "low")
+    assert hod.data is not lod.data
+
+
+@pytest.mark.asyncio
+async def test_dra_alert_flat_payload_includes_all_production_quote_fields(sut, mock_rest_client):
+    # Arrange — production-representative full quote dict
+    mock_rest_client.get_market_status.return_value = MarketStatus(
+        market="open", early_hours=False, after_hours=False
+    )
+    sut._regular_session_high["AAAA"] = 28.80
+    sut._regular_session_low["AAAA"] = 28.87
+    quote = {
+        "symbol": "AAAA",
+        "volume": 175,
+        "free_float": 0,
+        "accumulated_volume": 1403,
+        "relative_volume": 0.3527539070573569,
+        "official_open_price": 28.93,
+        "vwap": 28.8,
+        "open": 28.93,
+        "close": 28.8,
+        "high": 28.93,
+        "low": 28.80,
+        "aggregate_vwap": 28.8988,
+        "average_size": 175,
+        "avg_volume": 3977.2769966,
+        "prev_day_close": 28.9385,
+        "prev_day_open": 28.87,
+        "prev_day_high": 28.9385,
+        "prev_day_low": 28.87,
+        "prev_day_volume": 2434.3257,
+        "prev_day_vwap": 28.8703,
+        "change": -0.1385000000000005,
+        "pct_change": -0.47860117144980047,
+        "change_since_open": -0.129999999999999,
+        "pct_change_since_open": -0.44936052540614935,
+        "start_timestamp": 1776973680000,
+        "end_timestamp": 1776973740000,
+    }
+
+    # Act
+    results = await sut.analyze_data(quote)
+
+    # Assert — all quote fields present flat in the HOD alert
+    alert = next(r for r in results if r.data.get("direction") == "high")
+    assert "quote" not in alert.data
+    assert alert.data["relative_volume"] == pytest.approx(0.3527539070573569)
+    assert alert.data["pct_change"] == pytest.approx(-0.47860117144980047)
+    assert alert.data["accumulated_volume"] == 1403
+    assert alert.data["free_float"] == 0
