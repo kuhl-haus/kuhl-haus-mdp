@@ -1,9 +1,15 @@
 =========
 Changelog
 =========
+Version 0.4.16 (2026-04-23)
+===========================
+
+- `a4947d2 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/a4947d2>`_ feat(DailyRangeAnalyzer): embed full quote in HOD/LOD alert payloads (refs #110) (#111)
+
 Version 0.4.15 (2026-04-23)
 ===========================
 
+- `067dfa9 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/067dfa9>`_ Version 0.4.15 (2026-04-23)
 - `4204b92 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/4204b92>`_ fix(cache_result): honor cache_list_max in MarketDataScanner and MassiveDataProcessor (refs #108) (#109)
 
   Both cache_result implementations previously wrote all results as strings
