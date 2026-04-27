@@ -38,7 +38,6 @@ class WidgetDataCacheTTL(Enum):
     NEWS_FEED_LATEST = TWO_DAYS
     NEWS_TICKER = SEVEN_DAYS
 
-
     # Daily range (HOD/LOD) cache
     DAILY_RANGE = FOUR_DAYS  # 4 days — consistent with QUOTE TTL
 

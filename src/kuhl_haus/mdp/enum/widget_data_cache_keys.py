@@ -65,7 +65,6 @@ class WidgetDataCacheKeys(Enum):
     NEWS_FEED_LATEST = 'news:feed:latest'
     NEWS_TICKER = 'news:ticker:{ticker}'
 
-
     # Daily range (HOD/LOD) feed
     DAILY_RANGE = 'daily_range'  # Usage: f'{DAILY_RANGE.value}:{symbol}'
 

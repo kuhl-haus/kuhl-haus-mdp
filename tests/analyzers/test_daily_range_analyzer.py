@@ -13,6 +13,7 @@ from kuhl_haus.mdp.analyzers.daily_range_analyzer import DailyRangeAnalyzer
 from kuhl_haus.mdp.analyzers.analyzer import AnalyzerOptions
 from kuhl_haus.mdp.data.market_data_analyzer_result import MarketDataAnalyzerResult
 from kuhl_haus.mdp.enum.widget_data_cache_keys import WidgetDataCacheKeys
+from kuhl_haus.mdp.enum.widget_data_cache_limits import WidgetDataCacheLimits
 from kuhl_haus.mdp.enum.widget_data_cache_ttl import WidgetDataCacheTTL
 
 
@@ -62,6 +63,7 @@ def mock_options(mock_redis, mock_rest_client):
     opts = MagicMock(spec=AnalyzerOptions)
     opts.new_redis_client.return_value = mock_redis
     opts.new_rest_client.return_value = mock_rest_client
+    opts.kwargs = {"dra_cache_list_max": WidgetDataCacheLimits.DRA_CACHE_LIST_MAX.value}
     return opts
 
 
@@ -821,7 +823,33 @@ async def test_dra_alert_lod_cache_key_and_publish_key_are_lod_channel(sut, mock
 
 
 @pytest.mark.asyncio
-async def test_dra_alert_cache_list_max_is_100(sut, mock_rest_client):
+async def test_dra_alert_cache_list_max_with_override_expect_custom_value(mock_redis, mock_rest_client):
+    # Arrange
+    custom_dra_max_alerts = WidgetDataCacheLimits.DRA_CACHE_LIST_MAX.value + 10
+
+    opts = MagicMock(spec=AnalyzerOptions)
+    opts.new_redis_client.return_value = mock_redis
+    opts.new_rest_client.return_value = mock_rest_client
+    opts.kwargs = {"dra_cache_list_max": custom_dra_max_alerts}
+
+    mock_rest_client.get_market_status.return_value = MarketStatus(
+        market="open", early_hours=False, after_hours=False
+    )
+    sut = DailyRangeAnalyzer(opts)
+
+    sut._regular_session_high["AAPL"] = 155.0
+    sut._regular_session_low["AAPL"] = 145.0
+
+    # Act
+    results = await sut.analyze_data(_make_quote(symbol="AAPL", high=156.0, low=144.0))
+
+    # Assert — both alert results have cache_list_max=custom_dra_max_alerts
+    for alert in results[1:]:
+        assert alert.cache_list_max == custom_dra_max_alerts
+
+
+@pytest.mark.asyncio
+async def test_dra_alert_cache_list_max_with_happy_path_expect_default_value(sut, mock_rest_client):
     # Arrange
     mock_rest_client.get_market_status.return_value = MarketStatus(
         market="open", early_hours=False, after_hours=False
@@ -832,9 +860,9 @@ async def test_dra_alert_cache_list_max_is_100(sut, mock_rest_client):
     # Act
     results = await sut.analyze_data(_make_quote(symbol="AAPL", high=156.0, low=144.0))
 
-    # Assert — both alert results have cache_list_max=100
+    # Assert — both alert results have cache_list_max=WidgetDataCacheLimits.DRA_CACHE_LIST_MAX.value
     for alert in results[1:]:
-        assert alert.cache_list_max == 100
+        assert alert.cache_list_max == WidgetDataCacheLimits.DRA_CACHE_LIST_MAX.value
 
 
 @pytest.mark.asyncio

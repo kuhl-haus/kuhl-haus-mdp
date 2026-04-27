@@ -34,6 +34,7 @@ from kuhl_haus.mdp.data.market_data_analyzer_result import MarketDataAnalyzerRes
 from kuhl_haus.mdp.enum.market_status_value import MarketStatusValue
 from kuhl_haus.mdp.enum.widget_data_cache_keys import WidgetDataCacheKeys
 from kuhl_haus.mdp.enum.widget_data_cache_ttl import WidgetDataCacheTTL
+from kuhl_haus.mdp.enum.widget_data_cache_limits import WidgetDataCacheLimits
 from kuhl_haus.mdp.helpers.observability import get_tracer
 
 tracer = get_tracer(__name__)
@@ -105,6 +106,11 @@ class DailyRangeAnalyzer(Analyzer):
         self.logger = logging.getLogger(__name__)
         self.redis_client = options.new_redis_client()
         self.rest_client = options.new_rest_client()
+
+        # Alerts list maximum size
+        self.dra_cache_list_max: int = options.kwargs.get(
+            "dra_cache_list_max", WidgetDataCacheLimits.DRA_CACHE_LIST_MAX.value
+        )
 
         # Session HOD/LOD — in-memory, per-instance
         self._pre_market_high: dict = {}
@@ -399,7 +405,7 @@ class DailyRangeAnalyzer(Analyzer):
             },
             cache_key=cache_key,
             cache_ttl=WidgetDataCacheTTL.DAILY_RANGE_ALERT.value,
-            cache_list_max=100,
+            cache_list_max=self.dra_cache_list_max,
             publish_key=cache_key,
         )
 
