@@ -1,9 +1,18 @@
 =========
 Changelog
 =========
+Version 0.4.17 (2026-04-27)
+===========================
+
+- `1898662 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/1898662>`_ Add DRA cache limit enum and use in analyzer
+
+  Introduce WidgetDataCacheLimits enum (DRA_CACHE_LIST_MAX) and use it to set the daily-range analyzer's dra_cache_list_max default instead of the hardcoded 100. Allow overriding the cache list max via AnalyzerOptions.kwargs (dra_cache_list_max). Update tests to assert the new default and add a test for custom override. Also minor cleanup of stray blank lines in cache key/TTL enums.
+
+
 Version 0.4.16 (2026-04-23)
 ===========================
 
+- `a24c252 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/a24c252>`_ Version 0.4.16 (2026-04-23)
 - `a4947d2 <https://github.com/kuhl-haus/kuhl-haus-mdp/commit/a4947d2>`_ feat(DailyRangeAnalyzer): embed full quote in HOD/LOD alert payloads (refs #110) (#111)
 
 Version 0.4.15 (2026-04-23)
