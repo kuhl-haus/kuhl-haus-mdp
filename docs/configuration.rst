@@ -273,6 +273,39 @@ analyzers sequentially.
 
 ----
 
+Market Data Scanner (MDS)
+--------------------------
+
+**Default port:** 4205
+
+The MDS subscribes to Redis pub/sub channels and runs pluggable analyzers on
+enriched market data for event correlation, alert generation, and trend
+analysis. It operates entirely within Redis and does not consume from RabbitMQ.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 15 55
+
+   * - Variable
+     - Default
+     - Description
+   * - ``MASSIVE_API_KEY``
+     - *(empty)*
+     - Massive.com API key. Passed to ``AnalyzerOptions`` and forwarded to the
+       analyzer. Required for analyzers that call the Massive API directly.
+   * - ``WDC_REDIS_URL``
+     - ``redis://mdc:mdc@localhost:6379/1``
+     - Widget Data Cache Redis URL. MDS reads from and writes to WDC only;
+       it never connects to MDC.
+   * - ``DRA_CACHE_LIST_MAX``
+     - ``1000``
+     - Maximum number of HOD/LOD alert events retained in the
+       ``dra:alerts:<TICKER>`` Redis list cache. Overrides the
+       ``WidgetDataCacheLimits.DRA_CACHE_LIST_MAX`` enum default.
+       Increase for deeper alert history; decrease to bound memory use.
+
+----
+
 Widget Data Service (WDS)
 --------------------------
 
