@@ -17,6 +17,14 @@ kuhl\_haus.mdp.analyzers.analyzer module
    :show-inheritance:
    :undoc-members:
 
+kuhl\_haus.mdp.analyzers.daily\_range\_analyzer module
+------------------------------------------------------
+
+.. automodule:: kuhl_haus.mdp.analyzers.daily_range_analyzer
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
 kuhl\_haus.mdp.analyzers.leaderboard\_analyzer module
 -----------------------------------------------------
 
