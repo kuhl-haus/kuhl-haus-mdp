@@ -75,4 +75,9 @@ Additional Resources
 - `Part 3: How to Deploy It <https://oldschool-engineer.dev/infrastructure/2026/01/31/what-i-built-after-quitting-amazon-spoiler-its-a-stock-scanner-part-3.html>`_
 - `Part 4: Evolution from Prototype to Production <https://oldschool-engineer.dev/software%20engineering/2026/02/11/what-i-built-after-quitting-amazon-spoiler-its-a-stock-scanner-part-4.html>`_
 - `Part 5: Wave 1 Complete: Bugs, Bottlenecks, and Breaking 1,000 msg/s <https://oldschool-engineer.dev/software%20engineering/2026/02/23/what-i-built-after-quitting-amazon-spoiler-its-a-stock-scanner-part-5.html>`_
+- `Prevent Cache Stampedes with asyncio Events <https://oldschool-engineer.dev/software%20engineering/2026/02/24/prevent-cache-stampedes-with-asyncio-events.html>`_
 - `Stock Selection: Why News Matters <https://oldschool-engineer.dev/side%20projects/2026/04/01/stock-selection-why-news-matters.html>`_
+- `The Stock Scanner Dashboard Finally Looks Like a Real Trading Tool <https://oldschool-engineer.dev/side%20projects/2026/04/29/dashboard-looks-like-a-real-trading-tool.html>`_
+
+**Blog Posts**: All of my blog posts related to Kuhl Haus MDP are tagged with ``#kuhl-haus-mdp``. You can find them all here: `https://oldschool-engineer.dev/tags/#kuhl-haus-mdp <https://oldschool-engineer.dev/tags/#kuhl-haus-mdp>`_, in reverse chronological order.
+
