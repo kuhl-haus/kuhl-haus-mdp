@@ -14,9 +14,12 @@ The following table indicates which versions of the project are currently receiv
    * - Version
      - Supported
      - End-of-Support
-   * - 0.2.x
+   * - 0.4.x
      - ✅
-     - TBD - 0.x.x versions are Beta versions and will not be supported after the 1.x.x release.
+     - TBD - 0.4.x versions are Beta versions and will not be supported after the 0.5.x release.
+   * - < 0.4.0
+     - ❌
+     - 0.x.x versions are Beta versions. Only the current minor version will be supported.
    * - < 0.2.0
      - ❌
      - Proof-of-concept - not supported
