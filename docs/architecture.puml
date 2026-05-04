@@ -11,43 +11,48 @@ title Kuhl Haus Market Data Platform - Component Architecture
 cloud "Massive.com WebSocket API" as Massive #FFEEEE
 cloud "Finlight News API" as Finlight #EEF4EE
 
-package "Control Plane" #EEEEEE {
+package "Application Server" #EEEEEE {
     component "Service Control Plane (SCP)" as SCP #7ED321
 }
 
 package "Data Plane" #E8F4F8 {
 
     package "Market Data Listener (MDL)" #DDDDDD {
-        component "MassiveDataListener" as Listener
-        component "MassiveDataQueues" as Queues
-        component "QueueNameResolver" as Resolver
+        component "MassiveDataListener" as Listener #0099FF
+        component "MassiveDataQueues" as Queues #0099FF
+        component "QueueNameResolver" as Resolver #0099FF
     }
 
     package "Finlight Data Listener (FDL)" #DDDDDD {
-        component "FinlightDataListener" as FDListener
-        component "FinlightDataQueues" as FDQueues
+        component "FinlightDataListener" as FDListener #00FF99
+        component "FinlightDataQueue" as FDQueues #00FF99
     }
 
-    queue "Market Data Queues (MDQ)" as MDQ #D0021B
+    queue "Market Data Queues (MDQ)" as MDQ #E67E22
+
+    package "Market Data Scanner (MDS)" #DDDDDD {
+        component "Market Data Scanner" as MDScanner #DDDD11
+        component "DailyRangeAnalyzer" as DRA #DDDD11
+    }
 
     package "Market Data Processor (MDP)" #DDDDDD {
-        component "MassiveDataProcessor" as Processor
-        component "MarketDataScanner" as Scanner
-        component "MassiveDataAnalyzer" as Router
-        component "LeaderboardAnalyzer" as Leaderboard
-        component "TopTradesAnalyzer" as TopTrades
-        component "TopStocksAnalyzer" as TopStocks
+        component "MassiveDataProcessor" as Processor #0099FF
+        component "MassiveDataAnalyzer" as Router #0099FF
+        component "LeaderboardAnalyzer" as Leaderboard #0099FF
+        component "TopTradesAnalyzer" as TopTrades #0099FF
+        component "TopStocksAnalyzer" as TopStocks #0099FF
     }
 
     package "Finlight Data Processor (FDP)" #DDDDDD {
-        component "FinlightDataProcessor" as FDProcessor
+        component "FinlightDataProcessor" as FDProcessor #00FF99
+        component "FinlightDataAnalyzer" as FDAnalyzer #00FF99
     }
 
-    database "Market Data Cache (MDC)" as MDC #F5A623
-    database "Widget Data Cache (WDC)" as WDC #E67E22
+    database "Market Data Cache (MDC)" as MDC #FF0011
+    database "Widget Data Cache (WDC)" as WDC #DD00DD
 
     package "Widget Data Service (WDS)" #DDDDDD {
-        component "WidgetDataService" as Widget
+        component "WidgetDataService" as Widget #DD00DD
     }
 }
 
@@ -64,32 +69,39 @@ package "Shared Libraries" #F0F0F0 {
 
 actor "Web Clients" as Clients
 
-Massive -[#red,thickness=3]-> Listener : WebSocket stream
+Massive -[#blue,thickness=3]-> Listener : WebSocket stream
 Listener --> Resolver : route by type
 Resolver --> Queues : publish
-Queues -[#orange,thickness=3]-> MDQ : RabbitMQ (TTL: 5s)
+Queues -[#blue,thickness=3]-> MDQ : RabbitMQ (TTL: 5s)
 
 Finlight -[#green,thickness=3]-> FDListener : WebSocket stream
 FDListener --> FDQueues : handle_message
-FDQueues -[#orange,thickness=3]-> MDQ : RabbitMQ (news queue)
+FDQueues -[#green,thickness=3]-> MDQ : RabbitMQ (news queue)
 
-MDQ -[#orange,thickness=3]-> Processor : consume (prefetch: 100)
-MDQ -[#orange,thickness=3]-> FDProcessor : consume (news queue)
-Processor --> Router : analyze
-Router --> Leaderboard : aggregate events
-Router --> TopTrades : trade events
-Router --> TopStocks : legacy path
-Scanner --> Leaderboard : scan leaderboards
-Scanner --> TopTrades : scan trades
-Processor -[#orange,thickness=3]-> MDC : analyzer cache (internal)
+MDQ -[#green,thickness=3]-> FDProcessor : consume (news queue)
+MDQ -[#blue,thickness=3]-> Processor : consume (prefetch: 100)
+
+Processor <--> Router : returns MarketDataAnalyzerResult
+Processor <--> Leaderboard : returns MarketDataAnalyzerResult
+Processor <--> TopTrades : returns MarketDataAnalyzerResult
+Processor <--> TopStocks : returns MarketDataAnalyzerResult
+
+Router -[#red,thickness=3]-> MDC : analyzer cache (internal)
+TopTrades -[#red,thickness=3]-> MDC : analyzer cache (internal)
+TopStocks -[#red,thickness=3]-> MDC : analyzer cache (internal)
+Leaderboard -[#red,thickness=3]-> MDC : analyzer cache (internal)
 Processor -[#blue,thickness=3]-> WDC : widget results + pub/sub
-FDProcessor -[#orange,thickness=3]-> MDC : analyzer cache (internal)
-FDProcessor -[#blue,thickness=3]-> WDC : widget results + pub/sub
 
-WDC -[#blue,thickness=3]-> Widget : Redis pub/sub
-Widget -[#green,thickness=3]-> Clients : WebSocket streaming
+FDProcessor <-[#black,thickness=3]-> FDAnalyzer : returns MarketDataAnalyzerResult
+FDProcessor -[#green,thickness=3]-> WDC : widget results + pub/sub
 
-SCP .[#purple,dashed].> Widget : manage/monitor
+DRA -[#DDDD11,thickness=3]-> WDC : analyzer cache (internal)
+MDScanner <-[#black,thickness=3]-> DRA : returns MarketDataAnalyzerResult
+MDScanner <-[#DDDD11,thickness=3]-> WDC : widget results + pub/sub
+
+WDC -[#purple,thickness=3]-> Widget : Redis pub/sub
+Widget -[#purple,thickness=3]-> Clients : WebSocket streaming
+
 SCP -[#green,thickness=3]-> Clients : SPA + auth token
 
 Listener .down.> OTel : traces/metrics
