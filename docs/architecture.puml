@@ -23,7 +23,7 @@ package "Market Data Listener (MDL)" #DDDDDD {
 
 package "Finlight Data Listener (FDL)" #DDDDDD {
     component "FinlightDataListener" as FDListener #00FF99
-    component "FinlightDataQueue" as FDQueues #00FF99
+    component "FinlightDataQueues" as FDQueues #00FF99
 }
 
 queue "Market Data Queues (MDQ)" as MDQ #E67E22
