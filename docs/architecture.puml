@@ -15,45 +15,42 @@ package "Application Server" #EEEEEE {
     component "Service Control Plane (SCP)" as SCP #7ED321
 }
 
-package "Data Plane" #E8F4F8 {
+package "Market Data Listener (MDL)" #DDDDDD {
+    component "MassiveDataListener" as Listener #0099FF
+    component "MassiveDataQueues" as Queues #0099FF
+    component "QueueNameResolver" as Resolver #0099FF
+}
 
-    package "Market Data Listener (MDL)" #DDDDDD {
-        component "MassiveDataListener" as Listener #0099FF
-        component "MassiveDataQueues" as Queues #0099FF
-        component "QueueNameResolver" as Resolver #0099FF
-    }
+package "Finlight Data Listener (FDL)" #DDDDDD {
+    component "FinlightDataListener" as FDListener #00FF99
+    component "FinlightDataQueue" as FDQueues #00FF99
+}
 
-    package "Finlight Data Listener (FDL)" #DDDDDD {
-        component "FinlightDataListener" as FDListener #00FF99
-        component "FinlightDataQueue" as FDQueues #00FF99
-    }
+queue "Market Data Queues (MDQ)" as MDQ #E67E22
 
-    queue "Market Data Queues (MDQ)" as MDQ #E67E22
+package "Market Data Scanner (MDS)" #DDDDDD {
+    component "Market Data Scanner" as MDScanner #DDDD11
+    component "DailyRangeAnalyzer" as DRA #DDDD11
+}
 
-    package "Market Data Scanner (MDS)" #DDDDDD {
-        component "Market Data Scanner" as MDScanner #DDDD11
-        component "DailyRangeAnalyzer" as DRA #DDDD11
-    }
+package "Market Data Processor (MDP)" #DDDDDD {
+    component "MassiveDataProcessor" as Processor #0099FF
+    component "MassiveDataAnalyzer" as Router #0099FF
+    component "LeaderboardAnalyzer" as Leaderboard #0099FF
+    component "TopTradesAnalyzer" as TopTrades #0099FF
+    component "TopStocksAnalyzer" as TopStocks #0099FF
+}
 
-    package "Market Data Processor (MDP)" #DDDDDD {
-        component "MassiveDataProcessor" as Processor #0099FF
-        component "MassiveDataAnalyzer" as Router #0099FF
-        component "LeaderboardAnalyzer" as Leaderboard #0099FF
-        component "TopTradesAnalyzer" as TopTrades #0099FF
-        component "TopStocksAnalyzer" as TopStocks #0099FF
-    }
+package "Finlight Data Processor (FDP)" #DDDDDD {
+    component "FinlightDataProcessor" as FDProcessor #00FF99
+    component "FinlightDataAnalyzer" as FDAnalyzer #00FF99
+}
 
-    package "Finlight Data Processor (FDP)" #DDDDDD {
-        component "FinlightDataProcessor" as FDProcessor #00FF99
-        component "FinlightDataAnalyzer" as FDAnalyzer #00FF99
-    }
+database "Market Data Cache (MDC)" as MDC #FF0011
+database "Widget Data Cache (WDC)" as WDC #DD00DD
 
-    database "Market Data Cache (MDC)" as MDC #FF0011
-    database "Widget Data Cache (WDC)" as WDC #DD00DD
-
-    package "Widget Data Service (WDS)" #DDDDDD {
-        component "WidgetDataService" as Widget #DD00DD
-    }
+package "Widget Data Service (WDS)" #DDDDDD {
+    component "WidgetDataService" as Widget #DD00DD
 }
 
 package "Observability" #FFF9E6 {
@@ -117,12 +114,11 @@ Widget .down.> Logging : JSON logs
 
 Listener --> Serde : serialize
 Processor --> PM : orchestrate
-Listener --> Utils : API keys
+Listener --> Utils : Miscellaneous
 
 note right of MDQ
   RabbitMQ
   Non-persistent messages
-  5-second TTL
   Per-subscription queues
   FIFO ordering
 end note
@@ -133,7 +129,7 @@ note right of MDC
   Internal analyzer state
   Leaderboards, snapshots,
   float, avg volume, tickers
-  TTL policies (5s-24h)
+  TTL policies (5s-7d)
 end note
 
 note right of WDC
