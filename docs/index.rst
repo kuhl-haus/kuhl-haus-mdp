@@ -3,7 +3,7 @@ kuhl-haus-mdp
 ================
 
 This is the documentation of **kuhl-haus-mdp**. All Kuhl Haus MDP documentation is published
-here because `kuhl-haus-mdp` is the only repository with a Read the Docs Gold subscription.
+here because ``kuhl-haus-mdp`` is the only repository with a Read the Docs Gold subscription.
 I don't like ads. You don't like ads. Nobody wants ads in their documentation so, it all lives
 here. It is, after all, a library package. Enjoy the ad-free experience.
 
