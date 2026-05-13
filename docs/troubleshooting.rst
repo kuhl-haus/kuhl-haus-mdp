@@ -3,6 +3,8 @@
 Troubleshooting
 ===============
 
+This section covers known issues and step-by-step recovery procedures.
+
 .. toctree::
    :maxdepth: 1
 

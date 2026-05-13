@@ -208,7 +208,7 @@ a Mac.
 
 - Your iPad running the dashboard in Safari.
 - A Mac with Safari.
-- A **USB cable** (Lightning or USB-C to USB-C depending on your iPad model).
+- A **USB cable** (Lightning to USB-C or USB-C to USB-C, depending on your iPad and Mac model).
   Wi-Fi pairing works in theory, but USB is more reliable.
 
 **Step 1 — Enable Web Inspector on your iPad**
