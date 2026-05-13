@@ -140,7 +140,46 @@ through a pluggable analyzer, writing results to Redis.
 
 ----
 
-Market Data Listener (MDL)
+Leaderboard Analyzer (LBA)
+---------------------------
+
+**Default port:** 4210
+
+The LBA subscribes to Redis pub/sub channels and runs leaderboard and trade
+analyzers sequentially.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 15 55
+
+   * - Variable
+     - Default
+     - Description
+   * - ``MASSIVE_API_KEY``
+     - *(required)*
+     - Massive.com API key. Same resolution chain as MDL.
+   * - ``RABBITMQ_URL``
+     - ``amqp://mdq:mdq@localhost:5672/``
+     - RabbitMQ connection URL (AMQP)
+   * - ``MDC_REDIS_URL``
+     - ``redis://mdc:mdc@localhost:6379/0``
+     - Market Data Cache Redis URL. Used by Analyzers via ``AnalyzerOptions``.
+   * - ``WDC_REDIS_URL``
+     - ``redis://mdc:mdc@localhost:6379/1``
+     - Widget Data Cache Redis URL. Used by Processors to store analyzer results.
+   * - ``PARALLELISM``
+     - ``1``
+     - Number of parallel processor workers
+   * - ``PREFETCH_COUNT``
+     - ``10``
+     - RabbitMQ prefetch count per worker
+   * - ``MAX_CONCURRENCY``
+     - ``100``
+     - Maximum concurrent async tasks per worker (semaphore limit)
+
+----
+
+Massive Data Listener (MDL)
 ---------------------------
 
 **Default port:** 4200
@@ -225,45 +264,6 @@ multiple RabbitMQ queues and writing results to Redis.
    * - ``PARALLELISM``
      - ``10``
      - Number of parallel processor workers per queue type
-   * - ``PREFETCH_COUNT``
-     - ``10``
-     - RabbitMQ prefetch count per worker
-   * - ``MAX_CONCURRENCY``
-     - ``100``
-     - Maximum concurrent async tasks per worker (semaphore limit)
-
-----
-
-Leaderboard Analyzer (LBA)
----------------------------
-
-**Default port:** 4210
-
-The LBA subscribes to Redis pub/sub channels and runs leaderboard and trade
-analyzers sequentially.
-
-.. list-table::
-   :header-rows: 1
-   :widths: 30 15 55
-
-   * - Variable
-     - Default
-     - Description
-   * - ``MASSIVE_API_KEY``
-     - *(required)*
-     - Massive.com API key. Same resolution chain as MDL.
-   * - ``RABBITMQ_URL``
-     - ``amqp://mdq:mdq@localhost:5672/``
-     - RabbitMQ connection URL (AMQP)
-   * - ``MDC_REDIS_URL``
-     - ``redis://mdc:mdc@localhost:6379/0``
-     - Market Data Cache Redis URL. Used by Analyzers via ``AnalyzerOptions``.
-   * - ``WDC_REDIS_URL``
-     - ``redis://mdc:mdc@localhost:6379/1``
-     - Widget Data Cache Redis URL. Used by Processors to store analyzer results.
-   * - ``PARALLELISM``
-     - ``1``
-     - Number of parallel processor workers
    * - ``PREFETCH_COUNT``
      - ``10``
      - RabbitMQ prefetch count per worker
