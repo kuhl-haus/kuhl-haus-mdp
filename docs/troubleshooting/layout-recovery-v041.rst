@@ -5,41 +5,46 @@ Recovering Dashboard Layouts After Upgrading to v0.4.1
 
 The only visible changes from v0.4.0 to v0.4.1 are UI elements to control
 audio alerts on the Range Alerts and News Feed widgets. Under the hood, local
-storage got a complete overhaul. This means breaking changes — all existing
-dashboard settings will be reset on upgrade.
+storage got a complete overhaul. Unfortunately, this means breaking changes,
+but it is better to do it now than later.
 
-There is no automatic migration and no script, but the dashboard has a
-built-in export function that makes recovery straightforward.
+**Here's what breaks:** All your existing dashboard settings will be reset.
+
+There's no automatic migration. There's no script. However, the dashboard has
+a built-in export function.
 
 
 Before Upgrading
 ----------------
 
-If you have not upgraded yet, export your layouts first:
+Before upgrading:
 
 1. Click **📤 Export** in the toolbar.
-2. Save the downloaded ``dashboard-layouts-<timestamp>.json`` file somewhere safe.
+2. Save the downloaded ``dashboard-layouts-<timestamp>.json`` file somewhere.
+
+
+After Upgrading
+---------------
 
 After upgrading, click **📥 Import** and select that file. The exported format
 is exactly the import format — nothing else required.
 
 .. tip::
 
-   Export before every upgrade. The export captures layout configurations,
-   widget positions, column counts, descriptions, and your default layout.
-   It is a one-second operation.
+   Export before any upgrade, full stop. The export is a clean snapshot of
+   everything — layout configurations, widget positions, column counts,
+   descriptions, and your default layout. It's a 1-second operation.
 
 
-If You Already Upgraded
------------------------
+Remediations
+------------
 
-You have two options:
+If you already upgraded and found your layouts are gone, you have two options:
 
-1. **Roll back** to the previous image. The app will read from the old
-   ``dashboard-layouts`` key and you can follow the export procedure above
-   before upgrading again.
-
-2. **Recover manually** using browser DevTools. Full procedure below.
+1. Rollback to the previous image. The application will read from the
+   ``dashboard-layouts`` key and you can follow the export procedure above.
+2. Copy the ``dashboard-layouts`` key using DevTools and create a specially
+   formatted JSON file for importing. (More details provided below.)
 
 
 What Happened
@@ -50,9 +55,9 @@ from plain localStorage keys to a `Pinia <https://pinia.vuejs.org/>`_ store
 managed by ``pinia-plugin-persistedstate``
 (`#278 <https://github.com/kuhl-haus/kuhl-haus-mdp-app/issues/278>`_).
 
-The precise breaking point is commit ``e0c0d7c`` — 12 commits into the v0.4.1
-development cycle. Before that commit, the dashboard read and wrote four
-separate localStorage keys:
+The precise breaking point is commit ``e0c0d7c`` — **12 commits into the
+v0.4.1 development cycle** (``v0.4.1.dev12-e0c0d7c``). Before that commit,
+the dashboard read and wrote four separate localStorage keys:
 
 .. list-table::
    :header-rows: 1
@@ -61,7 +66,7 @@ separate localStorage keys:
    * - Key
      - What it stored
    * - ``dashboard-layouts``
-     - All saved layouts
+     - All saved layouts (the big one)
    * - ``dashboard-default-layout``
      - Name of the default layout
    * - ``dashboard-layout-locked``
@@ -82,26 +87,33 @@ After ``e0c0d7c``, all of that consolidated into a single key:
        ``isLocked``, ``autosaveEnabled``, and additional widget preferences
 
 When you upgrade, the app starts fresh under the new ``widgetSettings`` key.
-**Your layouts are not gone** — they are still sitting in ``dashboard-layouts``
+**Your layouts are not gone** — they're still sitting in ``dashboard-layouts``
 in localStorage exactly as you left them. The app just stopped looking there.
 
 
-Recovery Procedure (Desktop)
------------------------------
+Recovery Procedure
+------------------
 
-**Step 1 — Open DevTools and find the old key**
+The recovery is a two-step process: extract the raw layout data from the old
+key, wrap it in the dashboard's import format, then import it through the UI.
 
-Open the dashboard in your browser, then open DevTools:
+**Step 1 — Open your browser's DevTools and find the old key**
 
-- **Chrome / Edge:** ``F12`` or ``Cmd+Opt+I`` (Mac) / ``Ctrl+Shift+I`` (Windows/Linux)
-- **Firefox:** ``F12`` or ``Ctrl+Shift+I``
+Desktop (Chrome, Firefox, Edge):
 
-Go to the **Application** tab (Chrome/Edge) or **Storage** tab (Firefox).
-In the left sidebar, expand **Local Storage** and click your site's origin
-(e.g. ``https://mdp.example.com`` or ``http://localhost:4201``).
+1. Open the dashboard in your browser.
+2. Open DevTools:
 
-Find the row with Key = ``dashboard-layouts``. The value will be a JSON object
-like this::
+   - Chrome/Edge: ``F12`` or ``Cmd+Opt+I`` (Mac) / ``Ctrl+Shift+I`` (Windows/Linux)
+   - Firefox: ``F12`` or ``Ctrl+Shift+I``
+
+3. Go to the **Application** tab (Chrome/Edge) or **Storage** tab (Firefox).
+4. In the left sidebar, expand **Local Storage** and click your site's origin
+   (e.g. ``https://mdp.example.com`` or ``http://localhost:8000``).
+5. Find the row with Key = ``dashboard-layouts``.
+
+You should see a JSON object in the Value column that looks something like
+this::
 
     {
       "My Trading Setup": {
@@ -115,23 +127,25 @@ like this::
       "Scalp Setup": { ... }
     }
 
-Copy the entire value — everything from the opening ``{`` to the closing ``}``.
+6. **Copy the entire value** — everything including the opening ``{`` and the
+   closing ``}``.
 
 .. note::
 
    If ``dashboard-layouts`` is missing or empty, your layouts were already
-   gone before the upgrade, or you are on a fresh install. There is nothing
-   to recover.
+   gone before the upgrade, or you're on a fresh install. Unfortunately
+   there's nothing to recover.
 
-**Step 2 — Get your default layout name**
+**Step 2 — Pick your default layout name**
 
-While DevTools is still open, look at the ``dashboard-default-layout`` key.
-Copy the exact value — spelling and capitalization must match a key in the
-``dashboard-layouts`` JSON you just copied.
+While you still have DevTools open, take note of the layout name in the
+``dashboard-default-layout`` key. You'll need it in the next step. It must
+match a key in the JSON you just copied — spelling and capitalization must be
+exact.
 
 **Step 3 — Build the import file**
 
-Create a new file called ``layout-recovery.json`` (the filename does not
+Create a new file called ``layout-recovery.json`` (the filename doesn't
 matter). Paste the following, substituting your values:
 
 .. code-block:: json
@@ -166,46 +180,49 @@ matter). Paste the following, substituting your values:
 
 A few things to know about this format:
 
-- ``version`` must be ``1``.
-- ``exported`` is metadata only — the import ignores it. Any number will do.
-- ``defaultLayout`` is optional. If the name does not match a key in
-  ``layouts``, it is silently ignored.
-- The import **merges** into existing layouts. If a name conflicts, you will
-  be prompted to confirm before overwriting.
+- The ``version`` field must be ``1``.
+- The ``exported`` timestamp is metadata only — the import ignores it. Use any
+  number.
+- ``defaultLayout`` is optional; if the name doesn't match a key in
+  ``layouts``, it's silently ignored.
+- The import **merges** into whatever layouts already exist — it won't wipe
+  anything. If a name conflicts, you'll be prompted to confirm overwrite.
 
 **Step 4 — Import through the dashboard UI**
 
 1. Click the **📥 Import** button in the toolbar.
 2. Select your ``layout-recovery.json`` file.
 3. Confirm the overwrite prompt if one appears.
-4. You should see a confirmation: *"Imported N layout(s)"*.
-5. Set your default in the layout dropdown and re-lock.
+4. You should see an alert: *"Imported N layout(s)"*.
+5. Your layouts are back. Set your default in the layout dropdown and re-lock.
 
 
 Recovery on iPad (Safari + iOS)
 --------------------------------
 
-Mobile browsers do not expose a DevTools UI locally. On iOS, you can access
-the full Safari Web Inspector remotely from a Mac over USB.
+Mobile browsers don't expose a DevTools UI, so the procedure above doesn't
+work directly. On iOS, you can access the full Safari DevTools remotely from
+a Mac.
 
 **What you need**
 
 - Your iPad running the dashboard in Safari.
 - A Mac with Safari.
-- A USB cable (Lightning or USB-C depending on your iPad model). Wi-Fi pairing
-  works in theory, but USB is more reliable.
+- A **USB cable** (Lightning or USB-C to USB-C depending on your iPad model).
+  Wi-Fi pairing works in theory, but USB is more reliable.
 
 **Step 1 — Enable Web Inspector on your iPad**
 
-On iPad: **Settings → Safari → Advanced → Web Inspector → ON**.
+On iPad: **Settings** → **Safari** → **Advanced** → toggle **Web Inspector** ON.
 
 See also: `Inspecting iOS with Safari DevTools
 <https://developer.apple.com/documentation/safari-developer-tools/inspecting-ios>`_
 
 **Step 2 — Enable the Develop menu in Safari on your Mac**
 
-On Mac: **Safari → Settings → Advanced → "Show features for web developers"**
-(or "Show Develop menu in menu bar" in older Safari versions).
+On Mac: **Safari** → **Settings** (or Preferences) → **Advanced** tab →
+check **"Show features for web developers"** (or "Show Develop menu in menu
+bar" in older Safari versions).
 
 See also: `Enabling Developer Features in Safari
 <https://developer.apple.com/documentation/safari-developer-tools/enabling-developer-features>`_
@@ -233,9 +250,9 @@ From here, the procedure is identical to desktop:
 Technical Appendix
 ------------------
 
-**New storage structure (v0.4.1+)**
+**The new storage structure (v0.4.1+)**
 
-The ``widgetSettings`` key now stores:
+For reference, the ``widgetSettings`` key now stores:
 
 .. code-block:: json
 
@@ -252,12 +269,11 @@ The ``widgetSettings`` key now stores:
       "alertManagerOpen": false
     }
 
-After recovering, inspect this key in DevTools to confirm ``savedLayouts``
-contains your layouts.
-
 **Identifying the exact version**
 
-Starting with v0.4.0, the version string is shown in the top-right corner of
-the dashboard header (e.g. ``v0.4.1``). Any build at or after
-``v0.4.1.dev12-e0c0d7c`` uses the new storage layout. If no version string is
-visible, the install is older than ``v0.4.0`` and uses the old keys.
+If you're not sure whether your install crossed the breaking point, starting
+with ``v0.4.0`` the version string is shown in the top-right corner of the
+dashboard header (e.g. ``v0.4.1``). Any build at or after
+``v0.4.1.dev12-e0c0d7c`` has the new storage layout. If you do not see a
+version in the top-right corner then you are on a version earlier than
+``v0.4.0``.
