@@ -3,6 +3,14 @@
 Recovering Dashboard Layouts After Upgrading to v0.4.1
 =======================================================
 
+.. note::
+
+   This article applies to the **front-end application**
+   (`kuhl-haus-mdp-app <https://github.com/kuhl-haus/kuhl-haus-mdp-app>`_),
+   not the core library (`kuhl-haus-mdp <https://github.com/kuhl-haus/kuhl-haus-mdp>`_).
+   All Kuhl Haus MDP documentation is published here because
+   `kuhl-haus-mdp` is the only repository with a Read the Docs subscription.
+
 The only visible changes from v0.4.0 to v0.4.1 are UI elements to control
 audio alerts on the Range Alerts and News Feed widgets. Under the hood, local
 storage got a complete overhaul. Unfortunately, this means breaking changes,
