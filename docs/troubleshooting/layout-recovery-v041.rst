@@ -194,7 +194,7 @@ A few things to know about this format:
 2. Select your ``layout-recovery.json`` file.
 3. Confirm the overwrite prompt if one appears.
 4. You should see an alert: *"Imported N layout(s)"*.
-5. Your layouts are back. Set your default in the layout dropdown and re-lock.
+5. Your layouts are back.
 
 
 Recovery on iPad (Safari + iOS)
