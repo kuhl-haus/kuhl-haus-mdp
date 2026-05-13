@@ -214,17 +214,20 @@ See also: `Enabling Developer Features in Safari
 
 1. Connect your iPad to your Mac with the USB cable. Trust the computer if
    prompted on the iPad.
-2. On your iPad, open Safari and navigate to your dashboard. Keep the tab open
-   and active.
-3. On your Mac in Safari: **Develop → your iPad's name → your dashboard tab**.
-4. The full Web Inspector opens on your Mac, targeting the page on your iPad.
+2. On your iPad, open Safari and navigate to your dashboard. **Keep the tab
+   open and active.**
+3. On your Mac in Safari: **Develop** menu → your iPad's name → your
+   dashboard tab.
+4. The full Web Inspector opens on your Mac, pointing at the page running on
+   your iPad.
 
-From here, the procedure is identical to desktop: find ``dashboard-layouts``
-under **Storage → Local Storage**, copy the value, and build the import JSON
-on your Mac. Then either:
+From here, the procedure is identical to desktop:
 
-- Sync the file via iCloud and import from your iPad, or
-- Import directly from the Mac browser if the dashboard is accessible there.
+- Go to **Storage** → **Local Storage** → find ``dashboard-layouts``.
+- Copy the value, build the import JSON on your Mac, then either:
+
+  - AirDrop the file to your iPad and import from there, or
+  - Sync via iCloud and import from there.
 
 
 Technical Appendix
