@@ -98,7 +98,7 @@ Open the dashboard in your browser, then open DevTools:
 
 Go to the **Application** tab (Chrome/Edge) or **Storage** tab (Firefox).
 In the left sidebar, expand **Local Storage** and click your site's origin
-(e.g. ``https://mdp.kuhl.haus`` or ``http://localhost:4201``).
+(e.g. ``https://mdp.example.com`` or ``http://localhost:4201``).
 
 Find the row with Key = ``dashboard-layouts``. The value will be a JSON object
 like this::
