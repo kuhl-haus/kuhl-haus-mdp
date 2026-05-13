@@ -20,6 +20,7 @@ Contents
    Security Policy <security>
    License <license>
    Authors <authors>
+   Troubleshooting <troubleshooting>
    Changelog <changelog>
 
 
