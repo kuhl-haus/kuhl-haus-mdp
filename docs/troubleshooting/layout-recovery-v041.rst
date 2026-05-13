@@ -3,12 +3,56 @@
 Recovering Dashboard Layouts After Upgrading to v0.4.1
 =======================================================
 
+The only visible changes from v0.4.0 to v0.4.1 are UI elements to control
+audio alerts on the Range Alerts and News Feed widgets. Under the hood, local
+storage got a complete overhaul. This means breaking changes — all existing
+dashboard settings will be reset on upgrade.
+
+There is no automatic migration and no script, but the dashboard has a
+built-in export function that makes recovery straightforward.
+
+
+Before Upgrading
+----------------
+
+If you have not upgraded yet, export your layouts first:
+
+1. Click **📤 Export** in the toolbar.
+2. Save the downloaded ``dashboard-layouts-<timestamp>.json`` file somewhere safe.
+
+After upgrading, click **📥 Import** and select that file. The exported format
+is exactly the import format — nothing else required.
+
+.. tip::
+
+   Export before every upgrade. The export captures layout configurations,
+   widget positions, column counts, descriptions, and your default layout.
+   It is a one-second operation.
+
+
+If You Already Upgraded
+-----------------------
+
+You have two options:
+
+1. **Roll back** to the previous image. The app will read from the old
+   ``dashboard-layouts`` key and you can follow the export procedure above
+   before upgrading again.
+
+2. **Recover manually** using browser DevTools. Full procedure below.
+
+
+What Happened
+-------------
+
 Starting with **v0.4.1**, the Stock Scanner Dashboard moved its layout storage
 from plain localStorage keys to a `Pinia <https://pinia.vuejs.org/>`_ store
-managed by ``pinia-plugin-persistedstate``. The breaking point is commit
-``e0c0d7c`` — 12 commits into the v0.4.1 cycle.
+managed by ``pinia-plugin-persistedstate``
+(`#278 <https://github.com/kuhl-haus/kuhl-haus-mdp-app/issues/278>`_).
 
-Before that commit, the dashboard read and wrote four separate localStorage keys:
+The precise breaking point is commit ``e0c0d7c`` — 12 commits into the v0.4.1
+development cycle. Before that commit, the dashboard read and wrote four
+separate localStorage keys:
 
 .. list-table::
    :header-rows: 1
@@ -38,15 +82,12 @@ After ``e0c0d7c``, all of that consolidated into a single key:
        ``isLocked``, ``autosaveEnabled``, and additional widget preferences
 
 When you upgrade, the app starts fresh under the new ``widgetSettings`` key.
-**Your layouts are not gone** — they're still sitting in ``dashboard-layouts``
+**Your layouts are not gone** — they are still sitting in ``dashboard-layouts``
 in localStorage exactly as you left them. The app just stopped looking there.
 
 
 Recovery Procedure (Desktop)
 -----------------------------
-
-The recovery is a two-step process: extract the raw layout data from the old
-key, wrap it in the dashboard's import format, then import it through the UI.
 
 **Step 1 — Open DevTools and find the old key**
 
@@ -78,20 +119,20 @@ Copy the entire value — everything from the opening ``{`` to the closing ``}``
 
 .. note::
 
-   If ``dashboard-layouts`` is missing or empty, there is nothing to recover.
-   This indicates a fresh install or that the layouts were lost prior to
-   upgrading.
+   If ``dashboard-layouts`` is missing or empty, your layouts were already
+   gone before the upgrade, or you are on a fresh install. There is nothing
+   to recover.
 
-**Step 2 — Note your default layout name**
+**Step 2 — Get your default layout name**
 
-While DevTools is still open, note the exact spelling (including capitalization)
-of the layout name you want to set as default. It must match a key in the JSON
-you just copied.
+While DevTools is still open, look at the ``dashboard-default-layout`` key.
+Copy the exact value — spelling and capitalization must match a key in the
+``dashboard-layouts`` JSON you just copied.
 
 **Step 3 — Build the import file**
 
-Create a file named ``layout-recovery.json`` with the following structure,
-substituting your values:
+Create a new file called ``layout-recovery.json`` (the filename does not
+matter). Paste the following, substituting your values:
 
 .. code-block:: json
 
@@ -102,36 +143,57 @@ substituting your values:
       "defaultLayout": "<EXACT NAME OF ONE OF YOUR LAYOUTS>"
     }
 
+**Concrete example:**
+
+.. code-block:: json
+
+    {
+      "version": 1,
+      "exported": 1778262561424,
+      "layouts": {
+        "My Trading Setup": {
+          "layout": [...],
+          "widgetCounter": 7,
+          "dashboardColNum": 12,
+          "created": 1746000000000,
+          "modified": 1747000000000,
+          "description": ""
+        },
+        "Scalp Setup": { ... }
+      },
+      "defaultLayout": "My Trading Setup"
+    }
+
 A few things to know about this format:
 
 - ``version`` must be ``1``.
 - ``exported`` is metadata only — the import ignores it. Any number will do.
-- ``defaultLayout`` is optional. If the name doesn't match a key in
+- ``defaultLayout`` is optional. If the name does not match a key in
   ``layouts``, it is silently ignored.
 - The import **merges** into existing layouts. If a name conflicts, you will
   be prompted to confirm before overwriting.
 
 **Step 4 — Import through the dashboard UI**
 
-1. Unlock the layout (click 🔒 in the toolbar — it should change to ✏️).
-2. Click the **📥 Import** button in the toolbar.
-3. Select your ``layout-recovery.json`` file.
-4. Confirm the overwrite prompt if one appears.
-5. You should see a confirmation: *"Imported N layout(s)"*.
-6. Set your default in the layout dropdown and re-lock.
+1. Click the **📥 Import** button in the toolbar.
+2. Select your ``layout-recovery.json`` file.
+3. Confirm the overwrite prompt if one appears.
+4. You should see a confirmation: *"Imported N layout(s)"*.
+5. Set your default in the layout dropdown and re-lock.
 
 
 Recovery on iPad (Safari + iOS)
 --------------------------------
 
-Mobile Safari does not expose DevTools locally. You can access the full Web
-Inspector remotely from a Mac over USB.
+Mobile browsers do not expose a DevTools UI locally. On iOS, you can access
+the full Safari Web Inspector remotely from a Mac over USB.
 
 **What you need**
 
 - Your iPad running the dashboard in Safari.
 - A Mac with Safari.
-- A USB cable (Lightning or USB-C depending on your iPad model).
+- A USB cable (Lightning or USB-C depending on your iPad model). Wi-Fi pairing
+  works in theory, but USB is more reliable.
 
 **Step 1 — Enable Web Inspector on your iPad**
 
@@ -158,34 +220,15 @@ See also: `Enabling Developer Features in Safari
 4. The full Web Inspector opens on your Mac, targeting the page on your iPad.
 
 From here, the procedure is identical to desktop: find ``dashboard-layouts``
-under **Storage → Local Storage**, copy the value, build the import JSON on
-your Mac, then either AirDrop the file to your iPad and import from there, or
-import directly from the Mac browser if the dashboard is also accessible from
-the Mac.
+under **Storage → Local Storage**, copy the value, and build the import JSON
+on your Mac. Then either:
+
+- Sync the file via iCloud and import from your iPad, or
+- Import directly from the Mac browser if the dashboard is accessible there.
 
 
-Avoiding This in the Future
-----------------------------
-
-The dashboard has a built-in export function. Before any upgrade:
-
-1. Unlock the layout (🔒 → ✏️).
-2. Click **📤 Export** in the toolbar.
-3. Save the downloaded ``dashboard-layouts-<timestamp>.json`` file.
-
-If something goes wrong after upgrading, click **📥 Import** and select that
-file. The exported format is exactly the import format — no manual JSON
-construction required.
-
-.. tip::
-
-   Export before every upgrade. The export captures layout configurations,
-   widget positions, column counts, descriptions, and your default layout. It
-   is a 10-second operation.
-
-
-Technical Reference
--------------------
+Technical Appendix
+------------------
 
 **New storage structure (v0.4.1+)**
 
@@ -211,6 +254,7 @@ contains your layouts.
 
 **Identifying the exact version**
 
-The version string is shown in the bottom-right corner of the dashboard header
-(e.g. ``v0.4.1``). Any build at or after ``v0.4.1.dev12-e0c0d7c`` uses the
-new storage layout. Any build at ``v0.4.0`` or earlier uses the old keys.
+Starting with v0.4.0, the version string is shown in the top-right corner of
+the dashboard header (e.g. ``v0.4.1``). Any build at or after
+``v0.4.1.dev12-e0c0d7c`` uses the new storage layout. If no version string is
+visible, the install is older than ``v0.4.0`` and uses the old keys.
