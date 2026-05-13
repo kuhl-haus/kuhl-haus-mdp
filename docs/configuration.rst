@@ -46,6 +46,12 @@ unless noted otherwise.
 
 .. note::
 
+   None of these variables have defaults. If they are not set, OpenTelemetry
+   is not configured. All variables should be set together — a partial
+   configuration will produce no telemetry output.
+
+.. note::
+
    OTEL-enabled images are published separately from the standard images.
    Check the package page on GHCR for available tags.
 
@@ -57,30 +63,30 @@ unless noted otherwise.
      - Default
      - Description
    * - ``OTEL_SERVICE_NAME``
-     - *(required)*
+     - *(none)*
      - Logical service name attached to all traces, metrics, and logs emitted
        by this instance (e.g. ``mdl``, ``fdl``, ``mds``). Should be unique
        per server type.
    * - ``OTEL_TRACES_EXPORTER``
-     - ``otlp``
+     - *(none)*
      - Exporter for trace data. Options: ``otlp`` — send to an OTLP-compatible
        collector; ``console`` — print to stdout (useful for local debugging);
        ``none`` — disable trace export entirely.
    * - ``OTEL_METRICS_EXPORTER``
-     - ``otlp``
+     - *(none)*
      - Exporter for metrics data. Same options as ``OTEL_TRACES_EXPORTER``:
        ``otlp``, ``console``, or ``none``.
    * - ``OTEL_LOGS_EXPORTER``
-     - ``otlp``
+     - *(none)*
      - Exporter for log data. Same options as ``OTEL_TRACES_EXPORTER``:
        ``otlp``, ``console``, or ``none``.
    * - ``OTEL_EXPORTER_OTLP_PROTOCOL``
-     - ``http/protobuf``
+     - *(none)*
      - Wire protocol used by the OTLP exporter. Options: ``http/protobuf`` —
        HTTP with Protocol Buffers encoding (recommended, most broadly
        supported); ``grpc`` — gRPC; ``http/json`` — HTTP with JSON encoding.
    * - ``OTEL_EXPORTER_OTLP_ENDPOINT``
-     - *(required)*
+     - *(none)*
      - Base URL of the OTLP collector endpoint
        (e.g. ``https://openobserve.example.com/api/default``). The SDK appends
        signal-specific paths (``/v1/traces``, ``/v1/metrics``, ``/v1/logs``)
@@ -91,16 +97,16 @@ unless noted otherwise.
        OTLP export request. Used for authentication and routing
        (e.g. ``Authorization=Bearer <token>,stream-name=default``).
    * - ``OTEL_LOG_LEVEL``
-     - ``error``
+     - *(none)*
      - Internal log level for the OpenTelemetry SDK itself — controls SDK
        diagnostic output, not application log output (see ``LOG_LEVEL`` for
        that). Options: ``debug``, ``info``, ``warning``, ``error``,
        ``critical``.
    * - ``OTEL_PYTHON_FASTAPI_EXCLUDED_URLS``
-     - ``health``
+     - *(none)*
      - Comma-separated URL path patterns excluded from FastAPI auto-
-       instrumentation. The ``health`` endpoint is excluded by default to
-       prevent probe traffic from polluting trace data.
+       instrumentation. Set to ``health`` to prevent probe traffic from
+       polluting trace data.
 
 ----
 
