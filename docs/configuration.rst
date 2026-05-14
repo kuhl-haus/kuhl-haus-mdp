@@ -69,9 +69,9 @@ under the hood, see:
 
 .. note::
 
-   None of these variables have defaults. If they are not set, OpenTelemetry
-   is not configured. All variables should be set together — a partial
-   configuration will produce no telemetry output.
+   These images provide no defaults for any of these variables. If they are
+   not set, OpenTelemetry is not configured. All variables should be set
+   together — a partial configuration will produce no telemetry output.
 
 .. list-table::
    :header-rows: 1
