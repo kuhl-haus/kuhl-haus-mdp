@@ -4,6 +4,10 @@ Configuration Reference
 All MDP server containers are configured exclusively via environment variables.
 No configuration files are required at runtime.
 
+All images are published in the
+`kuhl-haus-mdp-servers packages <https://github.com/orgs/kuhl-haus/packages?repo_name=kuhl-haus-mdp-servers>`_
+on GHCR.
+
 ----
 
 Common Variables
@@ -29,10 +33,10 @@ These variables are supported by all servers.
      - TCP port for the HTTP server (see per-server defaults below)
    * - ``CONTAINER_IMAGE``
      - ``Unknown``
-     - Image name injected at build time (informational)
+     - Image name injected at deploy time (informational)
    * - ``IMAGE_VERSION``
      - ``Unknown``
-     - Image version injected at build time (informational)
+     - Image version injected at deploy time (informational)
 
 ----
 
