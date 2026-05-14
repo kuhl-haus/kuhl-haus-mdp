@@ -64,9 +64,10 @@ unless noted otherwise.
      - Description
    * - ``OTEL_SERVICE_NAME``
      - *(none)*
-     - Logical service name attached to all traces, metrics, and logs emitted
-       by this instance (e.g. ``mdl``, ``fdl``, ``mds``). Should be unique
-       per server type.
+     - Arbitrary name attached to all traces, metrics, and logs emitted by
+       this instance. The value is your choice — use whatever is meaningful
+       to you. It should be distinct per server type so you can tell services
+       apart in your observability backend.
    * - ``OTEL_TRACES_EXPORTER``
      - *(none)*
      - Exporter for trace data. Options: ``otlp`` — send to an OTLP-compatible
