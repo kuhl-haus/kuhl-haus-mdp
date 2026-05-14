@@ -39,11 +39,25 @@ These variables are supported by all servers.
 OpenTelemetry (OTEL-enabled images)
 ------------------------------------
 
-These variables are only available on ``*-otel`` image variants
-(e.g. ``kuhl-haus-mdl-server:latest-otel``). Standard images do not include
-the OpenTelemetry instrumentation packages and will ignore these variables.
-OTEL-enabled images are published alongside standard images — check the
-package page on GHCR for available tags.
+These variables are only available on ``*-otel-server`` image variants.
+OTEL-enabled images are separate packages from the standard server images —
+the ``-otel`` designation is part of the image name, not the tag.
+
+For example, the OTEL-enabled Market Data Listener is pulled as:
+
+.. code-block:: bash
+
+   docker pull ghcr.io/kuhl-haus/kuhl-haus-mdl-otel-server:latest
+
+or in a Dockerfile:
+
+.. code-block:: dockerfile
+
+   FROM ghcr.io/kuhl-haus/kuhl-haus-mdl-otel-server:latest
+
+All OTEL-enabled images are published in the
+`kuhl-haus-mdp-servers packages <https://github.com/orgs/kuhl-haus/packages?repo_name=kuhl-haus-mdp-servers>`_
+on GHCR.
 
 The variables below are a subset of the standard OpenTelemetry SDK environment
 variables. For the full reference and to understand how OTEL actually works
