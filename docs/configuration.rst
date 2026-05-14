@@ -39,21 +39,25 @@ These variables are supported by all servers.
 OpenTelemetry (OTEL-enabled images)
 ------------------------------------
 
-These variables are only available on image variants built with OpenTelemetry
-instrumentation. They are standard
-`OpenTelemetry SDK environment variables <https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/>`_
-unless noted otherwise.
+These variables are only available on ``*-otel`` image variants
+(e.g. ``kuhl-haus-mdl-server:latest-otel``). Standard images do not include
+the OpenTelemetry instrumentation packages and will ignore these variables.
+OTEL-enabled images are published alongside standard images — check the
+package page on GHCR for available tags.
+
+The variables below are a subset of the standard OpenTelemetry SDK environment
+variables. For the full reference and to understand how OTEL actually works
+under the hood, see:
+
+- `Zero-code instrumentation for Python <https://opentelemetry.io/docs/zero-code/python/configuration/>`_
+- `SDK general configuration <https://opentelemetry.io/docs/languages/sdk-configuration/general/>`_
+- `OTLP exporter configuration <https://opentelemetry.io/docs/languages/sdk-configuration/otlp-exporter/>`_
 
 .. note::
 
    None of these variables have defaults. If they are not set, OpenTelemetry
    is not configured. All variables should be set together — a partial
    configuration will produce no telemetry output.
-
-.. note::
-
-   OTEL-enabled images are published separately from the standard images.
-   Check the package page on GHCR for available tags.
 
 .. list-table::
    :header-rows: 1
