@@ -36,6 +36,99 @@ These variables are supported by all servers.
 
 ----
 
+OpenTelemetry (OTEL-enabled images)
+------------------------------------
+
+These variables are only available on ``*-otel-server`` image variants.
+OTEL-enabled images are separate packages from the standard server images —
+the ``-otel`` designation is part of the image name, not the tag.
+
+For example, the OTEL-enabled Market Data Listener is pulled as:
+
+.. code-block:: bash
+
+   docker pull ghcr.io/kuhl-haus/kuhl-haus-mdl-otel-server:latest
+
+or in a Dockerfile:
+
+.. code-block:: dockerfile
+
+   FROM ghcr.io/kuhl-haus/kuhl-haus-mdl-otel-server:latest
+
+All OTEL-enabled images are published in the
+`kuhl-haus-mdp-servers packages <https://github.com/orgs/kuhl-haus/packages?repo_name=kuhl-haus-mdp-servers>`_
+on GHCR.
+
+The variables below are a subset of the standard OpenTelemetry SDK environment
+variables. For the full reference and to understand how OTEL actually works
+under the hood, see:
+
+- `Zero-code instrumentation for Python <https://opentelemetry.io/docs/zero-code/python/configuration/>`_
+- `SDK general configuration <https://opentelemetry.io/docs/languages/sdk-configuration/general/>`_
+- `OTLP exporter configuration <https://opentelemetry.io/docs/languages/sdk-configuration/otlp-exporter/>`_
+
+.. note::
+
+   These images provide no defaults for any of these variables. If they are
+   not set, OpenTelemetry is not configured. All variables should be set
+   together — a partial configuration will produce no telemetry output.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 38 20 42
+
+   * - Variable
+     - Default
+     - Description
+   * - ``OTEL_SERVICE_NAME``
+     - *(none)*
+     - Arbitrary name attached to all traces, metrics, and logs emitted by
+       this instance. The value is your choice — use whatever is meaningful
+       to you. It should be distinct per server type so you can tell services
+       apart in your observability backend.
+   * - ``OTEL_TRACES_EXPORTER``
+     - *(none)*
+     - Exporter for trace data. Options: ``otlp`` — send to an OTLP-compatible
+       collector; ``console`` — print to stdout (useful for local debugging);
+       ``none`` — disable trace export entirely.
+   * - ``OTEL_METRICS_EXPORTER``
+     - *(none)*
+     - Exporter for metrics data. Same options as ``OTEL_TRACES_EXPORTER``:
+       ``otlp``, ``console``, or ``none``.
+   * - ``OTEL_LOGS_EXPORTER``
+     - *(none)*
+     - Exporter for log data. Same options as ``OTEL_TRACES_EXPORTER``:
+       ``otlp``, ``console``, or ``none``.
+   * - ``OTEL_EXPORTER_OTLP_PROTOCOL``
+     - *(none)*
+     - Wire protocol used by the OTLP exporter. Options: ``http/protobuf`` —
+       HTTP with Protocol Buffers encoding (recommended, most broadly
+       supported); ``grpc`` — gRPC; ``http/json`` — HTTP with JSON encoding.
+   * - ``OTEL_EXPORTER_OTLP_ENDPOINT``
+     - *(none)*
+     - Base URL of the OTLP collector endpoint
+       (e.g. ``https://openobserve.example.com/api/default``). The SDK appends
+       signal-specific paths (``/v1/traces``, ``/v1/metrics``, ``/v1/logs``)
+       automatically when using ``http/protobuf`` or ``http/json``.
+   * - ``OTEL_EXPORTER_OTLP_HEADERS``
+     - *(none)*
+     - Comma-separated ``key=value`` pairs sent as HTTP headers with every
+       OTLP export request. Used for authentication and routing
+       (e.g. ``Authorization=Bearer <token>,stream-name=default``).
+   * - ``OTEL_LOG_LEVEL``
+     - *(none)*
+     - Internal log level for the OpenTelemetry SDK itself — controls SDK
+       diagnostic output, not application log output (see ``LOG_LEVEL`` for
+       that). Options: ``debug``, ``info``, ``warning``, ``error``,
+       ``critical``.
+   * - ``OTEL_PYTHON_FASTAPI_EXCLUDED_URLS``
+     - *(none)*
+     - Comma-separated URL path patterns excluded from FastAPI auto-
+       instrumentation. Set to ``health`` to prevent probe traffic from
+       polluting trace data.
+
+----
+
 Finlight Data Listener (FDL)
 -----------------------------
 
