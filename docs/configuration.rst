@@ -4,8 +4,12 @@ Configuration Reference
 All MDP server containers are configured exclusively via environment variables.
 No configuration files are required at runtime.
 
-All images are published in the
+All MDP data plane server images are published in the
 `kuhl-haus-mdp-servers packages <https://github.com/orgs/kuhl-haus/packages?repo_name=kuhl-haus-mdp-servers>`_
+on GHCR.
+
+The SCP/Web Application server images are published in the
+`kuhl-haus-mdp-app packages <https://github.com/orgs/kuhl-haus/packages?repo_name=kuhl-haus-mdp-app>`_
 on GHCR.
 
 ----
@@ -43,6 +47,7 @@ These variables are supported by all servers.
 OpenTelemetry (OTEL-enabled images)
 ------------------------------------
 
+The MDP data plane servers have two image variants for each server type. 
 These variables are only available on ``*-otel-server`` image variants.
 OTEL-enabled images are separate packages from the standard server images —
 the ``-otel`` designation is part of the image name, not the tag.
