@@ -87,6 +87,7 @@ Code Libraries
 ~~~~~~~~~~~~~~
 
 - **FinlightDataListener** (`components/finlight_data_listener.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.components.html#module-kuhl_haus.mdp.components.finlight_data_listener>`_) - WebSocket client wrapper for the Finlight news API with persistent connection management and auto-reconnect logic
+- **FinlightSimpleListener** (`components/finlight_simple_listener.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.components.html#module-kuhl_haus.mdp.components.finlight_simple_listener>`_) - Simplified Finlight WebSocket listener using the SDK's sync callback pattern (``WebSocketOptions(takeover=True)``). Supports both enhanced (entity-tagged, ``includeEntities=True``) and raw article modes.
 - **FinlightDataQueues** (`components/finlight_data_queues.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.components.html#module-kuhl_haus.mdp.components.finlight_data_queues>`_) - Single-channel RabbitMQ publisher serializing Finlight article objects to the ``news`` queue
 - **FinlightDataQueue** enum (`enum/finlight_data_queue.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.enum.html#module-kuhl_haus.mdp.enum.finlight_data_queue>`_) - Queue name constant for routing (NEWS = ``"news"``)
 
@@ -173,7 +174,7 @@ The MDS performs secondary analysis on enriched market data already processed an
 The MDS:
 
 - Subscribes to Redis pub/sub channels (including wildcard/pattern subscriptions)
-- Rehydrates analyzer state from the WDC cache on startup
+- Rehydrates analyzer state from Redis on startup (MDC or WDC depending on analyzer)
 - Delegates messages to a pluggable Analyzer subclass
 - Writes results back to the Widget Data Cache (WDC) and publishes notifications
 
@@ -186,11 +187,13 @@ Code Libraries
 - **Analyzers** (`analyzers/ <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.analyzers.html>`_)
 
   - **FinlightDataAnalyzer** (`finlight_data_analyzer.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.analyzers.html#module-kuhl_haus.mdp.analyzers.finlight_data_analyzer>`_) - Maintains capped news feed lists (``news:feed:latest``, ``news:ticker:{symbol}``) in WDC with configurable TTLs
+  - **DailyRangeAnalyzer** (`daily_range_analyzer.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.analyzers.html#module-kuhl_haus.mdp.analyzers.daily_range_analyzer>`_) - Tracks intraday session highs/lows (pre-market, regular, after-hours) per symbol. Publishes state to ``daily_range:{symbol}`` and HOD/LOD alerts to ``daily_range_hod_alert`` / ``daily_range_lod_alert``. Uses a Lua-atomic 4AM ET day-boundary reset (one replica resets per day); rehydrates from WDC on startup. Cross-session breach notes (e.g. "Broke pre-market high of $15.00") are appended to alert payloads.
 
 - **MarketDataAnalyzerResult** (`data/market_data_analyzer_result.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.data.html#module-kuhl_haus.mdp.data.market_data_analyzer_result>`_) - Result envelope for analyzer output with cache/publish metadata
 - **AnalyzerOptions** (`analyzers/analyzer.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.analyzers.html#module-kuhl_haus.mdp.analyzers.analyzer>`_) - Shared configuration container (``redis_url``, ``finlight_api_key``, ``massive_api_key``, ``kwargs`` escape hatch for subclass-specific config)
 - **WidgetDataCacheKeys** enum (`enum/widget_data_cache_keys.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.enum.html#module-kuhl_haus.mdp.enum.widget_data_cache_keys>`_) - WDC Redis key and channel name constants for all MDS-published data
-- **WidgetDataCacheTTL** enum (`enum/widget_data_cache_ttl.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.enum.html#module-kuhl_haus.mdp.enum.widget_data_cache_ttl>`_) - TTL values for WDC entries (quotes: 4 days, scanners: 4 days, news feed: 2 days, news ticker: 7 days)
+- **WidgetDataCacheTTL** enum (`enum/widget_data_cache_ttl.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.enum.html#module-kuhl_haus.mdp.enum.widget_data_cache_ttl>`_) - TTL values for WDC entries (quotes: 4 days, scanners: 4 days, news feed: 2 days, news ticker: 7 days, daily range: 4 days, daily range alerts: 8 hours)
+- **WidgetDataCacheLimits** enum (`enum/widget_data_cache_limits.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.enum.html#module-kuhl_haus.mdp.enum.widget_data_cache_limits>`_) - List size caps for WDC Redis list keys (``DRA_CACHE_LIST_MAX``: max alert entries retained per HOD/LOD alert channel)
 
 Market Data Cache (MDC)
 ------------------------
@@ -271,3 +274,4 @@ Miscellaneous Code Libraries
 - **Observability** (`helpers/observability.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.helpers.html#module-kuhl_haus.mdp.helpers.observability>`_) - OpenTelemetry tracer/meter factory for distributed tracing and metrics
 - **StructuredLogging** (`helpers/structured_logging.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.helpers.html#module-kuhl_haus.mdp.helpers.structured_logging>`_) - JSON logging for K8s/OpenObserve with dev mode support
 - **Utils** (`helpers/utils.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.helpers.html#module-kuhl_haus.mdp.helpers.utils>`_) - API key resolution (MASSIVE_API_KEY → POLYGON_API_KEY → file) and TickerSnapshot serialization
+- **MarketStatusValue** enum (`enum/market_status_value.py <https://kuhl-haus-mdp.readthedocs.io/en/latest/mdp/kuhl_haus.mdp.enum.html#module-kuhl_haus.mdp.enum.market_status_value>`_) - Market session state constants returned by the Massive.com status API (``OPEN``, ``CLOSED``, ``EXTENDED_HOURS``). Used by ``DailyRangeAnalyzer`` to map API responses to session identifiers.
