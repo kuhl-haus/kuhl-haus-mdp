@@ -146,6 +146,13 @@ Finlight Data Listener (FDL)
 The FDL connects to the Finlight news WebSocket API and routes articles to the
 RabbitMQ ``news`` queue.
 
+The FDL supports two listener implementations selected via
+``FINLIGHT_DATA_LISTENER_CLASS``. ``FinlightSimpleListener`` (default) is a
+lightweight listener with minimal filtering. ``FinlightDataListener`` is a
+fully-featured listener that supports query, ticker, source, and language
+filtering. Some variables below are only relevant to one implementation — see
+the per-row notes.
+
 .. list-table::
    :header-rows: 1
    :widths: 30 15 55
@@ -153,27 +160,44 @@ RabbitMQ ``news`` queue.
    * - Variable
      - Default
      - Description
+   * - ``FINLIGHT_DATA_LISTENER_CLASS``
+     - ``FinlightSimpleListener``
+     - Listener implementation to use. Valid values: ``FinlightSimpleListener``,
+       ``FinlightDataListener``. ``FinlightSimpleListener`` is a lightweight
+       listener; ``FinlightDataListener`` supports full query/ticker/source/language
+       filtering.
    * - ``FINLIGHT_API_KEY``
      - *(required)*
      - Finlight API key for WebSocket authentication
    * - ``FINLIGHT_QUERY``
      - *(none)*
-     - Full-text query filter for incoming articles (e.g. ``"earnings catalyst"``)
-   * - ``FINLIGHT_LANGUAGE``
+     - Full-text query filter for incoming articles (e.g. ``"earnings catalyst"``). Only
+       used by ``FinlightDataListener``.
+   * - ``FINLIGHT_TICKERS``
      - *(none)*
-     - ISO 639-1 language code to filter (e.g. ``en``)
+     - JSON array of ticker symbols to filter (e.g. ``["AAPL", "MSFT"]``). Only used
+       by ``FinlightDataListener``.
+   * - ``FINLIGHT_SOURCES``
+     - *(none)*
+     - JSON array of news source names to filter. Only used by ``FinlightDataListener``.
+   * - ``FINLIGHT_LANGUAGE``
+     - ``en``
+     - ISO 639-1 language code to filter (e.g. ``en``). Only used by
+       ``FinlightDataListener``.
    * - ``FINLIGHT_RAW``
      - ``false``
-     - Subscribe to raw (unprocessed) article feed instead of enriched feed
-   * - ``FINLIGHT_INCLUDE_ENTITIES``
-     - ``true``
-     - Include entity tagging (tickers, people, orgs) in enriched article payloads
+     - Subscribe to raw (unprocessed) article feed instead of enriched feed. Only
+       used by ``FinlightSimpleListener``.
+   * - ``FINLIGHT_MAX_RECONNECTS``
+     - ``5``
+     - Maximum WebSocket reconnection attempts before giving up. Only used by
+       ``FinlightDataListener``.
    * - ``RABBITMQ_URL``
      - ``amqp://mdq:mdq@localhost:5672/``
      - RabbitMQ connection URL (AMQP)
    * - ``MARKET_DATA_MESSAGE_TTL``
-     - ``5000``
-     - RabbitMQ message TTL in milliseconds
+     - ``900000``
+     - RabbitMQ message TTL in milliseconds (15 minutes)
    * - ``MDQ_PUBLISHER_CONFIRMS``
      - ``true``
      - Enable RabbitMQ publisher confirms (``true`` / ``false``)
